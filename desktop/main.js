@@ -7,8 +7,17 @@ const { spawn } = require('node:child_process');
 let mainWindow;
 let localServer;
 let obsSyncTimer;
-let obsSyncInProgress = false;
 let lastObsResult = { ok: false, idle: true };
+let obsQueue = Promise.resolve();
+let sceneCollectionChanging = false;
+
+function enqueueObs(task) {
+  if (sceneCollectionChanging) {
+    return Promise.resolve({ ok: false, paused: true, error: 'Scene collection is changing' });
+  }
+  obsQueue = obsQueue.then(task, task);
+  return obsQueue;
+}
 
 function obsWebSocketConfigPath() {
   if (process.platform === 'linux') {
@@ -96,19 +105,44 @@ function obsTargetFile() {
   return path.join(app.getPath('userData'), 'obs-target.json');
 }
 
-function readObsTarget() {
+function readObsTargetState() {
   try {
-    return JSON.parse(fs.readFileSync(obsTargetFile(), 'utf8')).sceneName || '';
+    const raw = JSON.parse(fs.readFileSync(obsTargetFile(), 'utf8'));
+    let targetScenes = [];
+    if (Array.isArray(raw.targetScenes)) {
+      targetScenes = raw.targetScenes.filter(item => item && (item.sceneUuid || item.sceneName));
+    } else if (raw.sceneName) {
+      targetScenes = [{ sceneName: raw.sceneName, sceneUuid: '' }];
+    }
+    return {
+      sceneCollectionName: typeof raw.sceneCollectionName === 'string' ? raw.sceneCollectionName : '',
+      targetScenes,
+      inputUuid: typeof raw.inputUuid === 'string' ? raw.inputUuid : '',
+    };
   } catch {
-    return '';
+    return {
+      sceneCollectionName: '',
+      targetScenes: [],
+      inputUuid: '',
+    };
   }
 }
 
-function writeObsTarget(sceneName) {
-  fs.writeFileSync(obsTargetFile(), `${JSON.stringify({ sceneName }, null, 2)}\n`, { mode: 0o600 });
+function writeObsTargetState(state) {
+  fs.mkdirSync(path.dirname(obsTargetFile()), { recursive: true });
+  fs.writeFileSync(obsTargetFile(), `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
 }
 
-async function connectObsClient(password = '') {
+function isOurOverlayUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.hostname === '127.0.0.1' && parsed.port === '17369' && parsed.pathname === '/overlay/';
+  } catch {
+    return false;
+  }
+}
+
+async function createObsClient(password = '') {
   const { OBSWebSocket } = require('obs-websocket-js');
   const obs = new OBSWebSocket();
   const localConfig = readObsWebSocketConfig();
@@ -119,128 +153,381 @@ async function connectObsClient(password = '') {
   }
   const port = Number(localConfig?.config?.server_port || 4455);
   const localPassword = localConfig?.config?.auth_required ? localConfig.config.server_password : '';
+
+  obs.on('CurrentSceneCollectionChanging', () => {
+    sceneCollectionChanging = true;
+  });
+  obs.on('CurrentSceneCollectionChanged', () => {
+    sceneCollectionChanging = false;
+  });
+
   await obs.connect(`ws://127.0.0.1:${port}`, String(password || localPassword || ''));
   return { obs, restartRequired: false };
 }
 
-async function listObsScenes(password = '') {
-  let obs;
-  try {
-    const connection = await connectObsClient(password);
-    obs = connection.obs;
-    if (connection.restartRequired) return { ok: false, restartRequired: true, scenes: [] };
-    const result = await obs.call('GetSceneList');
-    const scenes = result.scenes
-      .map(scene => scene.sceneName)
-      .filter(sceneName => sceneName !== 'Boosty Chat Overlay');
-    const storedTarget = readObsTarget();
-    return {
-      ok: true,
-      scenes,
-      selectedScene: scenes.includes(storedTarget) ? storedTarget : '',
-    };
-  } catch (error) {
-    return { ok: false, scenes: [], error: error?.message || String(error) };
-  } finally {
-    await obs?.disconnect().catch(() => {});
+async function findOurBrowserInput(obs, savedInputUuid) {
+  const inputList = await obs.call('GetInputList', { inputKind: 'browser_source' }).catch(() => ({ inputs: [] }));
+  const inputs = inputList.inputs || [];
+
+  // 1. Try saved inputUuid hint
+  if (savedInputUuid) {
+    const candidate = inputs.find(item => item.inputUuid === savedInputUuid);
+    if (candidate) {
+      const settings = await obs.call('GetInputSettings', { inputUuid: candidate.inputUuid }).catch(() => null);
+      if (settings?.inputSettings?.url && isOurOverlayUrl(settings.inputSettings.url)) {
+        return candidate;
+      }
+    }
   }
+
+  // 2. Search for browser source named 'Boosty Chat'
+  for (const item of inputs) {
+    if (item.inputName === 'Boosty Chat') {
+      const settings = await obs.call('GetInputSettings', { inputUuid: item.inputUuid }).catch(() => null);
+      if (settings?.inputSettings?.url && isOurOverlayUrl(settings.inputSettings.url)) {
+        return item;
+      }
+    }
+  }
+
+  // 3. Search for any browser source matching our URL
+  for (const item of inputs) {
+    const settings = await obs.call('GetInputSettings', { inputUuid: item.inputUuid }).catch(() => null);
+    if (settings?.inputSettings?.url && isOurOverlayUrl(settings.inputSettings.url)) {
+      return item;
+    }
+  }
+
+  return null;
 }
 
-async function ensureObsOverlay(password = '', requestedSceneName = '') {
-  if (obsSyncInProgress) return lastObsResult;
-  obsSyncInProgress = true;
-  let obs;
+async function migrateLegacyProxyScene(obs, targetScenes = []) {
   try {
-    const connection = await connectObsClient(password);
-    obs = connection.obs;
-    if (connection.restartRequired) {
-      lastObsResult = { ok: false, restartRequired: true };
-      return lastObsResult;
-    }
-    const scenes = await obs.call('GetSceneList');
-    const overlaySceneName = 'Boosty Chat Overlay';
-    const storedTarget = readObsTarget();
-    const targetSceneName = requestedSceneName || storedTarget;
-    if (!targetSceneName) {
-      lastObsResult = { ok: false, needsSceneSelection: true };
-      return lastObsResult;
-    }
-    if (targetSceneName === overlaySceneName || !scenes.scenes.some(scene => scene.sceneName === targetSceneName)) {
-      lastObsResult = { ok: false, needsSceneSelection: true, error: 'Выбранная сцена больше не существует' };
-      return lastObsResult;
-    }
-    writeObsTarget(targetSceneName);
+    const legacySceneName = 'Boosty Chat Overlay';
+    const sceneList = await obs.call('GetSceneList');
+    const legacyScene = (sceneList.scenes || []).find(s => s.sceneName === legacySceneName);
+    if (!legacyScene) return;
 
-    if (!scenes.scenes.some(scene => scene.sceneName === overlaySceneName)) {
-      await obs.call('CreateScene', { sceneName: overlaySceneName });
+    for (const target of targetScenes) {
+      try {
+        const query = target.sceneUuid ? { sceneUuid: target.sceneUuid } : { sceneName: target.sceneName };
+        const items = await obs.call('GetSceneItemList', query);
+        for (const item of (items.sceneItems || []).filter(i => i.sourceName === legacySceneName)) {
+          await obs.call('RemoveSceneItem', {
+            sceneUuid: target.sceneUuid,
+            sceneItemId: item.sceneItemId,
+          });
+        }
+      } catch {}
     }
 
-    const inputName = 'Boosty Chat';
-    const inputSettings = {
-      url: `http://127.0.0.1:17369/overlay/?v=${app.getVersion()}`,
-      width: 900,
-      height: 700,
-      shutdown: false,
-      restart_when_active: false,
-    };
-    const inputs = await obs.call('GetInputList');
-    const existing = inputs.inputs.find(input => input.inputName === inputName);
-    if (existing) {
-      await obs.call('SetInputSettings', { inputName, inputSettings, overlay: true });
-      const overlayItems = await obs.call('GetSceneItemList', { sceneName: overlaySceneName });
-      if (!overlayItems.sceneItems.some(item => item.sourceName === inputName)) {
-        await obs.call('CreateSceneItem', { sceneName: overlaySceneName, sourceName: inputName, sceneItemEnabled: true });
+    const legacyItems = await obs.call('GetSceneItemList', { sceneUuid: legacyScene.sceneUuid }).catch(() => ({ sceneItems: [] }));
+    const foreignItems = (legacyItems.sceneItems || []).filter(i => i.sourceName !== 'Boosty Chat');
+    if (foreignItems.length === 0) {
+      await obs.call('RemoveScene', { sceneUuid: legacyScene.sceneUuid }).catch(() => {});
+    }
+  } catch {}
+}
+
+async function listObsScenes(password = '') {
+  return enqueueObs(async () => {
+    let obs;
+    try {
+      const connection = await createObsClient(password);
+      obs = connection.obs;
+      if (connection.restartRequired) return { ok: false, restartRequired: true, scenes: [] };
+
+      const [sceneListData, collectionListData] = await Promise.all([
+        obs.call('GetSceneList'),
+        obs.call('GetSceneCollectionList').catch(() => ({ currentSceneCollectionName: '' })),
+      ]);
+
+      const currentCollection = collectionListData.currentSceneCollectionName || '';
+      const state = readObsTargetState();
+
+      const ourInput = await findOurBrowserInput(obs, state.inputUuid);
+      const inputUuid = ourInput ? ourInput.inputUuid : '';
+      if (inputUuid && inputUuid !== state.inputUuid) {
+        state.inputUuid = inputUuid;
+        writeObsTargetState(state);
       }
-    } else {
-      await obs.call('CreateInput', {
-        sceneName: overlaySceneName,
-        inputName,
-        inputKind: 'browser_source',
-        inputSettings,
-        sceneItemEnabled: true,
-      });
+
+      const rawScenes = sceneListData.scenes || [];
+      const userScenes = rawScenes.filter(s => s.sceneName !== 'Boosty Chat Overlay');
+
+      const scenesWithStatus = await Promise.all(userScenes.map(async s => {
+        let hasChat = false;
+        try {
+          const items = await obs.call('GetSceneItemList', { sceneUuid: s.sceneUuid });
+          hasChat = (items.sceneItems || []).some(item =>
+            (inputUuid && item.sourceUuid === inputUuid) || item.sourceName === 'Boosty Chat'
+          );
+        } catch {}
+
+        const isTargeted = state.targetScenes.some(t =>
+          (t.sceneUuid && t.sceneUuid === s.sceneUuid) ||
+          (t.sceneName && t.sceneName === s.sceneName)
+        );
+
+        return {
+          sceneUuid: s.sceneUuid,
+          sceneName: s.sceneName,
+          hasChat,
+          isTargeted,
+        };
+      }));
+
+      let updatedTargets = false;
+      for (const target of state.targetScenes) {
+        const found = userScenes.find(s => s.sceneUuid === target.sceneUuid);
+        if (found && found.sceneName !== target.sceneName) {
+          target.sceneName = found.sceneName;
+          updatedTargets = true;
+        }
+      }
+      if (updatedTargets) writeObsTargetState(state);
+
+      return {
+        ok: true,
+        currentCollection,
+        configuredCollection: state.sceneCollectionName,
+        collectionMismatch: Boolean(state.sceneCollectionName && currentCollection && state.sceneCollectionName !== currentCollection),
+        scenes: scenesWithStatus,
+        targetScenes: state.targetScenes,
+      };
+    } catch (error) {
+      return { ok: false, scenes: [], error: error?.message || String(error) };
+    } finally {
+      await obs?.disconnect().catch(() => {});
+    }
+  });
+}
+
+async function addSceneTarget(password = '', sceneIdentifier = '') {
+  return enqueueObs(async () => {
+    let obs;
+    try {
+      const connection = await createObsClient(password);
+      obs = connection.obs;
+      if (connection.restartRequired) return { ok: false, restartRequired: true };
+
+      const [sceneListData, collectionListData] = await Promise.all([
+        obs.call('GetSceneList'),
+        obs.call('GetSceneCollectionList').catch(() => ({ currentSceneCollectionName: '' })),
+      ]);
+
+      const currentCollection = collectionListData.currentSceneCollectionName || '';
+      const rawScenes = sceneListData.scenes || [];
+      const targetScene = rawScenes.find(s => s.sceneUuid === sceneIdentifier || s.sceneName === sceneIdentifier);
+      if (!targetScene) {
+        return { ok: false, error: 'Выбранная сцена не найдена в OBS' };
+      }
+
+      const state = readObsTargetState();
+      state.sceneCollectionName = currentCollection;
+
+      if (!state.targetScenes.some(t => t.sceneUuid === targetScene.sceneUuid)) {
+        state.targetScenes.push({
+          sceneUuid: targetScene.sceneUuid,
+          sceneName: targetScene.sceneName,
+        });
+        writeObsTargetState(state);
+      }
+
+      let ourInput = await findOurBrowserInput(obs, state.inputUuid);
+      const inputSettings = {
+        url: `http://127.0.0.1:17369/overlay/?v=${app.getVersion()}`,
+        width: 900,
+        height: 700,
+        shutdown: false,
+        restart_when_active: false,
+      };
+
+      if (!ourInput) {
+        const created = await obs.call('CreateInput', {
+          sceneUuid: targetScene.sceneUuid,
+          inputName: 'Boosty Chat',
+          inputKind: 'browser_source',
+          inputSettings,
+          sceneItemEnabled: true,
+        });
+        state.inputUuid = created.inputUuid || '';
+        writeObsTargetState(state);
+      } else {
+        state.inputUuid = ourInput.inputUuid;
+        writeObsTargetState(state);
+
+        await obs.call('SetInputSettings', {
+          inputUuid: ourInput.inputUuid,
+          inputSettings,
+          overlay: true,
+        }).catch(() => {});
+
+        const items = await obs.call('GetSceneItemList', { sceneUuid: targetScene.sceneUuid });
+        const exists = (items.sceneItems || []).some(item =>
+          item.sourceUuid === ourInput.inputUuid || item.sourceName === ourInput.inputName
+        );
+        if (!exists) {
+          await obs.call('CreateSceneItem', {
+            sceneUuid: targetScene.sceneUuid,
+            sourceUuid: ourInput.inputUuid,
+            sceneItemEnabled: true,
+          });
+        }
+      }
+
+      await migrateLegacyProxyScene(obs, state.targetScenes);
+
+      lastObsResult = {
+        ok: true,
+        addedScene: targetScene.sceneName,
+        targetScenes: state.targetScenes,
+      };
+      return lastObsResult;
+    } catch (error) {
+      lastObsResult = { ok: false, error: error?.message || String(error) };
+      return lastObsResult;
+    } finally {
+      await obs?.disconnect().catch(() => {});
+    }
+  });
+}
+
+async function removeSceneTarget(password = '', sceneIdentifier = '') {
+  return enqueueObs(async () => {
+    const state = readObsTargetState();
+    state.targetScenes = state.targetScenes.filter(t =>
+      t.sceneUuid !== sceneIdentifier && t.sceneName !== sceneIdentifier
+    );
+    writeObsTargetState(state);
+
+    let obs;
+    try {
+      const connection = await createObsClient(password);
+      obs = connection.obs;
+      if (connection.restartRequired) return { ok: false, restartRequired: true };
+
+      const sceneListData = await obs.call('GetSceneList');
+      const rawScenes = sceneListData.scenes || [];
+      const targetScene = rawScenes.find(s => s.sceneUuid === sceneIdentifier || s.sceneName === sceneIdentifier);
+      if (!targetScene) {
+        return { ok: true, removedScene: sceneIdentifier, targetScenes: state.targetScenes };
+      }
+
+      const ourInput = await findOurBrowserInput(obs, state.inputUuid);
+      const items = await obs.call('GetSceneItemList', { sceneUuid: targetScene.sceneUuid });
+      for (const item of (items.sceneItems || [])) {
+        if ((ourInput && item.sourceUuid === ourInput.inputUuid) || item.sourceName === 'Boosty Chat' || item.sourceName === 'Boosty Chat Overlay') {
+          await obs.call('RemoveSceneItem', {
+            sceneUuid: targetScene.sceneUuid,
+            sceneItemId: item.sceneItemId,
+          });
+        }
+      }
+
+      lastObsResult = {
+        ok: true,
+        removedScene: targetScene.sceneName,
+        targetScenes: state.targetScenes,
+      };
+      return lastObsResult;
+    } catch (error) {
+      lastObsResult = { ok: false, error: error?.message || String(error) };
+      return lastObsResult;
+    } finally {
+      await obs?.disconnect().catch(() => {});
+    }
+  });
+}
+
+async function syncObsTargets(password = '') {
+  if (sceneCollectionChanging) return lastObsResult;
+  return enqueueObs(async () => {
+    const state = readObsTargetState();
+    if (!state.targetScenes || state.targetScenes.length === 0) {
+      lastObsResult = { ok: true, idle: true, targetScenes: [] };
+      return lastObsResult;
     }
 
-    const targetItems = await obs.call('GetSceneItemList', { sceneName: targetSceneName });
-    if (!targetItems.sceneItems.some(item => item.sourceName === overlaySceneName)) {
-      await obs.call('CreateSceneItem', {
-        sceneName: targetSceneName,
-        sourceName: overlaySceneName,
-        sceneItemEnabled: true,
-      });
-    }
-    for (const item of targetItems.sceneItems.filter(item => item.sourceName === inputName)) {
-      await obs.call('RemoveSceneItem', { sceneName: targetSceneName, sceneItemId: item.sceneItemId });
-    }
-    for (const scene of scenes.scenes) {
-      if (scene.sceneName === targetSceneName || scene.sceneName === overlaySceneName) continue;
-      const items = await obs.call('GetSceneItemList', { sceneName: scene.sceneName });
-      for (const item of items.sceneItems.filter(item =>
-        item.sourceName === overlaySceneName || item.sourceName === inputName)) {
-        await obs.call('RemoveSceneItem', { sceneName: scene.sceneName, sceneItemId: item.sceneItemId });
+    let obs;
+    try {
+      const connection = await createObsClient(password);
+      obs = connection.obs;
+      if (connection.restartRequired) {
+        lastObsResult = { ok: false, restartRequired: true };
+        return lastObsResult;
       }
+
+      const [sceneListData, collectionListData] = await Promise.all([
+        obs.call('GetSceneList'),
+        obs.call('GetSceneCollectionList').catch(() => ({ currentSceneCollectionName: '' })),
+      ]);
+
+      const currentCollection = collectionListData.currentSceneCollectionName || '';
+      if (state.sceneCollectionName && currentCollection && state.sceneCollectionName !== currentCollection) {
+        lastObsResult = {
+          ok: false,
+          collectionMismatch: true,
+          currentCollection,
+          configuredCollection: state.sceneCollectionName,
+        };
+        return lastObsResult;
+      }
+
+      const rawScenes = sceneListData.scenes || [];
+      const ourInput = await findOurBrowserInput(obs, state.inputUuid);
+      if (ourInput && ourInput.inputUuid !== state.inputUuid) {
+        state.inputUuid = ourInput.inputUuid;
+        writeObsTargetState(state);
+      }
+
+      for (const target of state.targetScenes) {
+        const actualScene = rawScenes.find(s =>
+          (target.sceneUuid && s.sceneUuid === target.sceneUuid) ||
+          (target.sceneName && s.sceneName === target.sceneName)
+        );
+        if (!actualScene) continue;
+
+        if (actualScene.sceneName !== target.sceneName) {
+          target.sceneName = actualScene.sceneName;
+          writeObsTargetState(state);
+        }
+
+        if (ourInput) {
+          const items = await obs.call('GetSceneItemList', { sceneUuid: actualScene.sceneUuid });
+          const hasItem = (items.sceneItems || []).some(item =>
+            item.sourceUuid === ourInput.inputUuid || item.sourceName === ourInput.inputName
+          );
+          if (!hasItem) {
+            await obs.call('CreateSceneItem', {
+              sceneUuid: actualScene.sceneUuid,
+              sourceUuid: ourInput.inputUuid,
+              sceneItemEnabled: true,
+            });
+          }
+        }
+      }
+
+      await migrateLegacyProxyScene(obs, state.targetScenes);
+
+      lastObsResult = {
+        ok: true,
+        targetScenes: state.targetScenes,
+      };
+      return lastObsResult;
+    } catch (error) {
+      lastObsResult = { ok: false, unavailable: true, error: error?.message || String(error) };
+      return lastObsResult;
+    } finally {
+      await obs?.disconnect().catch(() => {});
     }
-    lastObsResult = {
-      ok: true,
-      sceneName: overlaySceneName,
-      addedToScene: targetSceneName,
-      existed: Boolean(existing),
-      automatic: !requestedSceneName,
-    };
-    return lastObsResult;
-  } catch (error) {
-    lastObsResult = { ok: false, unavailable: true, error: error?.message || String(error) };
-    return lastObsResult;
-  } finally {
-    obsSyncInProgress = false;
-    await obs?.disconnect().catch(() => {});
-  }
+  });
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 940,
-    height: 680,
+    height: 700,
     minWidth: 760,
     minHeight: 560,
     backgroundColor: '#111116',
@@ -260,8 +547,8 @@ app.whenReady().then(() => {
   process.env.BOOSTY_OVERLAY_CONFIG = path.join(app.getPath('userData'), 'overlay-settings.json');
   localServer = require('../server.js').server;
   createWindow();
-  setTimeout(() => ensureObsOverlay(), 1500);
-  obsSyncTimer = setInterval(() => ensureObsOverlay(), 10_000);
+  setTimeout(() => syncObsTargets(), 1500);
+  obsSyncTimer = setInterval(() => syncObsTargets(), 10_000);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -293,5 +580,7 @@ ipcMain.handle('copy-overlay-url', () => {
 ipcMain.handle('list-browsers', () => installedBrowsers().map(({ id, name }) => ({ id, name })));
 ipcMain.handle('prepare-browser-extension', (_event, browserId) => prepareBrowserExtension(browserId));
 ipcMain.handle('list-obs-scenes', (_event, password) => listObsScenes(password));
-ipcMain.handle('connect-obs', (_event, password, sceneName) => ensureObsOverlay(password, sceneName));
+ipcMain.handle('add-obs-scene', (_event, password, sceneIdentifier) => addSceneTarget(password, sceneIdentifier));
+ipcMain.handle('remove-obs-scene', (_event, password, sceneIdentifier) => removeSceneTarget(password, sceneIdentifier));
 ipcMain.handle('get-obs-status', () => lastObsResult);
+

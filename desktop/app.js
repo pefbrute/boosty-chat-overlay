@@ -43,50 +43,96 @@ async function renderBrowsers() {
     container.append(button);
   }
 }
+
 document.querySelector('#boosty').addEventListener('click', () => open('https://boosty.to/'));
 document.querySelector('#overlay').addEventListener('click', () => open('http://127.0.0.1:17369/overlay/'));
+
 async function loadObsScenes() {
   const select = document.querySelector('#obs-scene');
+  const targetsHint = document.querySelector('#obs-targets-hint');
   const previousChoice = select.value;
-  const result = await window.boostyOverlay.listObsScenes(document.querySelector('#obs-password').value);
+  const password = document.querySelector('#obs-password').value;
+  const result = await window.boostyOverlay.listObsScenes(password);
+
   if (!result.ok) {
-    if (!select.options.length || !select.value) select.innerHTML = '<option value="">OBS не найден</option>';
+    if (!select.options.length || !select.value) select.innerHTML = '<option value="">OBS не найден или WebSocket выключен</option>';
+    if (result.restartRequired) {
+      document.querySelector('#obs-result').textContent = 'WebSocket включён в конфиге. Перезапусти OBS один раз.';
+    }
     return;
   }
-  const choice = result.scenes.includes(previousChoice) ? previousChoice : result.selectedScene;
+
+  if (result.collectionMismatch) {
+    targetsHint.textContent = `Коллекция: «${result.currentCollection}» (чат был настроен для «${result.configuredCollection}»).`;
+  } else if (result.targetScenes && result.targetScenes.length > 0) {
+    const names = result.targetScenes.map(t => t.sceneName).join(', ');
+    targetsHint.textContent = `Чат подключён в сценах: ${names}.`;
+  } else {
+    targetsHint.textContent = 'Чат пока не добавлен ни в одну сцену.';
+  }
+
   select.innerHTML = '<option value="">Выбери сцену OBS…</option>';
-  for (const sceneName of result.scenes) {
+  for (const scene of result.scenes) {
     const option = document.createElement('option');
-    option.value = sceneName;
-    option.textContent = sceneName;
-    option.selected = sceneName === choice;
+    option.value = scene.sceneUuid;
+    option.textContent = scene.isTargeted ? `${scene.sceneName} ✓` : scene.sceneName;
+    if (scene.sceneUuid === previousChoice) option.selected = true;
     select.append(option);
   }
 }
 
-document.querySelector('#connect-obs').addEventListener('click', async event => {
+document.querySelector('#add-obs-scene').addEventListener('click', async event => {
   const resultNode = document.querySelector('#obs-result');
-  const sceneName = document.querySelector('#obs-scene').value;
-  if (!sceneName) {
-    resultNode.textContent = 'Сначала выбери сцену, в которую нужно добавить чат.';
+  const select = document.querySelector('#obs-scene');
+  const sceneIdentifier = select.value;
+  if (!sceneIdentifier) {
+    resultNode.textContent = 'Сначала выбери сцену в списке.';
     await loadObsScenes();
     return;
   }
+  const password = document.querySelector('#obs-password').value;
   event.currentTarget.disabled = true;
-  event.currentTarget.textContent = 'Подключаем…';
+  event.currentTarget.textContent = 'Добавляем…';
   resultNode.textContent = '';
-  const result = await window.boostyOverlay.connectObs(document.querySelector('#obs-password').value, sceneName);
+
+  const result = await window.boostyOverlay.addObsScene(password, sceneIdentifier);
   if (result.ok) {
-    resultNode.textContent = `Готово: создана сцена «${result.sceneName}» и добавлена в «${result.addedToScene}».`;
+    resultNode.textContent = `Готово: источник «Boosty Chat» добавлен в сцену «${result.addedScene}».`;
     document.querySelector('#overlay-status').textContent = 'OBS подключён';
     document.querySelector('#overlay-status').classList.add('connected');
+    await loadObsScenes();
   } else if (result.restartRequired) {
-    resultNode.textContent = 'WebSocket включён. Один раз перезапусти OBS и нажми «Подключить OBS» снова.';
+    resultNode.textContent = 'WebSocket включён. Перезапусти OBS и нажми кнопку снова.';
   } else {
-    resultNode.textContent = `Не удалось подключиться: ${result.error}. Проверь, что OBS запущен и WebSocket включён.`;
+    resultNode.textContent = `Ошибка: ${result.error || 'Не удалось подключиться к OBS'}`;
   }
   event.currentTarget.disabled = false;
   event.currentTarget.textContent = 'Добавить в сцену';
+});
+
+document.querySelector('#remove-obs-scene').addEventListener('click', async event => {
+  const resultNode = document.querySelector('#obs-result');
+  const select = document.querySelector('#obs-scene');
+  const sceneIdentifier = select.value;
+  if (!sceneIdentifier) {
+    resultNode.textContent = 'Сначала выбери сцену в списке.';
+    await loadObsScenes();
+    return;
+  }
+  const password = document.querySelector('#obs-password').value;
+  event.currentTarget.disabled = true;
+  event.currentTarget.textContent = 'Удаляем…';
+  resultNode.textContent = '';
+
+  const result = await window.boostyOverlay.removeObsScene(password, sceneIdentifier);
+  if (result.ok) {
+    resultNode.textContent = `Чат убран из сцены «${result.removedScene}».`;
+    await loadObsScenes();
+  } else {
+    resultNode.textContent = `Ошибка: ${result.error || 'Не удалось удалить источник'}`;
+  }
+  event.currentTarget.disabled = false;
+  event.currentTarget.textContent = 'Убрать из сцены';
 });
 
 async function refreshStatus() {
@@ -95,7 +141,7 @@ async function refreshStatus() {
     const state = await response.json();
     document.querySelector('#message-count').textContent = `Получено сообщений: ${state.receivedMessages}`;
     const badge = document.querySelector('#overlay-status');
-    if (state.overlayClients) {
+    if (state.overlayClients > 0) {
       badge.textContent = 'Оверлей подключён';
       badge.classList.add('connected');
     }
@@ -107,34 +153,50 @@ async function refreshStatus() {
     boosty.textContent = state.connectorConnected ? 'Boosty открыт' : 'Открой страницу чата';
     boosty.classList.toggle('connected', state.connectorConnected);
     boosty.classList.toggle('pending', !state.connectorConnected);
+
     const obsState = await window.boostyOverlay.getObsStatus();
-    if (obsState.ok) {
-      const badge = document.querySelector('#overlay-status');
+    if (obsState?.ok && obsState.targetScenes?.length > 0) {
       badge.textContent = 'OBS подключён';
       badge.classList.add('connected');
-      if (!document.querySelector('#obs-result').textContent) {
-        document.querySelector('#obs-result').textContent = `Сцена «${obsState.sceneName}» подключена к «${obsState.addedToScene}».`;
-      }
     }
   } catch {
     document.querySelector('.status').textContent = 'Ошибка локального сервера';
   }
 }
 
+const alwaysShowCheckbox = document.querySelector('#always-show');
+const durationContainer = document.querySelector('#duration-container');
+const durationInput = document.querySelector('#duration');
+
 const settingInputs = {
-  durationSeconds: document.querySelector('#duration'),
   maxMessages: document.querySelector('#max-messages'),
   fontSize: document.querySelector('#font-size'),
   backgroundOpacity: document.querySelector('#opacity'),
   accentColor: document.querySelector('#accent'),
   showAvatars: document.querySelector('#avatars'),
 };
+let lastNonZeroDuration = 20;
 let saveTimer;
 
 async function loadSettings() {
-  const config = await fetch('http://127.0.0.1:17369/config').then(response => response.json());
+  const config = await fetch('http://127.0.0.1:17369/config').then(response => response.json()).catch(() => ({}));
+  if (config.durationSeconds === 0) {
+    alwaysShowCheckbox.checked = true;
+    durationContainer.classList.add('disabled');
+    durationInput.value = lastNonZeroDuration;
+  } else {
+    alwaysShowCheckbox.checked = false;
+    durationContainer.classList.remove('disabled');
+    lastNonZeroDuration = config.durationSeconds ?? 20;
+    durationInput.value = lastNonZeroDuration;
+  }
+
   for (const [name, input] of Object.entries(settingInputs)) {
-    input.type === 'checkbox' ? input.checked = config[name] : input.value = config[name];
+    if (input.type === 'checkbox') {
+      input.checked = config[name] ?? true;
+    } else {
+      input.value = config[name] ?? input.value;
+    }
   }
 }
 
@@ -143,6 +205,10 @@ async function saveSettings() {
   for (const [name, input] of Object.entries(settingInputs)) {
     config[name] = input.type === 'checkbox' ? input.checked : input.value;
   }
+  config.durationSeconds = alwaysShowCheckbox.checked
+    ? 0
+    : Math.max(1, Number(durationInput.value) || lastNonZeroDuration);
+
   const response = await fetch('http://127.0.0.1:17369/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -150,6 +216,24 @@ async function saveSettings() {
   });
   document.querySelector('#settings-result').textContent = response.ok ? 'Настройки сохранены' : 'Не удалось сохранить настройки';
 }
+
+alwaysShowCheckbox.addEventListener('change', () => {
+  if (alwaysShowCheckbox.checked) {
+    durationContainer.classList.add('disabled');
+  } else {
+    durationContainer.classList.remove('disabled');
+    if (!Number(durationInput.value)) durationInput.value = lastNonZeroDuration;
+  }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveSettings, 100);
+});
+
+durationInput.addEventListener('input', () => {
+  const parsed = Number(durationInput.value);
+  if (parsed > 0) lastNonZeroDuration = parsed;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveSettings, 250);
+});
 
 Object.values(settingInputs).forEach(input => input.addEventListener('input', () => {
   clearTimeout(saveTimer);
@@ -166,3 +250,4 @@ renderBrowsers();
 loadSettings();
 loadObsScenes();
 setInterval(loadObsScenes, 10_000);
+

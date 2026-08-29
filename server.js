@@ -52,16 +52,16 @@ function normalizedConfig(input) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
   };
-  const accentColor = /^#[0-9a-f]{6}$/i.test(input.accentColor || '')
+  const accentColor = /^#[0-9a-f]{6}$/i.test(input?.accentColor ?? '')
     ? input.accentColor
     : overlayConfig.accentColor;
   return {
-    durationSeconds: number(input.durationSeconds, 3, 120, overlayConfig.durationSeconds),
-    maxMessages: Math.round(number(input.maxMessages, 1, 20, overlayConfig.maxMessages)),
-    fontSize: Math.round(number(input.fontSize, 12, 48, overlayConfig.fontSize)),
+    durationSeconds: Math.round(number(input?.durationSeconds, 0, 120, overlayConfig.durationSeconds ?? 20)),
+    maxMessages: Math.round(number(input?.maxMessages, 1, 20, overlayConfig.maxMessages ?? 6)),
+    fontSize: Math.round(number(input?.fontSize, 12, 48, overlayConfig.fontSize ?? 21)),
     accentColor,
-    backgroundOpacity: Math.round(number(input.backgroundOpacity, 0, 100, overlayConfig.backgroundOpacity)),
-    showAvatars: input.showAvatars !== false,
+    backgroundOpacity: Math.round(number(input?.backgroundOpacity, 0, 100, overlayConfig.backgroundOpacity ?? 88)),
+    showAvatars: input?.showAvatars !== false,
   };
 }
 

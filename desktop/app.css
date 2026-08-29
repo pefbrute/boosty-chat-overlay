@@ -29,7 +29,11 @@ button { background: #30303a; border: 0; border-radius: 8px; color: white; curso
 button:hover { background: #3b3b47; }
 button.primary { background: #f15f2c; }
 button.primary:hover { background: #ff7040; }
-.actions { display: flex; gap: 8px; }
+button.secondary { background: #25252e; border: 1px solid #3a3a48; color: #ddd; }
+button.secondary:hover { background: #343442; color: white; }
+.settings-grid .full-width { grid-column: 1 / -1; font-weight: 600; color: #f0f0f5; }
+#duration-container.disabled { opacity: 0.35; pointer-events: none; user-select: none; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
 input, select { background: #111116; border: 1px solid #3a3a45; border-radius: 8px; color: white; flex: 1; font: inherit; min-width: 180px; padding: 9px 11px; }
 .result { color: #e9bd75 !important; font-size: 13px; margin: 10px 0 0 !important; min-height: 18px; }
 .hint { color: #777784 !important; font-size: 12px; margin: 8px 0 0 !important; }

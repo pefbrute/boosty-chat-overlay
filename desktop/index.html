@@ -49,16 +49,18 @@
           <div class="number">3</div>
           <div class="content">
             <h3>Подключи OBS</h3>
-            <p id="obs-help">Запусти OBS и выбери сцену для чата. Остальные сцены приложение не изменит.</p>
+            <p id="obs-help">Запусти OBS и выбери сцену. Источник «Boosty Chat» добавится прямо в неё без создания лишних сцен.</p>
             <div class="actions">
               <select id="obs-scene" aria-label="Сцена OBS">
                 <option value="">Сначала запусти OBS…</option>
               </select>
-              <input id="obs-password" type="password" placeholder="Пароль — только если OBS его попросит" autocomplete="off">
-              <button class="primary" id="connect-obs">Добавить в сцену</button>
+              <input id="obs-password" type="password" placeholder="Пароль — если OBS его попросит" autocomplete="off">
+              <button class="primary" id="add-obs-scene">Добавить в сцену</button>
+              <button class="secondary" id="remove-obs-scene">Убрать из сцены</button>
               <button id="overlay">Предпросмотр</button>
             </div>
             <p class="result" id="obs-result"></p>
+            <p class="hint" id="obs-targets-hint"></p>
           </div>
           <div class="badge" id="overlay-status">OBS не подключён</div>
         </article>
@@ -73,7 +75,8 @@
           <button id="test-message">Показать тест</button>
         </div>
         <div class="settings-grid">
-          <label>Исчезновение, сек.<input id="duration" type="number" min="3" max="120"></label>
+          <label class="checkbox full-width"><input id="always-show" type="checkbox"> Всегда показывать последние сообщения</label>
+          <label id="duration-container">Исчезновение, сек.<input id="duration" type="number" min="1" max="120"></label>
           <label>Сообщений на экране<input id="max-messages" type="number" min="1" max="20"></label>
           <label>Размер текста<input id="font-size" type="number" min="12" max="48"></label>
           <label>Прозрачность фона, %<input id="opacity" type="range" min="0" max="100"></label>
