@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   prepareBrowserExtension: browserId => ipcRenderer.invoke('prepare-browser-extension', browserId),
   openExtensionFolder: () => ipcRenderer.invoke('open-extension-folder'),
   openBrowserExtensionsPage: browserId => ipcRenderer.invoke('open-browser-extensions-page', browserId),
+  copyExtensionsUrl: browserId => ipcRenderer.invoke('copy-extensions-url', browserId),
   launchObs: () => ipcRenderer.invoke('launch-obs'),
   hasObsExecutable: () => ipcRenderer.invoke('has-obs-executable'),
   openUrl: (url, browserId) => ipcRenderer.invoke('open-url', url, browserId),

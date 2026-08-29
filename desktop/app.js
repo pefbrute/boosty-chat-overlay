@@ -8,24 +8,54 @@ let latestHealth = null;
 let addedSceneName = '';
 let saveTimer = null;
 let lastNonZeroDuration = 20;
-let startupCheckUntil = Date.now() + 4000; // 4s grace period on startup for background worker
+let checkGraceDeadline = Date.now() + 6000; // 6s grace period on startup for background worker
+let isModalGuideOpen = false;
 
-// --- Extension Installation Flow Module ---
+// --- Russian Time Formatting Helper ---
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return '';
+  const diffSec = Math.max(1, Math.floor((Date.now() - timestamp) / 1000));
+  if (diffSec < 10) return 'только что';
+  if (diffSec < 60) return `${diffSec} сек. назад`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) {
+    const last = diffMin % 10;
+    const last2 = diffMin % 100;
+    let unit = 'минут';
+    if (last === 1 && last2 !== 11) unit = 'минуту';
+    else if ([2, 3, 4].includes(last) && ![12, 13, 14].includes(last2)) unit = 'минуты';
+    return `${diffMin} ${unit} назад`;
+  }
+  const diffHours = Math.floor(diffMin / 60);
+  let unit = 'часов';
+  const last = diffHours % 10;
+  const last2 = diffHours % 100;
+  if (last === 1 && last2 !== 11) unit = 'час';
+  else if ([2, 3, 4].includes(last) && ![12, 13, 14].includes(last2)) unit = 'часа';
+  return `${diffHours} ${unit} назад`;
+}
+
+// --- Extension Installation Flow Module (Abstracted for future Web Store) ---
 const extensionFlow = {
-  mode: 'unpacked', // 'unpacked' | 'store'
+  mode: 'unpacked', // 'unpacked' | 'webstore'
   storeUrls: {
     chrome: 'https://chromewebstore.google.com/',
     brave: 'https://chromewebstore.google.com/',
     edge: 'https://microsoftedge.microsoft.com/addons/',
+    yandex: 'https://chromewebstore.google.com/',
     firefox: 'https://addons.mozilla.org/firefox/',
   },
 
   async startInstall(browserId) {
-    if (this.mode === 'store' && this.storeUrls[browserId]) {
+    if (this.mode === 'webstore' && this.storeUrls[browserId]) {
       await window.boostyOverlay.openUrl(this.storeUrls[browserId], browserId);
-      return { ok: true, mode: 'store' };
+      return { ok: true, mode: 'webstore' };
     }
     return await window.boostyOverlay.prepareBrowserExtension(browserId);
+  },
+
+  async copyUrl(browserId) {
+    return await window.boostyOverlay.copyExtensionsUrl(browserId);
   },
 
   async openFolder() {
@@ -72,42 +102,68 @@ function setWizardStep(step) {
 }
 
 // --- Browser Detection & Rendering ---
+let availableBrowsers = [];
+
 async function renderBrowserSelection() {
   const container = document.querySelector('#ob-browser-options');
   const prompt = document.querySelector('#ob-browser-prompt');
-  const browsers = await window.boostyOverlay.listBrowsers();
+  const modalContainer = document.querySelector('#modal-browser-options');
+  const modalPrompt = document.querySelector('#modal-browser-prompt');
 
-  container.innerHTML = '';
+  availableBrowsers = await window.boostyOverlay.listBrowsers();
 
-  if (!browsers.length) {
-    prompt.textContent = 'Поддерживаемый браузер не найден. Расширение будет настроено для системного браузера.';
+  [container, modalContainer].forEach(c => {
+    if (c) c.innerHTML = '';
+  });
+
+  if (!availableBrowsers.length) {
+    const fallbackText = 'Поддерживаемый браузер не найден. Расширение будет открыто в системном браузере.';
+    if (prompt) prompt.textContent = fallbackText;
+    if (modalPrompt) modalPrompt.textContent = fallbackText;
     selectedBrowser = '';
     return;
   }
 
-  if (!browsers.some(b => b.id === selectedBrowser)) {
-    selectedBrowser = browsers[0].id;
+  if (!availableBrowsers.some(b => b.id === selectedBrowser)) {
+    selectedBrowser = availableBrowsers[0].id;
     localStorage.setItem('selectedBrowser', selectedBrowser);
   }
 
-  if (browsers.length === 1) {
-    prompt.textContent = `Найден браузер ${browsers[0].name}`;
-  } else {
-    prompt.textContent = 'В каком браузере вы открываете Boosty?';
-  }
+  const promptText = availableBrowsers.length === 1
+    ? `Выбран браузер ${availableBrowsers[0].name}`
+    : 'В каком браузере вы открываете Boosty?';
 
-  for (const browser of browsers) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `browser-choice-btn ${browser.id === selectedBrowser ? 'selected' : ''}`;
-    btn.innerHTML = `<span>🌐</span> <span>${browser.name}</span>`;
-    btn.addEventListener('click', () => {
-      selectedBrowser = browser.id;
-      localStorage.setItem('selectedBrowser', selectedBrowser);
-      container.querySelectorAll('.browser-choice-btn').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
-    });
-    container.append(btn);
+  if (prompt) prompt.textContent = promptText;
+  if (modalPrompt) modalPrompt.textContent = promptText;
+
+  [container, modalContainer].forEach(c => {
+    if (!c) return;
+    for (const browser of availableBrowsers) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `browser-choice-btn ${browser.id === selectedBrowser ? 'selected' : ''}`;
+      btn.innerHTML = `<span>🌐</span> <span>${browser.name}</span>`;
+      btn.addEventListener('click', () => {
+        selectedBrowser = browser.id;
+        localStorage.setItem('selectedBrowser', selectedBrowser);
+        document.querySelectorAll('.browser-choice-btn').forEach(b => {
+          b.classList.toggle('selected', b.textContent.includes(browser.name));
+        });
+        updateBrowserActionButtons();
+      });
+      c.append(btn);
+    }
+  });
+
+  updateBrowserActionButtons();
+}
+
+function updateBrowserActionButtons() {
+  const current = availableBrowsers.find(b => b.id === selectedBrowser) || availableBrowsers[0];
+  const name = current ? current.name : 'браузер';
+  const openBrowserBtn = document.querySelector('#ob-open-browser-btn');
+  if (openBrowserBtn) {
+    setDomText(openBrowserBtn, `🌐 Открыть ${name}`);
   }
 }
 
@@ -188,6 +244,7 @@ function renderObsUi(result) {
   const launchContainer = document.querySelector('#ob-obs-launch-container');
   const dashObsPill = document.querySelector('#dash-obs-pill');
   const dashObsText = document.querySelector('#dash-obs-text');
+  const dashObsLaunchBtn = document.querySelector('#dash-obs-launch-btn');
 
   const isConnected = Boolean(result && result.ok && result.connected);
 
@@ -201,6 +258,7 @@ function renderObsUi(result) {
     }
     if (dashObsPill) setDomClass(dashObsPill, 'status-pill pending');
     if (dashObsText) setDomText(dashObsText, 'Не запущен');
+    if (dashObsLaunchBtn) setDomDisplay(dashObsLaunchBtn, 'inline-block');
     if (launchContainer) setDomDisplay(launchContainer, 'flex');
 
     if (lastRenderedConnected !== false) {
@@ -211,12 +269,14 @@ function renderObsUi(result) {
     }
     if (dashTargetsHint) setDomText(dashTargetsHint, '');
     updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
+    updateDashboardContextBanner();
     return;
   }
 
   // Connected to OBS
   latestObsScenes = result.scenes || [];
   if (launchContainer) setDomDisplay(launchContainer, 'none');
+  if (dashObsLaunchBtn) setDomDisplay(dashObsLaunchBtn, 'none');
 
   if (obBadge) setDomClass(obBadge, 'badge connected');
   if (obBadgeText) setDomText(obBadgeText, 'OBS подключён');
@@ -238,7 +298,6 @@ function renderObsUi(result) {
       : 'Чат пока не добавлен ни в одну сцену.');
   }
 
-  // Only rebuild Select elements if scenes list values changed or connection state changed
   const scenesChanged = !areObsScenesEqual(lastRenderedScenes, latestObsScenes) || lastRenderedConnected !== true;
 
   if (scenesChanged) {
@@ -273,6 +332,7 @@ function renderObsUi(result) {
   }
 
   updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
+  updateDashboardContextBanner();
 }
 
 async function loadObsScenes() {
@@ -285,6 +345,115 @@ window.boostyOverlay.onObsStateChanged(state => {
   renderObsUi(state);
 });
 
+// --- Dashboard Context Issue Banner ---
+function updateDashboardContextBanner() {
+  const banner = document.querySelector('#dash-context-banner');
+  const title = document.querySelector('#dash-context-title');
+  const text = document.querySelector('#dash-context-text');
+  const actions = document.querySelector('#dash-context-actions');
+
+  if (!banner || !latestHealth) return;
+
+  const isExtConnected = Boolean(latestHealth.extensionConnected);
+  const isBoostyConnected = Boolean(latestHealth.boostyConnected);
+  const isOutdated = Boolean(latestHealth.isOutdated);
+  const isChecking = !isExtConnected && Date.now() < checkGraceDeadline;
+  const isObsConnected = Boolean(latestObsStatus?.connected);
+
+  if (isChecking) {
+    setDomDisplay(banner, 'none');
+    return;
+  }
+
+  if (!isExtConnected) {
+    setDomDisplay(banner, 'flex');
+    setDomText(title, 'Расширение не обнаружено');
+    setDomText(text, latestHealth.extensionLastSeenAt
+      ? `Расширение было подключено ${formatTimeAgo(latestHealth.extensionLastSeenAt)}. Возможно, браузер закрыт.`
+      : 'Не удаётся связаться с расширением. Возможно, браузер сейчас закрыт или расширение ещё не настроено.');
+
+    actions.innerHTML = '';
+    const current = availableBrowsers.find(b => b.id === selectedBrowser);
+    const browserName = current ? current.name : 'браузер';
+
+    const openBrowserBtn = document.createElement('button');
+    openBrowserBtn.className = 'secondary';
+    openBrowserBtn.textContent = `🌐 Открыть ${browserName}`;
+    openBrowserBtn.addEventListener('click', () => {
+      window.boostyOverlay.openUrl('https://boosty.to/', selectedBrowser);
+    });
+
+    const recheckBtn = document.createElement('button');
+    recheckBtn.className = 'secondary';
+    recheckBtn.textContent = '🔄 Проверить снова';
+    recheckBtn.addEventListener('click', () => {
+      checkGraceDeadline = Date.now() + 6000;
+      refreshStatus();
+    });
+
+    const setupBtn = document.createElement('button');
+    setupBtn.className = 'primary';
+    setupBtn.textContent = '⚙ Настроить';
+    setupBtn.addEventListener('click', () => {
+      openExtensionModal('setup');
+    });
+
+    actions.append(openBrowserBtn, recheckBtn, setupBtn);
+    return;
+  }
+
+  if (isOutdated) {
+    setDomDisplay(banner, 'flex');
+    setDomText(title, 'Доступно обновление расширения');
+    setDomText(text, `Установлена версия v${latestHealth.extensionVersion}, актуальна v${latestHealth.bundledExtensionVersion || latestHealth.appVersion}. Откройте страницу расширений и нажмите кнопку ↻.`);
+
+    actions.innerHTML = '';
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'primary';
+    updateBtn.textContent = '↻ Обновить расширение';
+    updateBtn.addEventListener('click', () => {
+      openExtensionModal('update');
+    });
+    actions.append(updateBtn);
+    return;
+  }
+
+  if (!isBoostyConnected) {
+    setDomDisplay(banner, 'flex');
+    setDomText(title, 'Boosty не открыт');
+    setDomText(text, 'Расширение подключено и ждёт открытия страницы с чатом Boosty.');
+
+    actions.innerHTML = '';
+    const openBoostyBtn = document.createElement('button');
+    openBoostyBtn.className = 'primary';
+    openBoostyBtn.textContent = '🚀 Открыть Boosty';
+    openBoostyBtn.addEventListener('click', () => {
+      window.boostyOverlay.openUrl('https://boosty.to/', selectedBrowser);
+    });
+    actions.append(openBoostyBtn);
+    return;
+  }
+
+  if (!isObsConnected) {
+    setDomDisplay(banner, 'flex');
+    setDomText(title, 'OBS Studio не подключён');
+    setDomText(text, 'Для отображения чата на стриме запустите OBS Studio.');
+
+    actions.innerHTML = '';
+    const launchObsBtn = document.createElement('button');
+    launchObsBtn.className = 'primary';
+    launchObsBtn.textContent = 'Запустить OBS';
+    launchObsBtn.addEventListener('click', () => {
+      window.boostyOverlay.launchObs();
+    });
+    actions.append(launchObsBtn);
+    return;
+  }
+
+  // Everything is fully connected and ready
+  setDomDisplay(banner, 'none');
+}
+
 // --- Health and Heartbeat Status Checker ---
 async function refreshStatus() {
   try {
@@ -294,15 +463,26 @@ async function refreshStatus() {
 
     const isExtActive = Boolean(health.extensionConnected);
     const isBoostyActive = Boolean(health.boostyConnected);
-    const isChecking = !isExtActive && Date.now() < startupCheckUntil;
+    const isOutdated = Boolean(health.isOutdated);
+
+    // CRITICAL: Immediately cancel checking timer if heartbeat arrives
+    if (isExtActive) {
+      checkGraceDeadline = 0;
+    }
+
+    const isChecking = !isExtActive && Date.now() < checkGraceDeadline;
 
     // 1. Onboarding Step 1 Status
     const obExtBadge = document.querySelector('#ob-ext-status-badge');
     const obExtText = document.querySelector('#ob-ext-status-text');
+    const obExtHint = document.querySelector('#ob-ext-hint');
     const obExtSuccess = document.querySelector('#ob-ext-success-msg');
+    const obExtBoostySub = document.querySelector('#ob-ext-boosty-substatus');
     const obExtWarning = document.querySelector('#ob-ext-version-warning');
-    const obExtRetry = document.querySelector('#ob-ext-retry-actions');
+    const obNotDetectedBox = document.querySelector('#ob-not-detected-box');
     const obGuideBox = document.querySelector('#ob-guide-box');
+    const obConnectedActions = document.querySelector('#ob-connected-actions');
+    const obStep1NextBtn = document.querySelector('#ob-step1-next-btn');
 
     if (obExtBadge) {
       if (isExtActive) {
@@ -311,34 +491,47 @@ async function refreshStatus() {
           ? `Расширение подключено (v${health.extensionVersion})`
           : 'Расширение подключено');
 
-        if (health.isOutdated) {
+        if (isOutdated) {
           setDomDisplay(obExtWarning, 'flex');
           setDomText(document.querySelector('#ob-ext-current-ver'), `v${health.extensionVersion}`);
-          setDomText(document.querySelector('#ob-ext-latest-ver'), `v${health.appVersion}`);
+          setDomText(document.querySelector('#ob-ext-latest-ver'), `v${health.bundledExtensionVersion || health.appVersion}`);
+          setDomText(obExtHint, 'Доступно обновление расширения');
         } else {
           setDomDisplay(obExtWarning, 'none');
+          setDomText(obExtHint, isBoostyActive
+            ? '✓ Boosty открыт и готов к стриму'
+            : 'Расширение уже установлено. Теперь откройте Boosty.');
         }
 
-        if (obExtSuccess && !obExtSuccess.classList.contains('visible')) {
-          obExtSuccess.classList.add('visible');
+        setDomDisplay(obExtSuccess, 'block');
+        setDomText(obExtBoostySub, isBoostyActive ? '✓ Boosty также подключён' : '○ Boosty не открыт');
+
+        setDomDisplay(obNotDetectedBox, 'none');
+        setDomDisplay(obGuideBox, 'none'); // Auto-hide guide on success!
+        setDomDisplay(obConnectedActions, isBoostyActive ? 'none' : 'flex');
+
+        if (obStep1NextBtn) {
+          obStep1NextBtn.disabled = false;
         }
-        setDomDisplay(obExtRetry, 'none');
       } else if (isChecking) {
         setDomClass(obExtBadge, 'badge checking');
         setDomText(obExtText, 'Проверяем расширение…');
+        setDomText(obExtHint, 'Ищем связь с браузером…');
         setDomDisplay(obExtWarning, 'none');
-        if (obExtSuccess && obExtSuccess.classList.contains('visible')) {
-          obExtSuccess.classList.remove('visible');
-        }
-        setDomDisplay(obExtRetry, 'none');
+        setDomDisplay(obExtSuccess, 'none');
+        setDomDisplay(obNotDetectedBox, 'block');
+        setDomDisplay(obConnectedActions, 'none');
       } else {
+        // NOT_DETECTED
         setDomClass(obExtBadge, 'badge pending');
         setDomText(obExtText, 'Расширение не обнаружено');
+        setDomText(obExtHint, health.extensionLastSeenAt
+          ? `Расширение было подключено ${formatTimeAgo(health.extensionLastSeenAt)}. Возможно, браузер закрыт.`
+          : 'Не удаётся связаться с расширением. Возможно, браузер сейчас закрыт или расширение ещё не настроено.');
         setDomDisplay(obExtWarning, 'none');
-        if (obExtSuccess && obExtSuccess.classList.contains('visible')) {
-          obExtSuccess.classList.remove('visible');
-        }
-        setDomDisplay(obExtRetry, 'flex');
+        setDomDisplay(obExtSuccess, 'none');
+        setDomDisplay(obNotDetectedBox, 'block');
+        setDomDisplay(obConnectedActions, 'none');
       }
     }
 
@@ -353,7 +546,7 @@ async function refreshStatus() {
       if (obBoostyHint) {
         setDomText(obBoostyHint, isBoostyActive
           ? 'Чат трансляции активен и передаёт сообщения.'
-          : (isExtActive ? 'Расширение установлено. Осталось открыть страницу чата на Boosty.' : 'Сначала установите расширение.'));
+          : (isExtActive ? 'Расширение установлено. Осталось открыть страницу чата на Boosty.' : 'Сначала подключите расширение.'));
       }
     }
 
@@ -364,14 +557,14 @@ async function refreshStatus() {
 
     if (dashExtPill) {
       if (isExtActive) {
-        if (health.isOutdated) {
+        if (isOutdated) {
           setDomClass(dashExtPill, 'status-pill pending');
           setDomText(dashExtText, `v${health.extensionVersion} (устарела)`);
           setDomText(dashExtFixBtn, 'Обновить');
           setDomDisplay(dashExtFixBtn, 'inline-block');
         } else {
           setDomClass(dashExtPill, 'status-pill connected');
-          setDomText(dashExtText, `Подключено (v${health.extensionVersion || health.appVersion})`);
+          setDomText(dashExtText, `Подключено (v${health.extensionVersion || health.bundledExtensionVersion || health.appVersion})`);
           setDomDisplay(dashExtFixBtn, 'none');
         }
       } else if (isChecking) {
@@ -381,7 +574,7 @@ async function refreshStatus() {
       } else {
         setDomClass(dashExtPill, 'status-pill pending');
         setDomText(dashExtText, 'Не обнаружено');
-        setDomText(dashExtFixBtn, 'Установить');
+        setDomText(dashExtFixBtn, 'Исправить');
         setDomDisplay(dashExtFixBtn, 'inline-block');
       }
     }
@@ -396,7 +589,46 @@ async function refreshStatus() {
       setDomDisplay(dashBoostyOpenBtn, isBoostyActive ? 'none' : 'inline-block');
     }
 
-    // 4. Tech Details
+    // 4. Modal Status Mirroring (if open)
+    const modalBadge = document.querySelector('#modal-ext-badge');
+    const modalText = document.querySelector('#modal-ext-text');
+    const modalHint = document.querySelector('#modal-ext-hint');
+    const modalSuccess = document.querySelector('#modal-ext-success-msg');
+    const modalGuide = document.querySelector('#modal-guide-box');
+    const modalDoneBtn = document.querySelector('#modal-done-btn');
+    const modalStartBtn = document.querySelector('#modal-start-setup-btn');
+
+    if (modalBadge) {
+      if (isExtActive) {
+        setDomClass(modalBadge, 'badge connected');
+        setDomText(modalText, health.extensionVersion
+          ? `Расширение подключено (v${health.extensionVersion})`
+          : 'Расширение подключено');
+        setDomText(modalHint, isBoostyActive ? 'Boosty открыт' : 'Теперь можно открыть Boosty');
+        setDomDisplay(modalSuccess, 'block');
+        setDomDisplay(modalGuide, 'none');
+        setDomDisplay(modalDoneBtn, 'inline-flex');
+        setDomDisplay(modalStartBtn, 'none');
+      } else if (isChecking) {
+        setDomClass(modalBadge, 'badge checking');
+        setDomText(modalText, 'Проверяем расширение…');
+        setDomText(modalHint, 'Ищем связь с браузером…');
+        setDomDisplay(modalSuccess, 'none');
+        setDomDisplay(modalDoneBtn, 'none');
+        setDomDisplay(modalStartBtn, 'inline-flex');
+      } else {
+        setDomClass(modalBadge, 'badge pending');
+        setDomText(modalText, 'Расширение не обнаружено');
+        setDomText(modalHint, health.extensionLastSeenAt
+          ? `Было активно ${formatTimeAgo(health.extensionLastSeenAt)}. Возможно, браузер закрыт.`
+          : 'Выполните быструю настройку по инструкции ниже.');
+        setDomDisplay(modalSuccess, 'none');
+        setDomDisplay(modalDoneBtn, 'none');
+        setDomDisplay(modalStartBtn, 'inline-flex');
+      }
+    }
+
+    // 5. Tech Details
     const techExt = document.querySelector('#tech-ext-status');
     const techBoosty = document.querySelector('#tech-boosty-status');
     const techMsg = document.querySelector('#tech-msg-count');
@@ -407,9 +639,37 @@ async function refreshStatus() {
     if (techMsg) setDomText(techMsg, String(health.receivedMessages || 0));
     if (msgCount) setDomText(msgCount, `Получено сообщений: ${health.receivedMessages || 0}`);
 
+    updateDashboardContextBanner();
   } catch {
-    // Local server error
+    // Local server unreachable
   }
+}
+
+// --- Extension Setup Modal Controller ---
+function openExtensionModal(mode = 'setup') {
+  const modal = document.querySelector('#dash-ext-modal');
+  const modalGuide = document.querySelector('#modal-guide-box');
+  const modalDoneBtn = document.querySelector('#modal-done-btn');
+  const modalStartBtn = document.querySelector('#modal-start-setup-btn');
+
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  if (mode === 'update') {
+    setDomDisplay(modalGuide, 'block');
+    checkGraceDeadline = Date.now() + 8000;
+    extensionFlow.startInstall(selectedBrowser);
+  } else {
+    setDomDisplay(modalGuide, 'none');
+  }
+
+  renderBrowserSelection();
+  refreshStatus();
+}
+
+function closeExtensionModal() {
+  const modal = document.querySelector('#dash-ext-modal');
+  if (modal) modal.style.display = 'none';
 }
 
 function updateSummaryScreen() {
@@ -488,13 +748,30 @@ async function saveSettings() {
 
 // --- Event Listeners Setup ---
 function setupEventListeners() {
-  // Step 1: Install Extension
-  document.querySelector('#ob-install-ext-btn')?.addEventListener('click', async () => {
+  // Step 1: Onboarding Extension Actions
+  document.querySelector('#ob-recheck-btn')?.addEventListener('click', () => {
+    checkGraceDeadline = Date.now() + 6000;
+    refreshStatus();
+  });
+
+  document.querySelector('#ob-open-setup-btn')?.addEventListener('click', async () => {
     const guideBox = document.querySelector('#ob-guide-box');
-    guideBox.classList.add('visible');
-    startupCheckUntil = Date.now() + 8000;
+    setDomDisplay(guideBox, 'block');
+    checkGraceDeadline = Date.now() + 8000;
     await extensionFlow.startInstall(selectedBrowser);
     refreshStatus();
+  });
+
+  document.querySelector('#ob-open-browser-btn')?.addEventListener('click', () => {
+    window.boostyOverlay.openUrl('https://boosty.to/', selectedBrowser);
+  });
+
+  document.querySelector('#ob-copy-url-again-btn')?.addEventListener('click', async () => {
+    await extensionFlow.copyUrl(selectedBrowser);
+    const btn = document.querySelector('#ob-copy-url-again-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Скопировано!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
   });
 
   document.querySelector('#ob-reopen-folder-btn')?.addEventListener('click', async () => {
@@ -505,17 +782,16 @@ function setupEventListeners() {
     await extensionFlow.openExtensionsPage(selectedBrowser);
   });
 
-  document.querySelector('#ob-ext-recheck-btn')?.addEventListener('click', () => {
-    startupCheckUntil = Date.now() + 4000;
+  document.querySelector('#ob-ext-update-btn')?.addEventListener('click', async () => {
+    const guideBox = document.querySelector('#ob-guide-box');
+    setDomDisplay(guideBox, 'block');
+    checkGraceDeadline = Date.now() + 8000;
+    await extensionFlow.startInstall(selectedBrowser);
     refreshStatus();
   });
 
-  document.querySelector('#ob-ext-update-btn')?.addEventListener('click', async () => {
-    const guideBox = document.querySelector('#ob-guide-box');
-    guideBox.classList.add('visible');
-    startupCheckUntil = Date.now() + 8000;
-    await extensionFlow.startInstall(selectedBrowser);
-    refreshStatus();
+  document.querySelector('#ob-quick-open-boosty-btn')?.addEventListener('click', () => {
+    window.boostyOverlay.openUrl('https://boosty.to/', selectedBrowser);
   });
 
   document.querySelector('#ob-step1-next-btn')?.addEventListener('click', () => {
@@ -609,18 +885,62 @@ function setupEventListeners() {
     showView('main');
   });
 
-  // Dashboard Actions
+  // Dashboard Pill Actions
   document.querySelector('#dash-ext-fix-btn')?.addEventListener('click', () => {
-    showView('onboarding');
-    setWizardStep(1);
-    const guideBox = document.querySelector('#ob-guide-box');
-    if (guideBox) guideBox.classList.add('visible');
+    openExtensionModal('setup');
   });
 
   document.querySelector('#dash-boosty-open-btn')?.addEventListener('click', () => {
     window.boostyOverlay.openUrl('https://boosty.to/', selectedBrowser);
   });
 
+  document.querySelector('#dash-obs-launch-btn')?.addEventListener('click', () => {
+    window.boostyOverlay.launchObs();
+  });
+
+  // Dashboard Modal Actions
+  document.querySelector('#modal-close-btn')?.addEventListener('click', () => {
+    closeExtensionModal();
+  });
+
+  document.querySelector('#modal-done-btn')?.addEventListener('click', () => {
+    closeExtensionModal();
+  });
+
+  document.querySelector('#dash-ext-modal')?.addEventListener('click', e => {
+    if (e.target.id === 'dash-ext-modal') closeExtensionModal();
+  });
+
+  document.querySelector('#modal-start-setup-btn')?.addEventListener('click', async () => {
+    const modalGuide = document.querySelector('#modal-guide-box');
+    setDomDisplay(modalGuide, 'block');
+    checkGraceDeadline = Date.now() + 8000;
+    await extensionFlow.startInstall(selectedBrowser);
+    refreshStatus();
+  });
+
+  document.querySelector('#modal-recheck-btn')?.addEventListener('click', () => {
+    checkGraceDeadline = Date.now() + 6000;
+    refreshStatus();
+  });
+
+  document.querySelector('#modal-copy-url-btn')?.addEventListener('click', async () => {
+    await extensionFlow.copyUrl(selectedBrowser);
+    const btn = document.querySelector('#modal-copy-url-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Скопировано!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+
+  document.querySelector('#modal-open-folder-btn')?.addEventListener('click', async () => {
+    await extensionFlow.openFolder();
+  });
+
+  document.querySelector('#modal-open-browser-btn')?.addEventListener('click', async () => {
+    await extensionFlow.openExtensionsPage(selectedBrowser);
+  });
+
+  // Dashboard Quick Actions
   document.querySelector('#dash-test-message-btn')?.addEventListener('click', () => {
     fetch('http://127.0.0.1:17369/test').catch(() => {});
   });
@@ -692,6 +1012,8 @@ function setupEventListeners() {
   document.querySelector('#dash-restart-onboarding-btn')?.addEventListener('click', () => {
     showView('onboarding');
     setWizardStep(1);
+    checkGraceDeadline = Date.now() + 6000;
+    refreshStatus();
   });
 
   document.querySelector('#dash-copy-url-btn')?.addEventListener('click', async () => {
@@ -743,7 +1065,7 @@ async function init() {
   }
 
   await refreshStatus();
-  setInterval(refreshStatus, 1500);
+  setInterval(refreshStatus, 1200);
   await loadObsScenes();
 }
 

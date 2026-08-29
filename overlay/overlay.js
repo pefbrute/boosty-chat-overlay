@@ -1,5 +1,4 @@
 const messages = document.querySelector('#messages');
-const events = new EventSource('/events');
 const removalTimers = new Map();
 
 let config = {
@@ -68,38 +67,73 @@ function applyConfig(next) {
   }
 }
 
+function handleConfig(event) {
+  try {
+    applyConfig(JSON.parse(event.data));
+  } catch {}
+}
+
+function handleMessage(event) {
+  try {
+    const message = JSON.parse(event.data);
+    const card = document.createElement('article');
+    card.className = 'message';
+
+    const avatar = document.createElement('img');
+    avatar.className = 'avatar';
+    avatar.alt = '';
+    avatar.src = message.avatar || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+
+    const author = document.createElement('div');
+    author.className = 'author';
+    author.textContent = message.author;
+
+    const text = document.createElement('div');
+    text.className = 'text';
+    text.textContent = message.text;
+
+    card.append(avatar, author, text);
+    messages.append(card);
+
+    const activeCards = getActiveCards();
+    while (activeCards.length > config.maxMessages) {
+      const oldest = activeCards.shift();
+      removeMessage(oldest);
+    }
+
+    if (config.durationSeconds > 0) {
+      scheduleRemoval(card, config.durationSeconds);
+    }
+  } catch (err) {
+    console.error('Failed to parse incoming overlay message:', err);
+  }
+}
+
 fetch('/config').then(response => response.json()).then(applyConfig).catch(() => {});
-events.addEventListener('config', event => applyConfig(JSON.parse(event.data)));
 
-events.onmessage = event => {
-  const message = JSON.parse(event.data);
-  const card = document.createElement('article');
-  card.className = 'message';
+let events = null;
+let reconnectTimer = null;
 
-  const avatar = document.createElement('img');
-  avatar.className = 'avatar';
-  avatar.alt = '';
-  avatar.src = message.avatar || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
-
-  const author = document.createElement('div');
-  author.className = 'author';
-  author.textContent = message.author;
-
-  const text = document.createElement('div');
-  text.className = 'text';
-  text.textContent = message.text;
-
-  card.append(avatar, author, text);
-  messages.append(card);
-
-  const activeCards = getActiveCards();
-  while (activeCards.length > config.maxMessages) {
-    const oldest = activeCards.shift();
-    removeMessage(oldest);
+function connectEvents() {
+  if (events) {
+    try { events.close(); } catch {}
   }
 
-  if (config.durationSeconds > 0) {
-    scheduleRemoval(card, config.durationSeconds);
-  }
-};
+  events = new EventSource('/events');
+  events.onmessage = handleMessage;
+  events.addEventListener('config', handleConfig);
+
+  events.onerror = () => {
+    try { events.close(); } catch {}
+    if (!reconnectTimer) {
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectEvents();
+      }, 2000);
+    }
+  };
+}
+
+connectEvents();
+
 

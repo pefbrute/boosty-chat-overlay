@@ -161,6 +161,13 @@ function openBrowserExtensionsPage(browserId) {
   return { ok: true, browser: browser.name, managerUrl: browser.extensionsUrl };
 }
 
+function copyExtensionsUrl(browserId) {
+  const browser = installedBrowsers().find(candidate => candidate.id === browserId);
+  const url = browser?.extensionsUrl || 'chrome://extensions/';
+  clipboard.writeText(url);
+  return { ok: true, url };
+}
+
 function obsExecutablePath() {
   if (process.platform === 'win32') {
     const programFiles = process.env.PROGRAMFILES || '';
@@ -566,6 +573,7 @@ ipcMain.handle('list-browsers', () => installedBrowsers().map(({ id, name }) => 
 ipcMain.handle('prepare-browser-extension', (_event, browserId) => prepareBrowserExtension(browserId));
 ipcMain.handle('open-extension-folder', () => openExtensionFolder());
 ipcMain.handle('open-browser-extensions-page', (_event, browserId) => openBrowserExtensionsPage(browserId));
+ipcMain.handle('copy-extensions-url', (_event, browserId) => copyExtensionsUrl(browserId));
 ipcMain.handle('launch-obs', () => launchObs());
 ipcMain.handle('has-obs-executable', () => Boolean(obsExecutablePath()));
 ipcMain.handle('list-obs-scenes', (_event, password) => fetchActualObsState(password));

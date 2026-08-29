@@ -9,6 +9,33 @@ const clients = new Set();
 const recentMessageIds = new Map();
 const { version: appVersion } = require('./package.json');
 let extensionVersion = null;
+
+function getBundledExtensionVersion() {
+  try {
+    const manifestPath = path.join(__dirname, 'extension', 'manifest.json');
+    if (fs.existsSync(manifestPath)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (manifest.version) return manifest.version;
+    }
+  } catch {}
+  return appVersion || '0.4.0';
+}
+const bundledExtensionVersion = getBundledExtensionVersion();
+
+function compareSemver(v1, v2) {
+  if (!v1 || !v2) return 0;
+  const p1 = String(v1).replace(/^v/i, '').split('.').map(x => parseInt(x, 10) || 0);
+  const p2 = String(v2).replace(/^v/i, '').split('.').map(x => parseInt(x, 10) || 0);
+  const len = Math.max(p1.length, p2.length);
+  for (let i = 0; i < len; i++) {
+    const num1 = p1[i] ?? 0;
+    const num2 = p2[i] ?? 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+  return 0;
+}
+
 let receivedMessages = 0;
 let lastMessageAt = null;
 let connectorLastSeenAt = null;
@@ -34,6 +61,7 @@ try {
 function sendJson(response, status, value) {
   response.writeHead(status, {
     'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Private-Network': 'true',
     'Cache-Control': 'no-store',
     'Content-Type': 'application/json; charset=utf-8',
   });
@@ -73,7 +101,7 @@ function normalizedConfig(input) {
 function rememberMessage(id) {
   const now = Date.now();
   for (const [knownId, seenAt] of recentMessageIds) {
-    if (now - seenAt > 10 * 60_000) recentMessageIds.delete(knownId);
+    if (now - seenAt > 5_000) recentMessageIds.delete(knownId);
   }
   if (recentMessageIds.has(id)) return false;
   recentMessageIds.set(id, now);
@@ -85,9 +113,10 @@ const server = http.createServer((request, response) => {
 
   if (request.method === 'OPTIONS') {
     response.writeHead(204, {
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Access-Control-Allow-Private-Network',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Private-Network': 'true',
     });
     return response.end();
   }
@@ -102,10 +131,11 @@ const server = http.createServer((request, response) => {
     const isExtensionConnected = extensionLastSeenAt !== null && now - extensionLastSeenAt < 60_000;
     const isBoostyConnected = boostyLastSeenAt !== null && now - boostyLastSeenAt < 12_000;
     const isConnectorConnected = (connectorLastSeenAt !== null && now - connectorLastSeenAt < 12_000) || isBoostyConnected;
-    const isOutdated = Boolean(isExtensionConnected && extensionVersion && extensionVersion !== appVersion);
+    const isOutdated = Boolean(isExtensionConnected && extensionVersion && compareSemver(extensionVersion, bundledExtensionVersion) < 0);
     return sendJson(response, 200, {
       ok: true,
       appVersion,
+      bundledExtensionVersion,
       extensionVersion,
       isOutdated,
       overlayClients: clients.size,
@@ -158,8 +188,9 @@ const server = http.createServer((request, response) => {
       try {
         if (body.trim()) {
           const data = JSON.parse(body);
-          if (data.version && typeof data.version === 'string') {
-            extensionVersion = data.version;
+          const incomingVer = data.extensionVersion || data.version;
+          if (incomingVer && typeof incomingVer === 'string') {
+            extensionVersion = incomingVer;
           }
           if (data.source === 'content_tab') {
             boostyLastSeenAt = now;
@@ -206,8 +237,9 @@ const server = http.createServer((request, response) => {
         connectorLastSeenAt = now;
         extensionLastSeenAt = now;
         boostyLastSeenAt = now;
-        if (input.version && typeof input.version === 'string') {
-          extensionVersion = input.version;
+        const incomingVer = input.extensionVersion || input.version;
+        if (incomingVer && typeof incomingVer === 'string') {
+          extensionVersion = incomingVer;
         }
         if (!rememberMessage(message.id)) return sendJson(response, 202, { ok: true, duplicate: true });
         broadcast(message);
