@@ -72,12 +72,19 @@ async function loadObsScenes() {
   }
 
   select.innerHTML = '<option value="">Выбери сцену OBS…</option>';
+  let selectedFound = false;
   for (const scene of result.scenes) {
     const option = document.createElement('option');
     option.value = scene.sceneUuid;
     option.textContent = scene.isTargeted ? `${scene.sceneName} ✓` : scene.sceneName;
-    if (scene.sceneUuid === previousChoice) option.selected = true;
+    if (scene.sceneUuid === previousChoice || (!previousChoice && result.scenes.length === 1)) {
+      option.selected = true;
+      selectedFound = true;
+    }
     select.append(option);
+  }
+  if (!selectedFound && result.scenes.length === 1) {
+    select.value = result.scenes[0].sceneUuid;
   }
 }
 
