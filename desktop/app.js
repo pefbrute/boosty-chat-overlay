@@ -92,13 +92,12 @@ document.querySelector('#refresh-obs').addEventListener('click', async () => {
   const btn = document.querySelector('#refresh-obs');
   btn.disabled = true;
   btn.textContent = '⏳';
-  await loadObsScenes();
-  btn.textContent = '🔄';
-  btn.disabled = false;
-});
-
-document.querySelector('#obs-scene').addEventListener('focus', () => {
-  loadObsScenes();
+  try {
+    await loadObsScenes();
+  } finally {
+    btn.textContent = '🔄';
+    btn.disabled = false;
+  }
 });
 
 document.querySelector('#add-obs-scene').addEventListener('click', async event => {
@@ -111,23 +110,29 @@ document.querySelector('#add-obs-scene').addEventListener('click', async event =
     return;
   }
   const password = document.querySelector('#obs-password').value;
-  event.currentTarget.disabled = true;
-  event.currentTarget.textContent = 'Добавляем…';
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Добавляем…';
   resultNode.textContent = '';
 
-  const result = await window.boostyOverlay.addObsScene(password, sceneIdentifier);
-  if (result.ok) {
-    resultNode.textContent = `Готово: источник «Boosty Chat» добавлен в сцену «${result.addedScene}».`;
-    document.querySelector('#overlay-status').textContent = 'OBS подключён';
-    document.querySelector('#overlay-status').classList.add('connected');
-    await loadObsScenes();
-  } else if (result.restartRequired) {
-    resultNode.textContent = 'WebSocket включён. Перезапусти OBS и нажми кнопку снова.';
-  } else {
-    resultNode.textContent = `Ошибка: ${result.error || 'Не удалось подключиться к OBS'}`;
+  try {
+    const result = await window.boostyOverlay.addObsScene(password, sceneIdentifier);
+    if (result.ok) {
+      resultNode.textContent = `Готово: источник «Boosty Chat» добавлен в сцену «${result.addedScene}».`;
+      document.querySelector('#overlay-status').textContent = 'OBS подключён';
+      document.querySelector('#overlay-status').classList.add('connected');
+      await loadObsScenes();
+    } else if (result.restartRequired) {
+      resultNode.textContent = 'WebSocket включён. Перезапусти OBS и нажми кнопку снова.';
+    } else {
+      resultNode.textContent = `Ошибка: ${result.error || 'Не удалось подключиться к OBS'}`;
+    }
+  } catch (err) {
+    resultNode.textContent = `Ошибка: ${err?.message || 'Не удалось отправить команду в OBS'}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Добавить в сцену';
   }
-  event.currentTarget.disabled = false;
-  event.currentTarget.textContent = 'Добавить в сцену';
 });
 
 document.querySelector('#remove-obs-scene').addEventListener('click', async event => {
@@ -140,19 +145,25 @@ document.querySelector('#remove-obs-scene').addEventListener('click', async even
     return;
   }
   const password = document.querySelector('#obs-password').value;
-  event.currentTarget.disabled = true;
-  event.currentTarget.textContent = 'Удаляем…';
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Удаляем…';
   resultNode.textContent = '';
 
-  const result = await window.boostyOverlay.removeObsScene(password, sceneIdentifier);
-  if (result.ok) {
-    resultNode.textContent = `Чат убран из сцены «${result.removedScene}».`;
-    await loadObsScenes();
-  } else {
-    resultNode.textContent = `Ошибка: ${result.error || 'Не удалось удалить источник'}`;
+  try {
+    const result = await window.boostyOverlay.removeObsScene(password, sceneIdentifier);
+    if (result.ok) {
+      resultNode.textContent = `Чат убран из сцены «${result.removedScene}».`;
+      await loadObsScenes();
+    } else {
+      resultNode.textContent = `Ошибка: ${result.error || 'Не удалось удалить источник'}`;
+    }
+  } catch (err) {
+    resultNode.textContent = `Ошибка: ${err?.message || 'Не удалось отправить команду в OBS'}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Убрать из сцены';
   }
-  event.currentTarget.disabled = false;
-  event.currentTarget.textContent = 'Убрать из сцены';
 });
 
 async function refreshStatus() {

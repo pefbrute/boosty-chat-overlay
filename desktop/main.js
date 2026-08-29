@@ -11,12 +11,17 @@ let lastObsResult = { ok: false, idle: true };
 let obsQueue = Promise.resolve();
 let sceneCollectionChanging = false;
 
+let currentObs = null;
+let currentObsConnecting = null;
+let currentObsPassword = '';
+
 function enqueueObs(task) {
   if (sceneCollectionChanging) {
-    return Promise.resolve({ ok: false, paused: true, error: 'Scene collection is changing' });
+    return Promise.resolve({ ok: false, paused: true, error: 'Коллекция сцен OBS переключается...' });
   }
-  obsQueue = obsQueue.then(task, task);
-  return obsQueue;
+  const next = obsQueue.catch(() => {}).then(() => task());
+  obsQueue = next.catch(() => {});
+  return next;
 }
 
 function obsWebSocketConfigPath() {
@@ -142,27 +147,58 @@ function isOurOverlayUrl(rawUrl) {
   }
 }
 
-async function createObsClient(password = '') {
-  const { OBSWebSocket } = require('obs-websocket-js');
-  const obs = new OBSWebSocket();
+async function getConnectedObs(password = '') {
   const localConfig = readObsWebSocketConfig();
   if (localConfig && !localConfig.config.server_enabled) {
     localConfig.config.server_enabled = true;
     fs.writeFileSync(localConfig.file, `${JSON.stringify(localConfig.config, null, 2)}\n`, { mode: 0o600 });
-    return { obs, restartRequired: true };
+    return { obs: null, restartRequired: true };
   }
   const port = Number(localConfig?.config?.server_port || 4455);
   const localPassword = localConfig?.config?.auth_required ? localConfig.config.server_password : '';
+  const effectivePassword = String(password || localPassword || '');
 
-  obs.on('CurrentSceneCollectionChanging', () => {
-    sceneCollectionChanging = true;
-  });
-  obs.on('CurrentSceneCollectionChanged', () => {
-    sceneCollectionChanging = false;
-  });
+  if (currentObs && currentObsPassword === effectivePassword) {
+    return { obs: currentObs, restartRequired: false };
+  }
 
-  await obs.connect(`ws://127.0.0.1:${port}`, String(password || localPassword || ''));
-  return { obs, restartRequired: false };
+  if (currentObsConnecting) {
+    return currentObsConnecting;
+  }
+
+  currentObsConnecting = (async () => {
+    try {
+      if (currentObs) {
+        await currentObs.disconnect().catch(() => {});
+        currentObs = null;
+      }
+      const { OBSWebSocket } = require('obs-websocket-js');
+      const obs = new OBSWebSocket();
+
+      obs.on('CurrentSceneCollectionChanging', () => {
+        sceneCollectionChanging = true;
+      });
+      obs.on('CurrentSceneCollectionChanged', () => {
+        sceneCollectionChanging = false;
+        syncObsTargets(effectivePassword).catch(() => {});
+      });
+      obs.on('ConnectionClosed', () => {
+        if (currentObs === obs) currentObs = null;
+      });
+
+      await obs.connect(`ws://127.0.0.1:${port}`, effectivePassword);
+      currentObs = obs;
+      currentObsPassword = effectivePassword;
+      return { obs, restartRequired: false };
+    } catch (err) {
+      currentObs = null;
+      throw err;
+    } finally {
+      currentObsConnecting = null;
+    }
+  })();
+
+  return currentObsConnecting;
 }
 
 async function findOurBrowserInput(obs, savedInputUuid) {
@@ -214,17 +250,24 @@ async function migrateLegacyProxyScene(obs, targetScenes = []) {
         const items = await obs.call('GetSceneItemList', query);
         for (const item of (items.sceneItems || []).filter(i => i.sourceName === legacySceneName)) {
           await obs.call('RemoveSceneItem', {
-            sceneUuid: target.sceneUuid,
+            sceneUuid: target.sceneUuid || undefined,
+            sceneName: target.sceneName,
             sceneItemId: item.sceneItemId,
           });
         }
       } catch {}
     }
 
-    const legacyItems = await obs.call('GetSceneItemList', { sceneUuid: legacyScene.sceneUuid }).catch(() => ({ sceneItems: [] }));
+    const legacyItems = await obs.call('GetSceneItemList', {
+      sceneUuid: legacyScene.sceneUuid || undefined,
+      sceneName: legacyScene.sceneName,
+    }).catch(() => ({ sceneItems: [] }));
     const foreignItems = (legacyItems.sceneItems || []).filter(i => i.sourceName !== 'Boosty Chat');
     if (foreignItems.length === 0) {
-      await obs.call('RemoveScene', { sceneUuid: legacyScene.sceneUuid }).catch(() => {});
+      await obs.call('RemoveScene', {
+        sceneUuid: legacyScene.sceneUuid || undefined,
+        sceneName: legacyScene.sceneName,
+      }).catch(() => {});
     }
   } catch {}
 }
@@ -279,11 +322,10 @@ async function ensureOurInput(obs, firstScene, savedInputUuid) {
 
 async function listObsScenes(password = '') {
   return enqueueObs(async () => {
-    let obs;
     try {
-      const connection = await createObsClient(password);
-      obs = connection.obs;
+      const connection = await getConnectedObs(password);
       if (connection.restartRequired) return { ok: false, restartRequired: true, scenes: [] };
+      const obs = connection.obs;
 
       const [sceneListData, collectionListData] = await Promise.all([
         obs.call('GetSceneList'),
@@ -328,7 +370,7 @@ async function listObsScenes(password = '') {
       let updatedTargets = false;
       for (const target of state.targetScenes) {
         const found = userScenes.find(s => (target.sceneUuid && s.sceneUuid === target.sceneUuid) || s.sceneName === target.sceneName);
-        if (found && found.sceneName !== target.sceneName) {
+        if (found && (found.sceneName !== target.sceneName || found.sceneUuid !== target.sceneUuid)) {
           target.sceneName = found.sceneName;
           target.sceneUuid = found.sceneUuid;
           updatedTargets = true;
@@ -346,19 +388,16 @@ async function listObsScenes(password = '') {
       };
     } catch (error) {
       return { ok: false, scenes: [], error: error?.message || String(error) };
-    } finally {
-      await obs?.disconnect().catch(() => {});
     }
   });
 }
 
 async function addSceneTarget(password = '', sceneIdentifier = '') {
   return enqueueObs(async () => {
-    let obs;
     try {
-      const connection = await createObsClient(password);
-      obs = connection.obs;
+      const connection = await getConnectedObs(password);
       if (connection.restartRequired) return { ok: false, restartRequired: true };
+      const obs = connection.obs;
 
       const [sceneListData, collectionListData] = await Promise.all([
         obs.call('GetSceneList'),
@@ -421,8 +460,6 @@ async function addSceneTarget(password = '', sceneIdentifier = '') {
     } catch (error) {
       lastObsResult = { ok: false, error: error?.message || String(error) };
       return lastObsResult;
-    } finally {
-      await obs?.disconnect().catch(() => {});
     }
   });
 }
@@ -435,11 +472,10 @@ async function removeSceneTarget(password = '', sceneIdentifier = '') {
     );
     writeObsTargetState(state);
 
-    let obs;
     try {
-      const connection = await createObsClient(password);
-      obs = connection.obs;
+      const connection = await getConnectedObs(password);
       if (connection.restartRequired) return { ok: false, restartRequired: true };
+      const obs = connection.obs;
 
       const sceneListData = await obs.call('GetSceneList');
       const rawScenes = sceneListData.scenes || [];
@@ -472,8 +508,6 @@ async function removeSceneTarget(password = '', sceneIdentifier = '') {
     } catch (error) {
       lastObsResult = { ok: false, error: error?.message || String(error) };
       return lastObsResult;
-    } finally {
-      await obs?.disconnect().catch(() => {});
     }
   });
 }
@@ -487,14 +521,13 @@ async function syncObsTargets(password = '') {
       return lastObsResult;
     }
 
-    let obs;
     try {
-      const connection = await createObsClient(password);
-      obs = connection.obs;
+      const connection = await getConnectedObs(password);
       if (connection.restartRequired) {
         lastObsResult = { ok: false, restartRequired: true };
         return lastObsResult;
       }
+      const obs = connection.obs;
 
       const [sceneListData, collectionListData] = await Promise.all([
         obs.call('GetSceneList'),
@@ -569,8 +602,6 @@ async function syncObsTargets(password = '') {
     } catch (error) {
       lastObsResult = { ok: false, unavailable: true, error: error?.message || String(error) };
       return lastObsResult;
-    } finally {
-      await obs?.disconnect().catch(() => {});
     }
   });
 }
