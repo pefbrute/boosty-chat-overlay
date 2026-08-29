@@ -1,0 +1,64 @@
+{
+  "name": "boosty-chat-overlay",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Local Boosty chat overlay for OBS",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:server": "node server.js",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "ru.derzko.boosty-chat-overlay",
+    "productName": "Boosty Chat Overlay",
+    "asar": true,
+    "asarUnpack": ["extension/**/*"],
+    "files": [
+      "build/icon.png",
+      "desktop/**/*",
+      "extension/**/*",
+      "overlay/**/*",
+      "server.js",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "icon": "build/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.video"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "electron@37.10.3": true
+  },
+  "dependencies": {
+    "obs-websocket-js": "^5.0.8"
+  }
+}

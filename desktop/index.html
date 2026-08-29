@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Boosty Chat Overlay</title>
+    <link rel="stylesheet" href="app.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="logo">b</div>
+        <div>
+          <h1>Boosty Chat Overlay</h1>
+          <p>Чат Boosty на стриме без облака и передачи паролей</p>
+        </div>
+        <div class="status"><span></span> Приложение работает</div>
+      </header>
+
+      <section class="hero">
+        <h2>Подключение</h2>
+        <p>Пройди три коротких шага. Терминал и ручная настройка сервера не нужны.</p>
+      </section>
+
+      <section class="steps">
+        <article>
+          <div class="number">1</div>
+          <div class="content">
+            <h3>Подключи браузер</h3>
+            <p>Расширение видит только сообщения на открытой странице трансляции Boosty.</p>
+            <div class="actions browser-actions" id="browser-buttons"></div>
+            <p class="result" id="browser-result"></p>
+            <p class="hint">Ручная настройка нужна только у тестовой версии. В публичной версии расширение установится из магазина браузера.</p>
+          </div>
+          <div class="badge pending" id="browser-status">Не подключено</div>
+        </article>
+
+        <article>
+          <div class="number">2</div>
+          <div class="content">
+            <h3>Открой трансляцию Boosty</h3>
+            <p>Войди в Boosty обычным способом и открой страницу с Live chat.</p>
+            <button id="boosty">Открыть Boosty</button>
+          </div>
+          <div class="badge pending" id="boosty-status">Открой страницу чата</div>
+        </article>
+
+        <article>
+          <div class="number">3</div>
+          <div class="content">
+            <h3>Подключи OBS</h3>
+            <p id="obs-help">Запусти OBS и выбери сцену для чата. Остальные сцены приложение не изменит.</p>
+            <div class="actions">
+              <select id="obs-scene" aria-label="Сцена OBS">
+                <option value="">Сначала запусти OBS…</option>
+              </select>
+              <input id="obs-password" type="password" placeholder="Пароль — только если OBS его попросит" autocomplete="off">
+              <button class="primary" id="connect-obs">Добавить в сцену</button>
+              <button id="overlay">Предпросмотр</button>
+            </div>
+            <p class="result" id="obs-result"></p>
+          </div>
+          <div class="badge" id="overlay-status">OBS не подключён</div>
+        </article>
+      </section>
+
+      <section class="settings-card">
+        <div class="settings-heading">
+          <div>
+            <h2>Внешний вид</h2>
+            <p>Изменения сразу применяются в OBS и сохраняются автоматически.</p>
+          </div>
+          <button id="test-message">Показать тест</button>
+        </div>
+        <div class="settings-grid">
+          <label>Исчезновение, сек.<input id="duration" type="number" min="3" max="120"></label>
+          <label>Сообщений на экране<input id="max-messages" type="number" min="1" max="20"></label>
+          <label>Размер текста<input id="font-size" type="number" min="12" max="48"></label>
+          <label>Прозрачность фона, %<input id="opacity" type="range" min="0" max="100"></label>
+          <label>Цвет акцента<input id="accent" type="color"></label>
+          <label class="checkbox"><input id="avatars" type="checkbox"> Показывать аватары</label>
+        </div>
+        <p class="result" id="settings-result"></p>
+      </section>
+
+      <footer>
+        <span id="message-count">Получено сообщений: 0</span>
+        <span>Данные остаются на этом компьютере</span>
+      </footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
