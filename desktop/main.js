@@ -130,7 +130,10 @@ function prepareBrowserExtension(browserId) {
   if (!browser) return { ok: false, error: 'Выбранный браузер не найден' };
   const extensionDir = getExtensionDir();
   clipboard.writeText(browser.extensionsUrl);
-  openPreferredBrowser(browser.extensionsUrl, browser.id).catch(() => {});
+  console.log(`[prepareBrowserExtension] browserId=${browser.id}, exe="${browser.command}", managerUrl="${browser.extensionsUrl}", extensionDir="${extensionDir}"`);
+  openPreferredBrowser(browser.extensionsUrl, browser.id).catch(err => {
+    console.error(`[prepareBrowserExtension] failed to open browser:`, err);
+  });
   shell.showItemInFolder(path.join(extensionDir, 'manifest.json'));
   return {
     ok: true,
@@ -151,7 +154,10 @@ function openBrowserExtensionsPage(browserId) {
   const browser = installedBrowsers().find(candidate => candidate.id === browserId);
   if (!browser) return { ok: false, error: 'Выбранный браузер не найден' };
   clipboard.writeText(browser.extensionsUrl);
-  openPreferredBrowser(browser.extensionsUrl, browser.id).catch(() => {});
+  console.log(`[openBrowserExtensionsPage] browserId=${browser.id}, exe="${browser.command}", managerUrl="${browser.extensionsUrl}"`);
+  openPreferredBrowser(browser.extensionsUrl, browser.id).catch(err => {
+    console.error(`[openBrowserExtensionsPage] failed to open extensions page:`, err);
+  });
   return { ok: true, browser: browser.name, managerUrl: browser.extensionsUrl };
 }
 
@@ -195,8 +201,21 @@ function launchObs() {
 function openPreferredBrowser(url, browserId) {
   const browsers = installedBrowsers();
   const browser = browsers.find(candidate => candidate.id === browserId) || browsers[0];
-  if (!browser) return shell.openExternal(url).then(() => ({ ok: true, browser: 'системный' }));
-  const child = spawn(browser.command, [url], { detached: true, stdio: 'ignore' });
+  if (!browser) {
+    console.log(`[openPreferredBrowser] No specific browser found, falling back to shell.openExternal("${url}")`);
+    return shell.openExternal(url).then(() => ({ ok: true, browser: 'системный' }));
+  }
+
+  const isChromium = ['chrome', 'brave', 'edge', 'yandex', 'chromium'].includes(browser.id);
+  const isInternalUrl = url.includes('://extensions') || url.startsWith('chrome://') || url.startsWith('brave://') || url.startsWith('edge://') || url.startsWith('browser://') || url.startsWith('about:');
+
+  const args = (isChromium && isInternalUrl)
+    ? ['--new-window', url]
+    : [url];
+
+  console.log(`[openPreferredBrowser] browserId=${browser.id}, exe="${browser.command}", args=${JSON.stringify(args)}, url="${url}"`);
+
+  const child = spawn(browser.command, args, { detached: true, stdio: 'ignore' });
   child.unref();
   return Promise.resolve({ ok: true, browser: browser.name });
 }
