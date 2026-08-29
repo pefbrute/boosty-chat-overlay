@@ -1,11 +1,12 @@
 const endpoint = 'http://127.0.0.1:17369/connector';
 
 async function sendHeartbeat() {
+  const version = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.0';
   try {
     await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: 'background', timestamp: Date.now() }),
+      body: JSON.stringify({ source: 'background', version, timestamp: Date.now() }),
     });
   } catch {
     // Desktop application is not running.

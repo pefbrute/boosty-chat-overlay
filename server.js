@@ -7,6 +7,8 @@ const port = Number(process.env.BOOSTY_OVERLAY_PORT || 17369);
 const configFile = process.env.BOOSTY_OVERLAY_CONFIG || path.join(__dirname, 'overlay-settings.json');
 const clients = new Set();
 const recentMessageIds = new Map();
+const { version: appVersion } = require('./package.json');
+let extensionVersion = null;
 let receivedMessages = 0;
 let lastMessageAt = null;
 let connectorLastSeenAt = null;
@@ -100,8 +102,12 @@ const server = http.createServer((request, response) => {
     const isExtensionConnected = extensionLastSeenAt !== null && now - extensionLastSeenAt < 60_000;
     const isBoostyConnected = boostyLastSeenAt !== null && now - boostyLastSeenAt < 12_000;
     const isConnectorConnected = (connectorLastSeenAt !== null && now - connectorLastSeenAt < 12_000) || isBoostyConnected;
+    const isOutdated = Boolean(isExtensionConnected && extensionVersion && extensionVersion !== appVersion);
     return sendJson(response, 200, {
       ok: true,
+      appVersion,
+      extensionVersion,
+      isOutdated,
       overlayClients: clients.size,
       receivedMessages,
       lastMessageAt,
@@ -152,6 +158,9 @@ const server = http.createServer((request, response) => {
       try {
         if (body.trim()) {
           const data = JSON.parse(body);
+          if (data.version && typeof data.version === 'string') {
+            extensionVersion = data.version;
+          }
           if (data.source === 'content_tab') {
             boostyLastSeenAt = now;
             if (typeof data.url === 'string') boostyTabUrl = data.url;
@@ -197,6 +206,9 @@ const server = http.createServer((request, response) => {
         connectorLastSeenAt = now;
         extensionLastSeenAt = now;
         boostyLastSeenAt = now;
+        if (input.version && typeof input.version === 'string') {
+          extensionVersion = input.version;
+        }
         if (!rememberMessage(message.id)) return sendJson(response, 202, { ok: true, duplicate: true });
         broadcast(message);
         return sendJson(response, 202, { ok: true });

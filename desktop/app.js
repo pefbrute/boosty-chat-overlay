@@ -8,6 +8,7 @@ let latestHealth = null;
 let addedSceneName = '';
 let saveTimer = null;
 let lastNonZeroDuration = 20;
+let startupCheckUntil = Date.now() + 4000; // 4s grace period on startup for background worker
 
 // --- Extension Installation Flow Module ---
 const extensionFlow = {
@@ -246,16 +247,46 @@ async function refreshStatus() {
 
     const isExtActive = Boolean(health.extensionConnected);
     const isBoostyActive = Boolean(health.boostyConnected);
+    const isChecking = !isExtActive && Date.now() < startupCheckUntil;
 
     // 1. Onboarding Step 1 Status
     const obExtBadge = document.querySelector('#ob-ext-status-badge');
     const obExtText = document.querySelector('#ob-ext-status-text');
     const obExtSuccess = document.querySelector('#ob-ext-success-msg');
+    const obExtWarning = document.querySelector('#ob-ext-version-warning');
+    const obExtRetry = document.querySelector('#ob-ext-retry-actions');
+    const obGuideBox = document.querySelector('#ob-guide-box');
 
     if (obExtBadge) {
-      obExtBadge.className = isExtActive ? 'badge connected' : 'badge pending';
-      obExtText.textContent = isExtActive ? 'Расширение подключено' : 'Расширение не подключено';
-      obExtSuccess.classList.toggle('visible', isExtActive);
+      if (isExtActive) {
+        obExtBadge.className = 'badge connected';
+        obExtText.textContent = health.extensionVersion
+          ? `Расширение подключено (v${health.extensionVersion})`
+          : 'Расширение подключено';
+
+        if (health.isOutdated) {
+          obExtWarning.style.display = 'flex';
+          document.querySelector('#ob-ext-current-ver').textContent = `v${health.extensionVersion}`;
+          document.querySelector('#ob-ext-latest-ver').textContent = `v${health.appVersion}`;
+        } else {
+          obExtWarning.style.display = 'none';
+        }
+
+        obExtSuccess.classList.add('visible');
+        obExtRetry.style.display = 'none';
+      } else if (isChecking) {
+        obExtBadge.className = 'badge checking';
+        obExtText.textContent = 'Проверяем расширение…';
+        obExtWarning.style.display = 'none';
+        obExtSuccess.classList.remove('visible');
+        obExtRetry.style.display = 'none';
+      } else {
+        obExtBadge.className = 'badge pending';
+        obExtText.textContent = 'Расширение не обнаружено';
+        obExtWarning.style.display = 'none';
+        obExtSuccess.classList.remove('visible');
+        obExtRetry.style.display = 'flex';
+      }
     }
 
     // 2. Onboarding Step 2 Status
@@ -279,9 +310,27 @@ async function refreshStatus() {
     const dashExtFixBtn = document.querySelector('#dash-ext-fix-btn');
 
     if (dashExtPill) {
-      dashExtPill.className = isExtActive ? 'status-pill connected' : 'status-pill pending';
-      dashExtText.textContent = isExtActive ? 'Подключено' : 'Не подключено';
-      dashExtFixBtn.style.display = isExtActive ? 'none' : 'inline-block';
+      if (isExtActive) {
+        if (health.isOutdated) {
+          dashExtPill.className = 'status-pill pending';
+          dashExtText.textContent = `v${health.extensionVersion} (устарела)`;
+          dashExtFixBtn.textContent = 'Обновить';
+          dashExtFixBtn.style.display = 'inline-block';
+        } else {
+          dashExtPill.className = 'status-pill connected';
+          dashExtText.textContent = `Подключено (v${health.extensionVersion || health.appVersion})`;
+          dashExtFixBtn.style.display = 'none';
+        }
+      } else if (isChecking) {
+        dashExtPill.className = 'status-pill pending';
+        dashExtText.textContent = 'Проверка…';
+        dashExtFixBtn.style.display = 'none';
+      } else {
+        dashExtPill.className = 'status-pill pending';
+        dashExtText.textContent = 'Не обнаружено';
+        dashExtFixBtn.textContent = 'Установить';
+        dashExtFixBtn.style.display = 'inline-block';
+      }
     }
 
     const dashBoostyPill = document.querySelector('#dash-boosty-pill');
@@ -300,7 +349,7 @@ async function refreshStatus() {
     const techMsg = document.querySelector('#tech-msg-count');
     const msgCount = document.querySelector('#message-count');
 
-    if (techExt) techExt.textContent = isExtActive ? 'Активно (heartbeat ok)' : 'Нет связи';
+    if (techExt) techExt.textContent = isExtActive ? `Активно (v${health.extensionVersion || '?'})` : (isChecking ? 'Проверка…' : 'Не обнаружено');
     if (techBoosty) techBoosty.textContent = isBoostyActive ? 'Вкладка активна' : 'Не открыта';
     if (techMsg) techMsg.textContent = String(health.receivedMessages || 0);
     if (msgCount) msgCount.textContent = `Получено сообщений: ${health.receivedMessages || 0}`;
@@ -390,7 +439,9 @@ function setupEventListeners() {
   document.querySelector('#ob-install-ext-btn')?.addEventListener('click', async () => {
     const guideBox = document.querySelector('#ob-guide-box');
     guideBox.classList.add('visible');
+    startupCheckUntil = Date.now() + 8000;
     await extensionFlow.startInstall(selectedBrowser);
+    refreshStatus();
   });
 
   document.querySelector('#ob-reopen-folder-btn')?.addEventListener('click', async () => {
@@ -399,6 +450,19 @@ function setupEventListeners() {
 
   document.querySelector('#ob-reopen-browser-btn')?.addEventListener('click', async () => {
     await extensionFlow.openExtensionsPage(selectedBrowser);
+  });
+
+  document.querySelector('#ob-ext-recheck-btn')?.addEventListener('click', () => {
+    startupCheckUntil = Date.now() + 4000;
+    refreshStatus();
+  });
+
+  document.querySelector('#ob-ext-update-btn')?.addEventListener('click', async () => {
+    const guideBox = document.querySelector('#ob-guide-box');
+    guideBox.classList.add('visible');
+    startupCheckUntil = Date.now() + 8000;
+    await extensionFlow.startInstall(selectedBrowser);
+    refreshStatus();
   });
 
   document.querySelector('#ob-step1-next-btn')?.addEventListener('click', () => {
@@ -496,6 +560,8 @@ function setupEventListeners() {
   document.querySelector('#dash-ext-fix-btn')?.addEventListener('click', () => {
     showView('onboarding');
     setWizardStep(1);
+    const guideBox = document.querySelector('#ob-guide-box');
+    if (guideBox) guideBox.classList.add('visible');
   });
 
   document.querySelector('#dash-boosty-open-btn')?.addEventListener('click', () => {

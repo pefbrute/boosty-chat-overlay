@@ -43,8 +43,8 @@
       <!-- Step 1: Browser & Extension -->
       <section id="step-1" class="wizard-panel active">
         <div class="card-hero">
-          <h2>Подключим Boosty</h2>
-          <p>Для получения сообщений из чата нужно небольшое расширение браузера.</p>
+          <h2>Подключим расширение</h2>
+          <p>Для получения сообщений из чата нужно установить локальное расширение браузера.</p>
         </div>
 
         <div class="card">
@@ -57,37 +57,48 @@
 
           <!-- 3-step Visual Installation Card -->
           <div id="ob-guide-box" class="guide-box">
-            <div class="guide-title">Всего 3 простых действия:</div>
+            <div class="guide-title">3 простых шага в открывшемся окне браузера:</div>
             <div class="guide-steps">
               <div class="guide-step-item">
                 <span class="guide-num">①</span>
-                <span class="guide-text">Включите <strong>«Режим разработчика»</strong> в правом верхнем углу открытой страницы</span>
+                <div class="guide-text">
+                  Нажмите комбинацию клавиш:
+                  <div class="shortcut-badge">
+                    <kbd>Ctrl</kbd> + <kbd>L</kbd> <span class="shortcut-arrow">→</span>
+                    <kbd>Ctrl</kbd> + <kbd>V</kbd> <span class="shortcut-arrow">→</span>
+                    <kbd>Enter</kbd>
+                  </div>
+                  <span class="subtext">Адрес страницы управления расширениями уже скопирован в ваш буфер обмена.</span>
+                </div>
               </div>
               <div class="guide-step-item">
                 <span class="guide-num">②</span>
-                <span class="guide-text">Нажмите <strong>«Загрузить распакованное расширение»</strong></span>
+                <div class="guide-text">Включите переключатель <strong>«Режим разработчика»</strong> (в правом верхнем углу страницы)</div>
               </div>
               <div class="guide-step-item">
                 <span class="guide-num">③</span>
-                <span class="guide-text">Выберите открытую папку <strong>extension</strong></span>
+                <div class="guide-text">Нажмите кнопку <strong>«Загрузить распакованное расширение»</strong> и выберите открытую папку <strong>extension</strong></div>
               </div>
             </div>
             <div class="actions helper-actions">
-              <button id="ob-reopen-folder-btn" class="secondary">📁 Открыть папку расширения ещё раз</button>
-              <button id="ob-reopen-browser-btn" class="secondary">🌐 Открыть страницу расширений ещё раз</button>
-            </div>
-            <div id="ob-clipboard-hint" class="clipboard-hint">
-              <span class="hint-icon">📋</span>
-              <span>Адрес страницы расширений скопирован в буфер. Если страница не открылась автоматически, нажмите <strong>Ctrl+L → Ctrl+V → Enter</strong> в браузере.</span>
+              <button id="ob-reopen-folder-btn" class="secondary">📁 Открыть папку extension ещё раз</button>
+              <button id="ob-reopen-browser-btn" class="secondary">🌐 Открыть браузер ещё раз</button>
             </div>
           </div>
 
           <!-- Live Status Badge -->
           <div class="status-box">
-            <div id="ob-ext-status-badge" class="badge pending">
-              <span class="badge-dot"></span> <span id="ob-ext-status-text">Расширение не подключено</span>
+            <div id="ob-ext-status-badge" class="badge checking">
+              <span class="badge-dot"></span> <span id="ob-ext-status-text">Проверяем расширение…</span>
             </div>
-            <div id="ob-ext-success-msg" class="success-message">Отлично! Расширение работает.</div>
+            <div id="ob-ext-version-warning" class="version-warning" style="display: none;">
+              <span>⚠ Версия расширения устарела (<span id="ob-ext-current-ver">v0.2.0</span> → актуальна <span id="ob-ext-latest-ver">v0.4.0</span>)</span>
+              <button id="ob-ext-update-btn" class="inline-btn primary">Обновить</button>
+            </div>
+            <div id="ob-ext-success-msg" class="success-message">Отлично! Расширение подключено и готово к работе.</div>
+            <div id="ob-ext-retry-actions" class="actions center-actions" style="display: none; margin-top: 8px;">
+              <button id="ob-ext-recheck-btn" class="secondary">🔄 Проверить снова</button>
+            </div>
           </div>
 
           <div class="wizard-actions">

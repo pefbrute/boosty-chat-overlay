@@ -74,7 +74,7 @@ async function runTests() {
   // 4. Connector heartbeat (background & content_tab)
   const bgConnectorRes = await request(
     { path: '/connector', method: 'POST', headers: { 'Content-Type': 'application/json' } },
-    JSON.stringify({ source: 'background', timestamp: Date.now() })
+    JSON.stringify({ source: 'background', version: '0.4.0', timestamp: Date.now() })
   );
   assert.strictEqual(bgConnectorRes.status, 200, 'POST /connector background should return 200');
 
@@ -82,11 +82,13 @@ async function runTests() {
   let healthState = JSON.parse(checkHealth.body);
   assert.strictEqual(healthState.extensionConnected, true, 'extensionConnected should be true after background heartbeat');
   assert.strictEqual(healthState.boostyConnected, false, 'boostyConnected should be false before content_tab heartbeat');
+  assert.strictEqual(healthState.extensionVersion, '0.4.0', 'extensionVersion should be 0.4.0');
+  assert.strictEqual(healthState.isOutdated, false, 'isOutdated should be false');
   console.log('✔ POST /connector (background heartbeat) passed');
 
   const tabConnectorRes = await request(
     { path: '/connector', method: 'POST', headers: { 'Content-Type': 'application/json' } },
-    JSON.stringify({ source: 'content_tab', url: 'https://boosty.to/stream', timestamp: Date.now() })
+    JSON.stringify({ source: 'content_tab', version: '0.4.0', url: 'https://boosty.to/stream', timestamp: Date.now() })
   );
   assert.strictEqual(tabConnectorRes.status, 200, 'POST /connector content_tab should return 200');
 

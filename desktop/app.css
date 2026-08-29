@@ -359,6 +359,42 @@ body {
   color: #ff9872;
 }
 
+.shortcut-badge {
+  align-items: center;
+  background: #111116;
+  border: 1px solid #36364a;
+  border-radius: 8px;
+  display: inline-flex;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 6px 12px;
+}
+
+.shortcut-badge kbd {
+  background: #252533;
+  border: 1px solid #45455c;
+  border-bottom: 2px solid #5a5a75;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 7px;
+}
+
+.shortcut-arrow {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.subtext {
+  color: var(--text-muted);
+  display: block;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
 /* Status Box */
 .status-box {
   align-items: center;
@@ -391,6 +427,23 @@ body {
   width: 8px;
 }
 
+.badge.checking {
+  background: #191e2b;
+  border-color: #2c3852;
+  color: #8da4d0;
+}
+
+.badge.checking .badge-dot {
+  background: #628bd6;
+  box-shadow: 0 0 8px rgba(98, 139, 214, 0.6);
+  animation: pulseDot 1.2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
 .badge.pending {
   background: var(--pending-bg);
   border-color: var(--pending-border);
@@ -410,6 +463,20 @@ body {
 .badge.connected .badge-dot {
   background: var(--success-dot);
   box-shadow: 0 0 6px rgba(84, 215, 133, 0.6);
+}
+
+.version-warning {
+  align-items: center;
+  background: #332314;
+  border: 1px solid #6b431e;
+  border-radius: 8px;
+  color: #f7b26d;
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 4px;
+  padding: 8px 14px;
 }
 
 .success-message {
