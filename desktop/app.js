@@ -47,46 +47,93 @@ async function renderBrowsers() {
 document.querySelector('#boosty').addEventListener('click', () => open('https://boosty.to/'));
 document.querySelector('#overlay').addEventListener('click', () => open('http://127.0.0.1:17369/overlay/'));
 
-async function loadObsScenes() {
-  const select = document.querySelector('#obs-scene');
-  const targetsHint = document.querySelector('#obs-targets-hint');
-  const previousChoice = select.value;
-  const password = document.querySelector('#obs-password').value;
-  const result = await window.boostyOverlay.listObsScenes(password);
+let latestObsScenes = [];
 
-  if (!result.ok) {
-    if (!select.options.length || !select.value) select.innerHTML = '<option value="">OBS не найден или WebSocket выключен</option>';
-    if (result.restartRequired) {
-      document.querySelector('#obs-result').textContent = 'WebSocket включён в конфиге. Перезапусти OBS один раз.';
-    }
+function updateObsActionButton() {
+  const select = document.querySelector('#obs-scene');
+  const btn = document.querySelector('#toggle-obs-scene');
+  const selectedSceneUuid = select.value;
+  const currentScene = latestObsScenes.find(s => s.sceneUuid === selectedSceneUuid);
+
+  if (!selectedSceneUuid || !currentScene) {
+    btn.textContent = 'Добавить в сцену';
+    btn.className = 'primary';
     return;
   }
 
-  if (result.collectionMismatch) {
-    targetsHint.textContent = `Коллекция: «${result.currentCollection}» (чат был настроен для «${result.configuredCollection}»).`;
-  } else if (result.targetScenes && result.targetScenes.length > 0) {
-    const names = result.targetScenes.map(t => t.sceneName).join(', ');
-    targetsHint.textContent = `Чат подключён в сценах: ${names}.`;
+  if (currentScene.hasChat) {
+    btn.textContent = 'Убрать из сцены';
+    btn.className = 'secondary danger';
+  } else {
+    btn.textContent = 'Добавить в сцену';
+    btn.className = 'primary';
+  }
+}
+
+function renderObsUi(result) {
+  const select = document.querySelector('#obs-scene');
+  const targetsHint = document.querySelector('#obs-targets-hint');
+  const badge = document.querySelector('#overlay-status');
+  const resultNode = document.querySelector('#obs-result');
+
+  if (!result || !result.ok || !result.connected) {
+    if (!select.options.length || !select.value) {
+      select.innerHTML = '<option value="">OBS не найден или WebSocket выключен</option>';
+    }
+    badge.textContent = 'OBS не подключён';
+    badge.classList.remove('connected');
+    if (result?.restartRequired) {
+      resultNode.textContent = 'WebSocket включён в конфиге. Перезапусти OBS один раз.';
+    }
+    latestObsScenes = [];
+    updateObsActionButton();
+    return;
+  }
+
+  badge.textContent = 'OBS подключён';
+  badge.classList.add('connected');
+  latestObsScenes = result.scenes || [];
+
+  const targeted = latestObsScenes.filter(s => s.hasChat).map(s => s.sceneName);
+  if (targeted.length > 0) {
+    targetsHint.textContent = `Чат подключён в сценах: ${targeted.join(', ')}.`;
   } else {
     targetsHint.textContent = 'Чат пока не добавлен ни в одну сцену.';
   }
 
+  const previousChoice = select.value;
   select.innerHTML = '<option value="">Выбери сцену OBS…</option>';
   let selectedFound = false;
-  for (const scene of result.scenes) {
+
+  for (const scene of latestObsScenes) {
     const option = document.createElement('option');
     option.value = scene.sceneUuid;
-    option.textContent = scene.isTargeted ? `${scene.sceneName} ✓` : scene.sceneName;
-    if (scene.sceneUuid === previousChoice || (!previousChoice && result.scenes.length === 1)) {
+    option.textContent = scene.hasChat ? `${scene.sceneName} ✓` : scene.sceneName;
+    if (scene.sceneUuid === previousChoice || (!previousChoice && latestObsScenes.length === 1)) {
       option.selected = true;
       selectedFound = true;
     }
     select.append(option);
   }
-  if (!selectedFound && result.scenes.length === 1) {
-    select.value = result.scenes[0].sceneUuid;
+
+  if (!selectedFound && latestObsScenes.length > 0 && previousChoice) {
+    const stillExists = latestObsScenes.find(s => s.sceneUuid === previousChoice);
+    if (stillExists) select.value = previousChoice;
+    else if (latestObsScenes.length === 1) select.value = latestObsScenes[0].sceneUuid;
+  } else if (!selectedFound && latestObsScenes.length === 1) {
+    select.value = latestObsScenes[0].sceneUuid;
   }
+
+  updateObsActionButton();
 }
+
+async function loadObsScenes() {
+  const password = document.querySelector('#obs-password').value;
+  const result = await window.boostyOverlay.listObsScenes(password);
+  renderObsUi(result);
+}
+
+document.querySelector('#obs-scene').addEventListener('change', updateObsActionButton);
 
 document.querySelector('#refresh-obs').addEventListener('click', async () => {
   const btn = document.querySelector('#refresh-obs');
@@ -100,7 +147,7 @@ document.querySelector('#refresh-obs').addEventListener('click', async () => {
   }
 });
 
-document.querySelector('#add-obs-scene').addEventListener('click', async event => {
+document.querySelector('#toggle-obs-scene').addEventListener('click', async event => {
   const resultNode = document.querySelector('#obs-result');
   const select = document.querySelector('#obs-scene');
   const sceneIdentifier = select.value;
@@ -109,61 +156,40 @@ document.querySelector('#add-obs-scene').addEventListener('click', async event =
     await loadObsScenes();
     return;
   }
+
+  const currentScene = latestObsScenes.find(s => s.sceneUuid === sceneIdentifier);
+  const isRemove = Boolean(currentScene && currentScene.hasChat);
   const password = document.querySelector('#obs-password').value;
   const btn = event.currentTarget;
   btn.disabled = true;
-  btn.textContent = 'Добавляем…';
+  btn.textContent = isRemove ? 'Удаляем…' : 'Добавляем…';
   resultNode.textContent = '';
 
   try {
-    const result = await window.boostyOverlay.addObsScene(password, sceneIdentifier);
+    const result = isRemove
+      ? await window.boostyOverlay.removeObsScene(password, sceneIdentifier)
+      : await window.boostyOverlay.addObsScene(password, sceneIdentifier);
+
     if (result.ok) {
-      resultNode.textContent = `Готово: источник «Boosty Chat» добавлен в сцену «${result.addedScene}».`;
-      document.querySelector('#overlay-status').textContent = 'OBS подключён';
-      document.querySelector('#overlay-status').classList.add('connected');
+      resultNode.textContent = isRemove
+        ? `Чат убран из сцены «${result.removedScene}».`
+        : `Готово: источник «Boosty Chat» добавлен в сцену «${result.addedScene}».`;
       await loadObsScenes();
     } else if (result.restartRequired) {
       resultNode.textContent = 'WebSocket включён. Перезапусти OBS и нажми кнопку снова.';
     } else {
-      resultNode.textContent = `Ошибка: ${result.error || 'Не удалось подключиться к OBS'}`;
+      resultNode.textContent = `Ошибка: ${result.error || 'Не удалось выполнить команду'}`;
     }
   } catch (err) {
-    resultNode.textContent = `Ошибка: ${err?.message || 'Не удалось отправить команду в OBS'}`;
+    resultNode.textContent = `Ошибка: ${err?.message || 'Сбой запроса к OBS'}`;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Добавить в сцену';
+    updateObsActionButton();
   }
 });
 
-document.querySelector('#remove-obs-scene').addEventListener('click', async event => {
-  const resultNode = document.querySelector('#obs-result');
-  const select = document.querySelector('#obs-scene');
-  const sceneIdentifier = select.value;
-  if (!sceneIdentifier) {
-    resultNode.textContent = 'Сначала выбери сцену в списке.';
-    await loadObsScenes();
-    return;
-  }
-  const password = document.querySelector('#obs-password').value;
-  const btn = event.currentTarget;
-  btn.disabled = true;
-  btn.textContent = 'Удаляем…';
-  resultNode.textContent = '';
-
-  try {
-    const result = await window.boostyOverlay.removeObsScene(password, sceneIdentifier);
-    if (result.ok) {
-      resultNode.textContent = `Чат убран из сцены «${result.removedScene}».`;
-      await loadObsScenes();
-    } else {
-      resultNode.textContent = `Ошибка: ${result.error || 'Не удалось удалить источник'}`;
-    }
-  } catch (err) {
-    resultNode.textContent = `Ошибка: ${err?.message || 'Не удалось отправить команду в OBS'}`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Убрать из сцены';
-  }
+window.boostyOverlay.onObsStateChanged(state => {
+  renderObsUi(state);
 });
 
 async function refreshStatus() {
@@ -171,10 +197,14 @@ async function refreshStatus() {
     const response = await fetch('http://127.0.0.1:17369/health');
     const state = await response.json();
     document.querySelector('#message-count').textContent = `Получено сообщений: ${state.receivedMessages}`;
+    const obsState = await window.boostyOverlay.getObsStatus();
     const badge = document.querySelector('#overlay-status');
-    if (state.overlayClients > 0) {
-      badge.textContent = 'Оверлей подключён';
+    if (obsState?.ok && obsState.connected) {
+      badge.textContent = 'OBS подключён';
       badge.classList.add('connected');
+    } else {
+      badge.textContent = 'OBS не подключён';
+      badge.classList.remove('connected');
     }
     const browser = document.querySelector('#browser-status');
     browser.textContent = state.connectorConnected ? 'Расширение работает' : 'Не подключено';
@@ -184,12 +214,6 @@ async function refreshStatus() {
     boosty.textContent = state.connectorConnected ? 'Boosty открыт' : 'Открой страницу чата';
     boosty.classList.toggle('connected', state.connectorConnected);
     boosty.classList.toggle('pending', !state.connectorConnected);
-
-    const obsState = await window.boostyOverlay.getObsStatus();
-    if (obsState?.ok && obsState.targetScenes?.length > 0) {
-      badge.textContent = 'OBS подключён';
-      badge.classList.add('connected');
-    }
   } catch {
     document.querySelector('.status').textContent = 'Ошибка локального сервера';
   }
