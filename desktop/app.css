@@ -31,6 +31,7 @@ button.primary { background: #f15f2c; }
 button.primary:hover { background: #ff7040; }
 button.secondary { background: #25252e; border: 1px solid #3a3a48; color: #ddd; }
 button.secondary:hover { background: #343442; color: white; }
+button.icon-btn { padding: 9px 12px; font-size: 14px; min-width: 40px; }
 .settings-grid .full-width { grid-column: 1 / -1; font-weight: 600; color: #f0f0f5; }
 #duration-container.disabled { opacity: 0.35; pointer-events: none; user-select: none; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }

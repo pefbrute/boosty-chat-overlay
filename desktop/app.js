@@ -88,6 +88,19 @@ async function loadObsScenes() {
   }
 }
 
+document.querySelector('#refresh-obs').addEventListener('click', async () => {
+  const btn = document.querySelector('#refresh-obs');
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  await loadObsScenes();
+  btn.textContent = '🔄';
+  btn.disabled = false;
+});
+
+document.querySelector('#obs-scene').addEventListener('focus', () => {
+  loadObsScenes();
+});
+
 document.querySelector('#add-obs-scene').addEventListener('click', async event => {
   const resultNode = document.querySelector('#obs-result');
   const select = document.querySelector('#obs-scene');
