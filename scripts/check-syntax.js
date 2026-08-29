@@ -8,6 +8,7 @@ const files = [
   'server.js',
   'overlay/overlay.js',
   'extension/content.js',
+  'extension/background.js',
 ];
 
 const rootDir = path.resolve(__dirname, '..');

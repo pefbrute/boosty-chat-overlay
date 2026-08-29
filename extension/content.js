@@ -77,7 +77,11 @@ console.info('[Boosty Chat Connector] active');
 
 async function heartbeat() {
   try {
-    await fetch('http://127.0.0.1:17369/connector', { method: 'POST' });
+    await fetch('http://127.0.0.1:17369/connector', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'content_tab', url: location.href, timestamp: Date.now() }),
+    });
   } catch {
     // The desktop application is not running yet.
   }

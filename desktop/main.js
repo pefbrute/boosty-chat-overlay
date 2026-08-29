@@ -130,6 +130,7 @@ function prepareBrowserExtension(browserId) {
   if (!browser) return { ok: false, error: 'Выбранный браузер не найден' };
   const extensionDir = getExtensionDir();
   clipboard.writeText(browser.extensionsUrl);
+  openPreferredBrowser(browser.extensionsUrl, browser.id).catch(() => {});
   shell.showItemInFolder(path.join(extensionDir, 'manifest.json'));
   return {
     ok: true,
@@ -138,6 +139,57 @@ function prepareBrowserExtension(browserId) {
     extensionDir,
     firefox: browser.id === 'firefox',
   };
+}
+
+function openExtensionFolder() {
+  const extensionDir = getExtensionDir();
+  shell.openPath(extensionDir);
+  return { ok: true, extensionDir };
+}
+
+function openBrowserExtensionsPage(browserId) {
+  const browser = installedBrowsers().find(candidate => candidate.id === browserId);
+  if (!browser) return { ok: false, error: 'Выбранный браузер не найден' };
+  clipboard.writeText(browser.extensionsUrl);
+  openPreferredBrowser(browser.extensionsUrl, browser.id).catch(() => {});
+  return { ok: true, browser: browser.name, managerUrl: browser.extensionsUrl };
+}
+
+function obsExecutablePath() {
+  if (process.platform === 'win32') {
+    const programFiles = process.env.PROGRAMFILES || '';
+    const programFilesX86 = process.env['PROGRAMFILES(X86)'] || '';
+    const local = process.env.LOCALAPPDATA || '';
+    const candidates = [
+      path.join(programFiles, 'obs-studio', 'bin', '64bit', 'obs64.exe'),
+      path.join(programFilesX86, 'obs-studio', 'bin', '64bit', 'obs64.exe'),
+      path.join(local, 'Programs', 'obs-studio', 'bin', '64bit', 'obs64.exe'),
+      path.join(programFiles, 'obs-studio', 'bin', '32bit', 'obs32.exe'),
+    ];
+    return candidates.find(c => fs.existsSync(c)) || null;
+  }
+  if (process.platform === 'darwin') {
+    const candidate = '/Applications/OBS.app/Contents/MacOS/OBS';
+    return fs.existsSync(candidate) ? candidate : null;
+  }
+  const candidate = '/usr/bin/obs';
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
+function launchObs() {
+  const exe = obsExecutablePath();
+  if (!exe) return { ok: false, error: 'OBS Studio не найден' };
+  try {
+    const child = spawn(exe, [], {
+      detached: true,
+      stdio: 'ignore',
+      cwd: path.dirname(exe),
+    });
+    child.unref();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message || 'Не удалось запустить OBS' };
+  }
 }
 
 function openPreferredBrowser(url, browserId) {
@@ -492,6 +544,10 @@ ipcMain.handle('copy-overlay-url', () => {
 
 ipcMain.handle('list-browsers', () => installedBrowsers().map(({ id, name }) => ({ id, name })));
 ipcMain.handle('prepare-browser-extension', (_event, browserId) => prepareBrowserExtension(browserId));
+ipcMain.handle('open-extension-folder', () => openExtensionFolder());
+ipcMain.handle('open-browser-extensions-page', (_event, browserId) => openBrowserExtensionsPage(browserId));
+ipcMain.handle('launch-obs', () => launchObs());
+ipcMain.handle('has-obs-executable', () => Boolean(obsExecutablePath()));
 ipcMain.handle('list-obs-scenes', (_event, password) => fetchActualObsState(password));
 ipcMain.handle('add-obs-scene', (_event, password, sceneIdentifier) => addSceneTarget(password, sceneIdentifier));
 ipcMain.handle('remove-obs-scene', (_event, password, sceneIdentifier) => removeSceneTarget(password, sceneIdentifier));

@@ -13,5 +13,9 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   },
   listBrowsers: () => ipcRenderer.invoke('list-browsers'),
   prepareBrowserExtension: browserId => ipcRenderer.invoke('prepare-browser-extension', browserId),
+  openExtensionFolder: () => ipcRenderer.invoke('open-extension-folder'),
+  openBrowserExtensionsPage: browserId => ipcRenderer.invoke('open-browser-extensions-page', browserId),
+  launchObs: () => ipcRenderer.invoke('launch-obs'),
+  hasObsExecutable: () => ipcRenderer.invoke('has-obs-executable'),
   openUrl: (url, browserId) => ipcRenderer.invoke('open-url', url, browserId),
 });

@@ -71,10 +71,30 @@ async function runTests() {
   assert.strictEqual(updatedConfig.maxMessages, 10, 'Updated config should have maxMessages 10');
   console.log('✔ POST /config passed');
 
-  // 4. Connector heartbeat
-  const connectorRes = await request({ path: '/connector', method: 'POST' });
-  assert.strictEqual(connectorRes.status, 200, 'POST /connector should return 200');
-  console.log('✔ POST /connector passed');
+  // 4. Connector heartbeat (background & content_tab)
+  const bgConnectorRes = await request(
+    { path: '/connector', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ source: 'background', timestamp: Date.now() })
+  );
+  assert.strictEqual(bgConnectorRes.status, 200, 'POST /connector background should return 200');
+
+  let checkHealth = await request({ path: '/health', method: 'GET' });
+  let healthState = JSON.parse(checkHealth.body);
+  assert.strictEqual(healthState.extensionConnected, true, 'extensionConnected should be true after background heartbeat');
+  assert.strictEqual(healthState.boostyConnected, false, 'boostyConnected should be false before content_tab heartbeat');
+  console.log('✔ POST /connector (background heartbeat) passed');
+
+  const tabConnectorRes = await request(
+    { path: '/connector', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ source: 'content_tab', url: 'https://boosty.to/stream', timestamp: Date.now() })
+  );
+  assert.strictEqual(tabConnectorRes.status, 200, 'POST /connector content_tab should return 200');
+
+  checkHealth = await request({ path: '/health', method: 'GET' });
+  healthState = JSON.parse(checkHealth.body);
+  assert.strictEqual(healthState.extensionConnected, true, 'extensionConnected should be true');
+  assert.strictEqual(healthState.boostyConnected, true, 'boostyConnected should be true after content_tab heartbeat');
+  console.log('✔ POST /connector (content_tab heartbeat) passed');
 
   // 5. Test message trigger
   const testRes = await request({ path: '/test', method: 'GET' });

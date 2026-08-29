@@ -10,6 +10,9 @@ const recentMessageIds = new Map();
 let receivedMessages = 0;
 let lastMessageAt = null;
 let connectorLastSeenAt = null;
+let extensionLastSeenAt = null;
+let boostyLastSeenAt = null;
+let boostyTabUrl = null;
 const defaultConfig = {
   durationSeconds: 20,
   maxMessages: 6,
@@ -93,13 +96,22 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/health') {
+    const now = Date.now();
+    const isExtensionConnected = extensionLastSeenAt !== null && now - extensionLastSeenAt < 60_000;
+    const isBoostyConnected = boostyLastSeenAt !== null && now - boostyLastSeenAt < 12_000;
+    const isConnectorConnected = (connectorLastSeenAt !== null && now - connectorLastSeenAt < 12_000) || isBoostyConnected;
     return sendJson(response, 200, {
       ok: true,
       overlayClients: clients.size,
       receivedMessages,
       lastMessageAt,
-      connectorConnected: connectorLastSeenAt !== null && Date.now() - connectorLastSeenAt < 12_000,
+      connectorConnected: isConnectorConnected,
+      extensionConnected: isExtensionConnected,
+      boostyConnected: isBoostyConnected,
       connectorLastSeenAt,
+      extensionLastSeenAt,
+      boostyLastSeenAt,
+      boostyTabUrl,
     });
   }
 
@@ -128,8 +140,27 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'POST' && url.pathname === '/connector') {
-    connectorLastSeenAt = Date.now();
-    return sendJson(response, 200, { ok: true });
+    let body = '';
+    request.on('data', chunk => {
+      body += chunk;
+      if (body.length > 5000) request.destroy();
+    });
+    request.on('end', () => {
+      const now = Date.now();
+      connectorLastSeenAt = now;
+      extensionLastSeenAt = now;
+      try {
+        if (body.trim()) {
+          const data = JSON.parse(body);
+          if (data.source === 'content_tab') {
+            boostyLastSeenAt = now;
+            if (typeof data.url === 'string') boostyTabUrl = data.url;
+          }
+        }
+      } catch {}
+      return sendJson(response, 200, { ok: true });
+    });
+    return;
   }
 
   if (request.method === 'GET' && url.pathname === '/events') {
@@ -162,7 +193,10 @@ const server = http.createServer((request, response) => {
           timestamp: Date.now(),
         };
         if (!message.text) return sendJson(response, 400, { error: 'Empty message' });
-        connectorLastSeenAt = Date.now();
+        const now = Date.now();
+        connectorLastSeenAt = now;
+        extensionLastSeenAt = now;
+        boostyLastSeenAt = now;
         if (!rememberMessage(message.id)) return sendJson(response, 202, { ok: true, duplicate: true });
         broadcast(message);
         return sendJson(response, 202, { ok: true });
