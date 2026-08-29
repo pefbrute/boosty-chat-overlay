@@ -78,9 +78,15 @@ function browserCandidates() {
     return [
       { id: 'brave', name: 'Brave', command: path.join(local, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'), extensionsUrl: 'brave://extensions/' },
       { id: 'brave', name: 'Brave', command: path.join(programFiles, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'), extensionsUrl: 'brave://extensions/' },
+      { id: 'brave', name: 'Brave', command: path.join(programFilesX86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'), extensionsUrl: 'brave://extensions/' },
+      { id: 'chrome', name: 'Chrome', command: path.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe'), extensionsUrl: 'chrome://extensions/' },
       { id: 'chrome', name: 'Chrome', command: path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'), extensionsUrl: 'chrome://extensions/' },
       { id: 'chrome', name: 'Chrome', command: path.join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'), extensionsUrl: 'chrome://extensions/' },
+      { id: 'edge', name: 'Edge', command: path.join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), extensionsUrl: 'edge://extensions/' },
+      { id: 'edge', name: 'Edge', command: path.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), extensionsUrl: 'edge://extensions/' },
+      { id: 'yandex', name: 'Yandex', command: path.join(local, 'Yandex', 'YandexBrowser', 'Application', 'browser.exe'), extensionsUrl: 'browser://extensions/' },
       { id: 'firefox', name: 'Firefox', command: path.join(programFiles, 'Mozilla Firefox', 'firefox.exe'), extensionsUrl: 'about:debugging#/runtime/this-firefox' },
+      { id: 'firefox', name: 'Firefox', command: path.join(local, 'Mozilla Firefox', 'firefox.exe'), extensionsUrl: 'about:debugging#/runtime/this-firefox' },
     ];
   }
   if (process.platform === 'darwin') {
@@ -110,12 +116,19 @@ function installedBrowsers() {
   });
 }
 
+function getExtensionDir() {
+  if (!app.isPackaged) {
+    return path.join(__dirname, '..', 'extension');
+  }
+  const resourceDir = path.join(process.resourcesPath, 'extension');
+  if (fs.existsSync(resourceDir)) return resourceDir;
+  return path.join(process.resourcesPath, 'app.asar.unpacked', 'extension');
+}
+
 function prepareBrowserExtension(browserId) {
   const browser = installedBrowsers().find(candidate => candidate.id === browserId);
   if (!browser) return { ok: false, error: 'Выбранный браузер не найден' };
-  const extensionDir = app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'extension')
-    : path.join(__dirname, '..', 'extension');
+  const extensionDir = getExtensionDir();
   clipboard.writeText(browser.extensionsUrl);
   shell.showItemInFolder(path.join(extensionDir, 'manifest.json'));
   return {

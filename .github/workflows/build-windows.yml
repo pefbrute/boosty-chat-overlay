@@ -1,0 +1,50 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build NSIS Installer (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check JavaScript syntax
+        run: npm run check
+
+      - name: Run server smoke tests
+        run: npm test
+
+      - name: Build Windows NSIS Installer
+        run: npm run dist:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify installer executable exists
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path dist -Filter "Boosty Chat Overlay Setup *.exe" -File
+          if (-not $installer) {
+            Write-Error "ERROR: Installer executable 'Boosty Chat Overlay Setup *.exe' was not found in dist/"
+            exit 1
+          }
+          Write-Host "Found installer: $($installer.FullName) ($([math]::Round($installer.Length / 1MB, 2)) MB)"
+
+      - name: Upload Windows Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boosty-chat-overlay-windows
+          path: dist/Boosty Chat Overlay Setup *.exe
+          if-no-files-found: error
