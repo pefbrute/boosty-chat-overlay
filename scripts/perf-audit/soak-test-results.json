@@ -1,0 +1,24 @@
+{
+  "checkpoints": [
+    {
+      "minute": 0,
+      "timestamp": "2026-08-29T15:07:30.484Z",
+      "messagesSent": 0,
+      "sseReceivedCount": 0,
+      "server": {
+        "pid": 154747,
+        "rssMb": "50.68",
+        "vmsizeMb": "1406.82"
+      },
+      "overlayChrome": {
+        "pid": 154754,
+        "rssMb": "193.94",
+        "vmsizeMb": "54054.80"
+      },
+      "health": {
+        "receivedMessages": 0,
+        "overlayClients": 2
+      }
+    }
+  ]
+}

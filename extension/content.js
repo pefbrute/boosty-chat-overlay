@@ -52,27 +52,102 @@ async function forward(root) {
   }
 }
 
-function scan(container = document) {
-  if (container instanceof Element) {
-    const root = container.matches('[data-test-id="CHATMESSAGE:root"]')
-      ? container
-      : container.closest('[data-test-id="CHATMESSAGE:root"]');
-    if (root) setTimeout(() => forward(root), 50);
-  }
-  container.querySelectorAll?.('[data-test-id="CHATMESSAGE:root"]').forEach(root => {
-    setTimeout(() => forward(root), 50);
-  });
+let currentChatContainer = null;
+let chatObserver = null;
+let discoveryObserver = null;
+let initialLoadDone = false;
+
+function findChatContainer() {
+  const sample = document.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  if (sample) return sample.parentElement;
+  return document.querySelector('[data-test-id="CHAT:messages"], [class*="Chat_messages"], [class*="chat-messages"]');
 }
 
-const observer = new MutationObserver(records => {
-  for (const record of records) {
-    for (const node of record.addedNodes) {
-      if (node instanceof Element) scan(node);
-    }
+function processMessageNode(node) {
+  if (!(node instanceof Element)) return;
+  if (node.matches('[data-test-id="CHATMESSAGE:root"]')) {
+    forward(node);
+    return;
   }
-});
+  const roots = node.querySelectorAll('[data-test-id="CHATMESSAGE:root"]');
+  for (const root of roots) {
+    forward(root);
+  }
+}
 
-observer.observe(document.documentElement, { childList: true, subtree: true });
+function attachChatObserver(container) {
+  if (!container || currentChatContainer === container) return;
+  if (chatObserver) chatObserver.disconnect();
+  currentChatContainer = container;
+
+  if (!initialLoadDone) {
+    container.querySelectorAll('[data-test-id="CHATMESSAGE:root"]').forEach(root => {
+      processed.add(root);
+      initialMessages.add(root);
+    });
+    initialLoadDone = true;
+  }
+
+  chatObserver = new MutationObserver(records => {
+    if (!container.isConnected) {
+      detachChatObserver();
+      startDiscovery();
+      return;
+    }
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        processMessageNode(node);
+      }
+    }
+  });
+
+  chatObserver.observe(container, { childList: true, subtree: true });
+  console.info('[Boosty Chat Connector] attached to chat container');
+
+  if (discoveryObserver) {
+    discoveryObserver.disconnect();
+    discoveryObserver = null;
+  }
+}
+
+function detachChatObserver() {
+  if (chatObserver) {
+    chatObserver.disconnect();
+    chatObserver = null;
+  }
+  currentChatContainer = null;
+}
+
+function startDiscovery() {
+  if (currentChatContainer?.isConnected) return;
+  if (discoveryObserver) return;
+
+  const container = findChatContainer();
+  if (container) {
+    attachChatObserver(container);
+    return;
+  }
+
+  discoveryObserver = new MutationObserver(records => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.matches('[data-test-id="CHATMESSAGE:root"]') || node.querySelector('[data-test-id="CHATMESSAGE:root"]')) {
+          if (!currentChatContainer) {
+            const found = findChatContainer();
+            if (found) attachChatObserver(found);
+          }
+          processMessageNode(node);
+        }
+      }
+    }
+  });
+
+  discoveryObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  console.info('[Boosty Chat Connector] discovery observer active');
+}
+
+startDiscovery();
 console.info('[Boosty Chat Connector] active');
 
 async function heartbeat() {

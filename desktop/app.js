@@ -111,6 +111,44 @@ async function renderBrowserSelection() {
   }
 }
 
+// --- DOM Optimization Helpers (Prevent Churn) ---
+function setDomText(el, text) {
+  if (el && el.textContent !== text) {
+    el.textContent = text;
+  }
+}
+
+function setDomClass(el, className) {
+  if (el && el.className !== className) {
+    el.className = className;
+  }
+}
+
+function setDomDisplay(el, display) {
+  if (el && el.style.display !== display) {
+    el.style.display = display;
+  }
+}
+
+function areObsScenesEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const s1 = a[i];
+    const s2 = b[i];
+    if (
+      s1.sceneUuid !== s2.sceneUuid ||
+      s1.sceneName !== s2.sceneName ||
+      Boolean(s1.hasChat) !== Boolean(s2.hasChat) ||
+      Boolean(s1.sceneItemEnabled) !== Boolean(s2.sceneItemEnabled)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // --- OBS Integration (Actual State Only) ---
 function updateObsActionButton(selectId, btnId) {
   const select = document.querySelector(selectId);
@@ -121,19 +159,22 @@ function updateObsActionButton(selectId, btnId) {
   const currentScene = latestObsScenes.find(s => s.sceneUuid === selectedSceneUuid);
 
   if (!selectedSceneUuid || !currentScene) {
-    btn.textContent = 'Добавить в сцену';
-    btn.className = 'primary';
+    setDomText(btn, 'Добавить в сцену');
+    setDomClass(btn, 'primary');
     return;
   }
 
   if (currentScene.hasChat) {
-    btn.textContent = 'Убрать из сцены';
-    btn.className = 'secondary danger';
+    setDomText(btn, 'Убрать из сцены');
+    setDomClass(btn, 'secondary danger');
   } else {
-    btn.textContent = 'Добавить в сцену';
-    btn.className = 'primary';
+    setDomText(btn, 'Добавить в сцену');
+    setDomClass(btn, 'primary');
   }
 }
+
+let lastRenderedScenes = null;
+let lastRenderedConnected = null;
 
 function renderObsUi(result) {
   latestObsStatus = result;
@@ -148,82 +189,88 @@ function renderObsUi(result) {
   const dashObsPill = document.querySelector('#dash-obs-pill');
   const dashObsText = document.querySelector('#dash-obs-text');
 
-  if (!result || !result.ok || !result.connected) {
+  const isConnected = Boolean(result && result.ok && result.connected);
+
+  if (!isConnected) {
     latestObsScenes = [];
-    if (obBadge) {
-      obBadge.className = 'badge pending';
-      obBadgeText.textContent = 'OBS не подключён';
-    }
+    if (obBadge) setDomClass(obBadge, 'badge pending');
+    if (obBadgeText) setDomText(obBadgeText, 'OBS не подключён');
     if (dashBadge) {
-      dashBadge.className = 'badge';
-      dashBadge.textContent = 'OBS не подключён';
+      setDomClass(dashBadge, 'badge');
+      setDomText(dashBadge, 'OBS не подключён');
     }
-    if (dashObsPill) {
-      dashObsPill.className = 'status-pill pending';
-      dashObsText.textContent = 'Не запущен';
+    if (dashObsPill) setDomClass(dashObsPill, 'status-pill pending');
+    if (dashObsText) setDomText(dashObsText, 'Не запущен');
+    if (launchContainer) setDomDisplay(launchContainer, 'flex');
+
+    if (lastRenderedConnected !== false) {
+      if (obSelect) obSelect.innerHTML = '<option value="">Сначала запустите OBS…</option>';
+      if (dashSelect) dashSelect.innerHTML = '<option value="">Сначала запустите OBS…</option>';
+      lastRenderedScenes = [];
+      lastRenderedConnected = false;
     }
-    if (launchContainer) {
-      launchContainer.style.display = 'flex';
-    }
-    if (obSelect) obSelect.innerHTML = '<option value="">Сначала запустите OBS…</option>';
-    if (dashSelect) dashSelect.innerHTML = '<option value="">Сначала запустите OBS…</option>';
-    if (dashTargetsHint) dashTargetsHint.textContent = '';
+    if (dashTargetsHint) setDomText(dashTargetsHint, '');
     updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
     return;
   }
 
   // Connected to OBS
   latestObsScenes = result.scenes || [];
-  if (launchContainer) launchContainer.style.display = 'none';
+  if (launchContainer) setDomDisplay(launchContainer, 'none');
 
-  if (obBadge) {
-    obBadge.className = 'badge connected';
-    obBadgeText.textContent = 'OBS подключён';
-  }
+  if (obBadge) setDomClass(obBadge, 'badge connected');
+  if (obBadgeText) setDomText(obBadgeText, 'OBS подключён');
   if (dashBadge) {
-    dashBadge.className = 'badge connected';
-    dashBadge.textContent = 'OBS подключён';
+    setDomClass(dashBadge, 'badge connected');
+    setDomText(dashBadge, 'OBS подключён');
   }
 
   const targetedScenes = latestObsScenes.filter(s => s.hasChat).map(s => s.sceneName);
 
   if (dashObsPill) {
-    dashObsPill.className = 'status-pill connected';
-    dashObsText.textContent = targetedScenes.length > 0 ? `Подключён (${targetedScenes.join(', ')})` : 'Подключён';
+    setDomClass(dashObsPill, 'status-pill connected');
+    setDomText(dashObsText, targetedScenes.length > 0 ? `Подключён (${targetedScenes.join(', ')})` : 'Подключён');
   }
 
   if (dashTargetsHint) {
-    dashTargetsHint.textContent = targetedScenes.length > 0
+    setDomText(dashTargetsHint, targetedScenes.length > 0
       ? `Чат подключён в сценах: ${targetedScenes.join(', ')}.`
-      : 'Чат пока не добавлен ни в одну сцену.';
+      : 'Чат пока не добавлен ни в одну сцену.');
   }
 
-  // Populate Selects
-  [obSelect, dashSelect].forEach(select => {
-    if (!select) return;
-    const prev = select.value;
-    select.innerHTML = '<option value="">Выберите сцену OBS…</option>';
-    let found = false;
+  // Only rebuild Select elements if scenes list values changed or connection state changed
+  const scenesChanged = !areObsScenesEqual(lastRenderedScenes, latestObsScenes) || lastRenderedConnected !== true;
 
-    for (const scene of latestObsScenes) {
-      const opt = document.createElement('option');
-      opt.value = scene.sceneUuid;
-      opt.textContent = scene.hasChat ? `${scene.sceneName} ✓` : scene.sceneName;
-      if (scene.sceneUuid === prev || (!prev && latestObsScenes.length === 1)) {
-        opt.selected = true;
-        found = true;
+  if (scenesChanged) {
+    [obSelect, dashSelect].forEach(select => {
+      if (!select) return;
+      const prev = select.value;
+      select.innerHTML = '<option value="">Выберите сцену OBS…</option>';
+      let found = false;
+
+      for (const scene of latestObsScenes) {
+        const opt = document.createElement('option');
+        opt.value = scene.sceneUuid;
+        opt.textContent = scene.hasChat ? `${scene.sceneName} ✓` : scene.sceneName;
+        if (scene.sceneUuid === prev || (!prev && latestObsScenes.length === 1)) {
+          opt.selected = true;
+          found = true;
+        }
+        select.append(opt);
       }
-      select.append(opt);
-    }
 
-    if (!found && latestObsScenes.length > 0 && prev) {
-      const exists = latestObsScenes.find(s => s.sceneUuid === prev);
-      if (exists) select.value = prev;
-      else if (latestObsScenes.length === 1) select.value = latestObsScenes[0].sceneUuid;
-    } else if (!found && latestObsScenes.length === 1) {
-      select.value = latestObsScenes[0].sceneUuid;
-    }
-  });
+      if (!found && latestObsScenes.length > 0 && prev) {
+        const exists = latestObsScenes.find(s => s.sceneUuid === prev);
+        if (exists) select.value = prev;
+        else if (latestObsScenes.length === 1) select.value = latestObsScenes[0].sceneUuid;
+      } else if (!found && latestObsScenes.length === 1) {
+        select.value = latestObsScenes[0].sceneUuid;
+      }
+    });
+
+    lastRenderedScenes = latestObsScenes.map(s => ({ ...s }));
+    lastRenderedConnected = true;
+  }
 
   updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
 }
@@ -259,33 +306,39 @@ async function refreshStatus() {
 
     if (obExtBadge) {
       if (isExtActive) {
-        obExtBadge.className = 'badge connected';
-        obExtText.textContent = health.extensionVersion
+        setDomClass(obExtBadge, 'badge connected');
+        setDomText(obExtText, health.extensionVersion
           ? `Расширение подключено (v${health.extensionVersion})`
-          : 'Расширение подключено';
+          : 'Расширение подключено');
 
         if (health.isOutdated) {
-          obExtWarning.style.display = 'flex';
-          document.querySelector('#ob-ext-current-ver').textContent = `v${health.extensionVersion}`;
-          document.querySelector('#ob-ext-latest-ver').textContent = `v${health.appVersion}`;
+          setDomDisplay(obExtWarning, 'flex');
+          setDomText(document.querySelector('#ob-ext-current-ver'), `v${health.extensionVersion}`);
+          setDomText(document.querySelector('#ob-ext-latest-ver'), `v${health.appVersion}`);
         } else {
-          obExtWarning.style.display = 'none';
+          setDomDisplay(obExtWarning, 'none');
         }
 
-        obExtSuccess.classList.add('visible');
-        obExtRetry.style.display = 'none';
+        if (obExtSuccess && !obExtSuccess.classList.contains('visible')) {
+          obExtSuccess.classList.add('visible');
+        }
+        setDomDisplay(obExtRetry, 'none');
       } else if (isChecking) {
-        obExtBadge.className = 'badge checking';
-        obExtText.textContent = 'Проверяем расширение…';
-        obExtWarning.style.display = 'none';
-        obExtSuccess.classList.remove('visible');
-        obExtRetry.style.display = 'none';
+        setDomClass(obExtBadge, 'badge checking');
+        setDomText(obExtText, 'Проверяем расширение…');
+        setDomDisplay(obExtWarning, 'none');
+        if (obExtSuccess && obExtSuccess.classList.contains('visible')) {
+          obExtSuccess.classList.remove('visible');
+        }
+        setDomDisplay(obExtRetry, 'none');
       } else {
-        obExtBadge.className = 'badge pending';
-        obExtText.textContent = 'Расширение не обнаружено';
-        obExtWarning.style.display = 'none';
-        obExtSuccess.classList.remove('visible');
-        obExtRetry.style.display = 'flex';
+        setDomClass(obExtBadge, 'badge pending');
+        setDomText(obExtText, 'Расширение не обнаружено');
+        setDomDisplay(obExtWarning, 'none');
+        if (obExtSuccess && obExtSuccess.classList.contains('visible')) {
+          obExtSuccess.classList.remove('visible');
+        }
+        setDomDisplay(obExtRetry, 'flex');
       }
     }
 
@@ -295,12 +348,12 @@ async function refreshStatus() {
     const obBoostyHint = document.querySelector('#ob-boosty-hint');
 
     if (obBoostyBadge) {
-      obBoostyBadge.className = isBoostyActive ? 'badge connected' : 'badge pending';
-      obBoostyText.textContent = isBoostyActive ? 'Boosty подключён' : 'Ждём открытие страницы Boosty…';
+      setDomClass(obBoostyBadge, isBoostyActive ? 'badge connected' : 'badge pending');
+      setDomText(obBoostyText, isBoostyActive ? 'Boosty подключён' : 'Ждём открытие страницы Boosty…');
       if (obBoostyHint) {
-        obBoostyHint.textContent = isBoostyActive
+        setDomText(obBoostyHint, isBoostyActive
           ? 'Чат трансляции активен и передаёт сообщения.'
-          : (isExtActive ? 'Расширение установлено. Осталось открыть страницу чата на Boosty.' : 'Сначала установите расширение.');
+          : (isExtActive ? 'Расширение установлено. Осталось открыть страницу чата на Boosty.' : 'Сначала установите расширение.'));
       }
     }
 
@@ -312,24 +365,24 @@ async function refreshStatus() {
     if (dashExtPill) {
       if (isExtActive) {
         if (health.isOutdated) {
-          dashExtPill.className = 'status-pill pending';
-          dashExtText.textContent = `v${health.extensionVersion} (устарела)`;
-          dashExtFixBtn.textContent = 'Обновить';
-          dashExtFixBtn.style.display = 'inline-block';
+          setDomClass(dashExtPill, 'status-pill pending');
+          setDomText(dashExtText, `v${health.extensionVersion} (устарела)`);
+          setDomText(dashExtFixBtn, 'Обновить');
+          setDomDisplay(dashExtFixBtn, 'inline-block');
         } else {
-          dashExtPill.className = 'status-pill connected';
-          dashExtText.textContent = `Подключено (v${health.extensionVersion || health.appVersion})`;
-          dashExtFixBtn.style.display = 'none';
+          setDomClass(dashExtPill, 'status-pill connected');
+          setDomText(dashExtText, `Подключено (v${health.extensionVersion || health.appVersion})`);
+          setDomDisplay(dashExtFixBtn, 'none');
         }
       } else if (isChecking) {
-        dashExtPill.className = 'status-pill pending';
-        dashExtText.textContent = 'Проверка…';
-        dashExtFixBtn.style.display = 'none';
+        setDomClass(dashExtPill, 'status-pill pending');
+        setDomText(dashExtText, 'Проверка…');
+        setDomDisplay(dashExtFixBtn, 'none');
       } else {
-        dashExtPill.className = 'status-pill pending';
-        dashExtText.textContent = 'Не обнаружено';
-        dashExtFixBtn.textContent = 'Установить';
-        dashExtFixBtn.style.display = 'inline-block';
+        setDomClass(dashExtPill, 'status-pill pending');
+        setDomText(dashExtText, 'Не обнаружено');
+        setDomText(dashExtFixBtn, 'Установить');
+        setDomDisplay(dashExtFixBtn, 'inline-block');
       }
     }
 
@@ -338,9 +391,9 @@ async function refreshStatus() {
     const dashBoostyOpenBtn = document.querySelector('#dash-boosty-open-btn');
 
     if (dashBoostyPill) {
-      dashBoostyPill.className = isBoostyActive ? 'status-pill connected' : 'status-pill pending';
-      dashBoostyText.textContent = isBoostyActive ? 'Открыт' : 'Не открыт';
-      dashBoostyOpenBtn.style.display = isBoostyActive ? 'none' : 'inline-block';
+      setDomClass(dashBoostyPill, isBoostyActive ? 'status-pill connected' : 'status-pill pending');
+      setDomText(dashBoostyText, isBoostyActive ? 'Открыт' : 'Не открыт');
+      setDomDisplay(dashBoostyOpenBtn, isBoostyActive ? 'none' : 'inline-block');
     }
 
     // 4. Tech Details
@@ -349,10 +402,10 @@ async function refreshStatus() {
     const techMsg = document.querySelector('#tech-msg-count');
     const msgCount = document.querySelector('#message-count');
 
-    if (techExt) techExt.textContent = isExtActive ? `Активно (v${health.extensionVersion || '?'})` : (isChecking ? 'Проверка…' : 'Не обнаружено');
-    if (techBoosty) techBoosty.textContent = isBoostyActive ? 'Вкладка активна' : 'Не открыта';
-    if (techMsg) techMsg.textContent = String(health.receivedMessages || 0);
-    if (msgCount) msgCount.textContent = `Получено сообщений: ${health.receivedMessages || 0}`;
+    if (techExt) setDomText(techExt, isExtActive ? `Активно (v${health.extensionVersion || '?'})` : (isChecking ? 'Проверка…' : 'Не обнаружено'));
+    if (techBoosty) setDomText(techBoosty, isBoostyActive ? 'Вкладка активна' : 'Не открыта');
+    if (techMsg) setDomText(techMsg, String(health.receivedMessages || 0));
+    if (msgCount) setDomText(msgCount, `Получено сообщений: ${health.receivedMessages || 0}`);
 
   } catch {
     // Local server error
@@ -692,7 +745,6 @@ async function init() {
   await refreshStatus();
   setInterval(refreshStatus, 1500);
   await loadObsScenes();
-  setInterval(loadObsScenes, 10000);
 }
 
 init();

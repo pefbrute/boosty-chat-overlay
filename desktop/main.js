@@ -296,6 +296,7 @@ async function getConnectedObs(password = '') {
       await obs.connect(`ws://127.0.0.1:${port}`, effectivePassword);
       currentObs = obs;
       currentObsPassword = effectivePassword;
+      scheduleObsRefresh(0);
       return { obs, restartRequired: false };
     } catch (err) {
       currentObs = null;
@@ -531,7 +532,7 @@ app.whenReady().then(() => {
   localServer = require('../server.js').server;
   createWindow();
   setTimeout(() => scheduleObsRefresh(100), 500);
-  obsSyncTimer = setInterval(() => scheduleObsRefresh(0), 2500);
+  obsSyncTimer = setInterval(() => scheduleObsRefresh(0), 60000);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
