@@ -166,6 +166,119 @@ async function runTests() {
   });
   console.log('✔ GET /events & POST /message SSE delivery passed');
 
+  // 7. Replay history on fresh SSE connection
+  const replayedMessages = [];
+  await new Promise((resolve, reject) => {
+    const sseReq = http.request({ host, port: testPort, path: '/events', method: 'GET' }, sseRes => {
+      assert.strictEqual(sseRes.statusCode, 200);
+      let buffer = '';
+      sseRes.on('data', chunk => {
+        buffer += chunk.toString();
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop();
+        for (const part of parts) {
+          if (part.includes('data:')) {
+            const dataLine = part.split('\n').find(l => l.startsWith('data: '));
+            if (dataLine) {
+              try {
+                const msg = JSON.parse(dataLine.slice(6));
+                replayedMessages.push(msg);
+              } catch {}
+            }
+          }
+        }
+      });
+    });
+    sseReq.on('error', err => { if (err.code !== 'ECONNRESET') reject(err); });
+    setTimeout(() => {
+      sseReq.destroy();
+      resolve();
+    }, 300);
+    sseReq.end();
+  });
+
+  assert.ok(replayedMessages.length > 0, 'Replayed messages should not be empty');
+  const ciMsg = replayedMessages.find(m => m.id === 'ci-msg-1');
+  assert.ok(ciMsg, 'Should have received ci-msg-1 from history');
+  assert.ok(ciMsg.eventId, 'Message should have eventId');
+  assert.ok(typeof ciMsg.receivedAt === 'number', 'Message should have receivedAt timestamp');
+  console.log('✔ SSE history replay on fresh connection passed');
+
+  // 8. Reconnection with Last-Event-ID
+  const lastEventId = ciMsg.eventId;
+  const msg2Res = await request(
+    { path: '/message', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ id: 'ci-msg-2', author: 'Зритель 2', text: 'Second message' })
+  );
+  assert.strictEqual(msg2Res.status, 202);
+  const msg2Data = JSON.parse(msg2Res.body);
+  assert.ok(Number(msg2Data.eventId) > Number(lastEventId), 'msg2 eventId should be greater than lastEventId');
+
+  const incrementalMessages = [];
+  await new Promise((resolve, reject) => {
+    const sseReq = http.request(
+      { host, port: testPort, path: '/events', method: 'GET', headers: { 'Last-Event-ID': String(lastEventId) } },
+      sseRes => {
+        let buffer = '';
+        sseRes.on('data', chunk => {
+          buffer += chunk.toString();
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop();
+          for (const part of parts) {
+            const dataLine = part.split('\n').find(l => l.startsWith('data: '));
+            if (dataLine) {
+              try {
+                incrementalMessages.push(JSON.parse(dataLine.slice(6)));
+              } catch {}
+            }
+          }
+        });
+      }
+    );
+    sseReq.on('error', err => { if (err.code !== 'ECONNRESET') reject(err); });
+    setTimeout(() => {
+      sseReq.destroy();
+      resolve();
+    }, 300);
+    sseReq.end();
+  });
+
+  assert.strictEqual(incrementalMessages.some(m => m.id === 'ci-msg-1'), false, 'ci-msg-1 should NOT be sent when Last-Event-ID is provided');
+  assert.ok(incrementalMessages.some(m => m.id === 'ci-msg-2'), 'ci-msg-2 should be sent when Last-Event-ID is ci-msg-1');
+  console.log('✔ SSE incremental replay with Last-Event-ID passed');
+
+  // 9. Server deduplication of incoming messages
+  const dup1Res = await request(
+    { path: '/message', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ id: 'dup-check-1', author: 'Зритель', text: 'Проверка дубля' })
+  );
+  assert.strictEqual(dup1Res.status, 202);
+  const dup1Data = JSON.parse(dup1Res.body);
+  assert.strictEqual(dup1Data.ok, true);
+  assert.strictEqual(Boolean(dup1Data.duplicate), false);
+
+  const dup2Res = await request(
+    { path: '/message', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ id: 'dup-check-1', author: 'Зритель', text: 'Проверка дубля' })
+  );
+  assert.strictEqual(dup2Res.status, 202);
+  const dup2Data = JSON.parse(dup2Res.body);
+  assert.strictEqual(dup2Data.ok, true);
+  assert.strictEqual(dup2Data.duplicate, true, 'Second identical message should be marked as duplicate');
+  console.log('✔ Server-side deduplication passed');
+
+  // 10. History limit of 50 messages
+  for (let i = 1; i <= 55; i++) {
+    await request(
+      { path: '/message', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+      JSON.stringify({ id: `batch-msg-${i}`, author: `User ${i}`, text: `Message content ${i}` })
+    );
+  }
+  const healthAfterBatch = await request({ path: '/health', method: 'GET' });
+  const healthBatchData = JSON.parse(healthAfterBatch.body);
+  assert.strictEqual(healthBatchData.historyCount, 50, 'History should be capped at 50 messages');
+  console.log('✔ History 50-message cap passed');
+
   console.log('\nAll server tests passed successfully!');
 }
 

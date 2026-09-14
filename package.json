@@ -9,13 +9,19 @@
     "start": "electron .",
     "start:server": "node server.js",
     "check": "node scripts/check-syntax.js",
-    "test": "node scripts/test-server.js",
+    "test:parser": "node --test test/parser.test.js",
+    "test:server": "node scripts/test-server.js",
+    "test:resilience": "node scripts/verify-resilience.js",
+    "test": "node scripts/test-server.js && node --test test/parser.test.js && node scripts/verify-resilience.js",
+    "test:integration": "node scripts/run-electron-test.js scripts/test-reconnect-electron.js && node scripts/run-electron-test.js scripts/test-parser-browser.js",
+    "test:all": "npm test && npm run test:integration",
     "dist": "electron-builder --publish never",
     "dist:win": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {
     "electron": "^37.2.6",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "linkedom": "^0.18.13"
   },
   "build": {
     "appId": "ru.derzko.boosty-chat-overlay",

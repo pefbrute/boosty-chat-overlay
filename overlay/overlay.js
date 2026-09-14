@@ -1,5 +1,7 @@
 const messages = document.querySelector('#messages');
 const removalTimers = new Map();
+const seenMessageIds = new Set();
+const MAX_SEEN_IDS = 300;
 
 let config = {
   durationSeconds: 20,
@@ -76,6 +78,34 @@ function handleConfig(event) {
 function handleMessage(event) {
   try {
     const message = JSON.parse(event.data);
+    if (!message || !message.text) return;
+
+    // Deduplication check
+    const dedupeKey = message.id || (message.eventId ? `evt-${message.eventId}` : null);
+    if (dedupeKey) {
+      if (seenMessageIds.has(dedupeKey)) {
+        return; // Do not show duplicates
+      }
+      seenMessageIds.add(dedupeKey);
+      if (seenMessageIds.size > MAX_SEEN_IDS) {
+        const oldestKey = seenMessageIds.values().next().value;
+        seenMessageIds.delete(oldestKey);
+      }
+    }
+
+    // TTL check based on server receivedAt
+    let effectiveDuration = config.durationSeconds;
+    if (config.durationSeconds > 0) {
+      const refTime = typeof message.receivedAt === 'number' ? message.receivedAt : message.timestamp;
+      if (typeof refTime === 'number' && refTime > 0) {
+        const elapsedSec = (Date.now() - refTime) / 1000;
+        if (elapsedSec >= config.durationSeconds) {
+          return; // Message already expired, ignore
+        }
+        effectiveDuration = Math.max(1, config.durationSeconds - elapsedSec);
+      }
+    }
+
     const card = document.createElement('article');
     card.className = 'message';
 
@@ -102,7 +132,7 @@ function handleMessage(event) {
     }
 
     if (config.durationSeconds > 0) {
-      scheduleRemoval(card, config.durationSeconds);
+      scheduleRemoval(card, effectiveDuration);
     }
   } catch (err) {
     console.error('Failed to parse incoming overlay message:', err);
@@ -111,29 +141,12 @@ function handleMessage(event) {
 
 fetch('/config').then(response => response.json()).then(applyConfig).catch(() => {});
 
-let events = null;
-let reconnectTimer = null;
-
-function connectEvents() {
-  if (events) {
-    try { events.close(); } catch {}
-  }
-
-  events = new EventSource('/events');
-  events.onmessage = handleMessage;
-  events.addEventListener('config', handleConfig);
-
-  events.onerror = () => {
-    try { events.close(); } catch {}
-    if (!reconnectTimer) {
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        connectEvents();
-      }, 2000);
-    }
-  };
-}
-
-connectEvents();
+// Native EventSource auto-reconnects and sends Last-Event-ID
+const events = new EventSource('/events');
+events.onmessage = handleMessage;
+events.addEventListener('config', handleConfig);
+events.onerror = err => {
+  console.warn('[Overlay] EventSource connection state:', events.readyState, err);
+};
 
 

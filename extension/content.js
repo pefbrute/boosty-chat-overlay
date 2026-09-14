@@ -2,14 +2,18 @@ const endpoint = 'http://127.0.0.1:17369/message';
 const connectorEndpoint = 'http://127.0.0.1:17369/connector';
 const processed = new WeakSet();
 
+const parser = typeof BoostyParser !== 'undefined' ? BoostyParser : null;
+
 // Query helpers with flexible fallbacks for Boosty Chat DOM
 function queryRootElements(scope = document) {
+  if (parser) return parser.queryRootElements(scope);
   return scope.querySelectorAll(
     '[data-test-id="CHATMESSAGE:root"], [data-test-id*="CHATMESSAGE"], [class*="ChatMessage_root"], [class*="ChatMessage"]'
   );
 }
 
 function extractAuthor(root) {
+  if (parser) return parser.extractAuthor(root);
   const el = root.querySelector(
     '[data-test-id="CHATMESSAGE:author"], [class*="Author"], [class*="author"], [class*="name"]'
   );
@@ -17,6 +21,7 @@ function extractAuthor(root) {
 }
 
 function extractText(root) {
+  if (parser) return parser.extractText(root);
   const el = root.querySelector(
     '[data-test-id="CHATMESSAGE:message"], [class*="Message_text"], [class*="Message"], [class*="message"], [class*="Text"], [class*="text"]'
   );
@@ -24,6 +29,7 @@ function extractText(root) {
 }
 
 function avatarUrl(root) {
+  if (parser) return parser.extractAvatarUrl(root);
   const image = root.querySelector('img');
   if (image?.src) return image.src;
 
@@ -73,23 +79,24 @@ async function transportSend(type, payload, fallbackUrl) {
 async function forward(root) {
   if (processed.has(root)) return;
 
-  const author = extractAuthor(root);
-  const text = extractText(root);
+  const parsed = parser ? parser.parseBoostyMessage(root, { pathname: location.pathname }) : null;
+  const author = parsed ? parsed.author : extractAuthor(root);
+  const text = parsed ? parsed.text : extractText(root);
   if (!author || !text) return;
 
   processed.add(root);
 
   const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.0';
-  const publishTime = root.querySelector('[class*="publishTime"], [class*="time"]')?.textContent?.trim() || '';
-  const messageId = `${location.pathname}|${author}|${text}|${publishTime || Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const messageId = parsed?.id || `${location.pathname}|${author}|${text}|${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
   const message = {
     id: messageId,
     author,
     text,
-    avatar: avatarUrl(root),
+    avatar: parsed ? parsed.avatar : avatarUrl(root),
     extensionVersion,
     version: extensionVersion,
+    timestamp: Date.now(),
   };
 
   const sent = await transportSend('POST_MESSAGE', message, endpoint);

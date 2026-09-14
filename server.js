@@ -7,6 +7,9 @@ const port = Number(process.env.BOOSTY_OVERLAY_PORT || 17369);
 const configFile = process.env.BOOSTY_OVERLAY_CONFIG || path.join(__dirname, 'overlay-settings.json');
 const clients = new Set();
 const recentMessageIds = new Map();
+const MAX_HISTORY = 50;
+const messageHistory = [];
+let nextEventId = 0;
 const { version: appVersion } = require('./package.json');
 let extensionVersion = null;
 
@@ -71,7 +74,18 @@ function sendJson(response, status, value) {
 function broadcast(message) {
   receivedMessages += 1;
   lastMessageAt = Date.now();
-  const event = `data: ${JSON.stringify(message)}\n\n`;
+  if (!message.eventId) {
+    nextEventId += 1;
+    message.eventId = String(nextEventId);
+  }
+  if (!message.receivedAt) {
+    message.receivedAt = Date.now();
+  }
+  messageHistory.push(message);
+  while (messageHistory.length > MAX_HISTORY) {
+    messageHistory.shift();
+  }
+  const event = `id: ${message.eventId}\ndata: ${JSON.stringify(message)}\n\n`;
   for (const client of clients) client.write(event);
 }
 
@@ -141,6 +155,7 @@ const server = http.createServer((request, response) => {
       overlayClients: clients.size,
       receivedMessages,
       lastMessageAt,
+      historyCount: messageHistory.length,
       connectorConnected: isConnectorConnected,
       extensionConnected: isExtensionConnected,
       boostyConnected: isBoostyConnected,
@@ -206,11 +221,33 @@ const server = http.createServer((request, response) => {
   if (request.method === 'GET' && url.pathname === '/events') {
     response.writeHead(200, {
       'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
-      'Content-Type': 'text/event-stream',
+      'Content-Type': 'text/event-stream; charset=utf-8',
     });
     response.write(': connected\n\n');
+
+    const lastEventIdHeader = request.headers['last-event-id'];
+    const lastEventIdParam = url.searchParams.get('lastEventId');
+    const rawLastEventId = lastEventIdHeader || lastEventIdParam;
+
+    let replayMessages = [];
+    if (rawLastEventId !== undefined && rawLastEventId !== null && rawLastEventId !== '') {
+      const parsedLastId = Number(rawLastEventId);
+      if (Number.isFinite(parsedLastId)) {
+        replayMessages = messageHistory.filter(m => Number(m.eventId) > parsedLastId);
+      } else {
+        const idx = messageHistory.findIndex(m => String(m.eventId) === String(rawLastEventId));
+        replayMessages = idx !== -1 ? messageHistory.slice(idx + 1) : messageHistory;
+      }
+    } else {
+      replayMessages = messageHistory.slice();
+    }
+
+    for (const msg of replayMessages) {
+      response.write(`id: ${msg.eventId}\ndata: ${JSON.stringify(msg)}\n\n`);
+    }
+
     clients.add(response);
     request.on('close', () => clients.delete(response));
     return;
@@ -225,15 +262,16 @@ const server = http.createServer((request, response) => {
     request.on('end', () => {
       try {
         const input = JSON.parse(body);
+        const now = Date.now();
         const message = {
-          id: String(input.id || `${Date.now()}-${Math.random()}`),
+          id: String(input.id || `${now}-${Math.random().toString(36).slice(2, 7)}`),
           author: String(input.author || 'Boosty'),
           text: String(input.text || '').trim(),
           avatar: typeof input.avatar === 'string' ? input.avatar : '',
-          timestamp: Date.now(),
+          timestamp: Number(input.timestamp) || now,
+          receivedAt: now,
         };
         if (!message.text) return sendJson(response, 400, { error: 'Empty message' });
-        const now = Date.now();
         connectorLastSeenAt = now;
         extensionLastSeenAt = now;
         boostyLastSeenAt = now;
@@ -243,7 +281,7 @@ const server = http.createServer((request, response) => {
         }
         if (!rememberMessage(message.id)) return sendJson(response, 202, { ok: true, duplicate: true });
         broadcast(message);
-        return sendJson(response, 202, { ok: true });
+        return sendJson(response, 202, { ok: true, eventId: message.eventId });
       } catch {
         return sendJson(response, 400, { error: 'Invalid JSON' });
       }
@@ -252,12 +290,14 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/test') {
+    const now = Date.now();
     broadcast({
-      id: `test-${Date.now()}`,
+      id: `test-${now}`,
       author: 'Тестовый зритель',
       text: 'Boosty → OBS работает 🎉',
       avatar: '',
-      timestamp: Date.now(),
+      timestamp: now,
+      receivedAt: now,
     });
     return sendJson(response, 200, { ok: true });
   }

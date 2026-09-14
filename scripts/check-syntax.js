@@ -7,8 +7,16 @@ const files = [
   'desktop/app.js',
   'server.js',
   'overlay/overlay.js',
+  'extension/parser.js',
   'extension/content.js',
   'extension/background.js',
+  'test/parser.test.js',
+  'scripts/verify-resilience.js',
+  'scripts/test-server.js',
+  'scripts/test-reconnect-electron.js',
+  'scripts/test-parser-browser.js',
+  'scripts/capture-boosty-dom.js',
+  'scripts/run-electron-test.js',
 ];
 
 const rootDir = path.resolve(__dirname, '..');
