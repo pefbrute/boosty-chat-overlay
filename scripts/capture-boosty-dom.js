@@ -82,7 +82,8 @@
     // 4. Анонимизация всех картинок (аватары, emoji и любые другие)
     const allImgs = clone.querySelectorAll('img');
     for (const img of allImgs) {
-      const isEmoji = Boolean(img.alt || img.closest('[data-test-id="CHATMESSAGE:message"], [class*="text"]'));
+      const isAvatar = Boolean(img.closest('[class*="Avatar"], [class*="avatar"], [data-test-id*="avatar"]') || img.alt === 'avatar');
+      const isEmoji = !isAvatar && Boolean(img.alt || img.closest('[data-test-id="CHATMESSAGE:message"], [class*="text"]'));
       if (isEmoji) {
         // Для emoji картинки подменяем URL на безопасную заглушку, НО СОХРАНЯЕМ alt="🔥"
         if (img.hasAttribute('src')) img.setAttribute('src', 'https://example.invalid/emoji.png');
@@ -131,9 +132,23 @@
   }
 
   // Поиск сообщений
-  const roots = targetNode ? [targetNode] : (typeof document !== 'undefined' ? document.querySelectorAll(
-    '[data-test-id="CHATMESSAGE:root"], [data-test-id*="CHATMESSAGE"], [class*="ChatMessage_root"], [class*="ChatMessage"]'
-  ) : []);
+  function findRoots() {
+    if (targetNode) return [targetNode];
+    if (typeof document === 'undefined') return [];
+
+    const explicitRoots = document.querySelectorAll(
+      '[data-test-id="CHATMESSAGE:root"], [class*="ChatMessage-scss--module_root"], [class*="ChatMessage_root"], [class*="ChatMessageRoot"], [class*="chat-message-root"]'
+    );
+    if (explicitRoots.length > 0) return Array.from(explicitRoots);
+
+    const candidates = document.querySelectorAll('[data-test-id*="CHATMESSAGE"], [class*="ChatMessage"]');
+    return Array.from(candidates).filter(el => {
+      const cls = String(el.className || "");
+      return !cls.includes("button") && !cls.includes("Icon") && !cls.includes("avatar") && !cls.includes("badge") && !cls.includes("tooltip");
+    });
+  }
+
+  const roots = findRoots();
 
   if (!roots.length) {
     if (typeof console !== 'undefined') {

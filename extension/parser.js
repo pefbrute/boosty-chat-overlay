@@ -13,11 +13,16 @@
   function queryRootElements(scope) {
     if (!scope || typeof scope.querySelectorAll !== "function") return [];
     const roots = scope.querySelectorAll(
-      '[data-test-id="CHATMESSAGE:root"], [class*="ChatMessage_root"], [class*="ChatMessageRoot"], [class*="chat-message-root"]'
+      '[data-test-id="CHATMESSAGE:root"], [class*="ChatMessage-scss--module_root"], [class*="ChatMessage_root"], [class*="ChatMessageRoot"], [class*="chat-message-root"]'
     );
     if (roots.length > 0) return roots;
 
-    return scope.querySelectorAll('[data-test-id*="CHATMESSAGE"], [class*="ChatMessage"]');
+    // Fallback: match elements with ChatMessage that are message roots (not inner icons, buttons, or badges)
+    const candidates = scope.querySelectorAll('[data-test-id*="CHATMESSAGE"], [class*="ChatMessage"]');
+    return Array.from(candidates).filter(el => {
+      const cls = String(el.className || "");
+      return !cls.includes("button") && !cls.includes("Icon") && !cls.includes("avatar") && !cls.includes("badge") && !cls.includes("tooltip");
+    });
   }
 
   function extractAuthor(root) {

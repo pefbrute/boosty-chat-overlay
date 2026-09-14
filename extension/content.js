@@ -7,9 +7,16 @@ const parser = typeof BoostyParser !== 'undefined' ? BoostyParser : null;
 // Query helpers with flexible fallbacks for Boosty Chat DOM
 function queryRootElements(scope = document) {
   if (parser) return parser.queryRootElements(scope);
-  return scope.querySelectorAll(
-    '[data-test-id="CHATMESSAGE:root"], [data-test-id*="CHATMESSAGE"], [class*="ChatMessage_root"], [class*="ChatMessage"]'
+  const roots = scope.querySelectorAll(
+    '[data-test-id="CHATMESSAGE:root"], [class*="ChatMessage-scss--module_root"], [class*="ChatMessage_root"], [class*="ChatMessageRoot"], [class*="chat-message-root"]'
   );
+  if (roots.length > 0) return roots;
+
+  const candidates = scope.querySelectorAll('[data-test-id*="CHATMESSAGE"], [class*="ChatMessage"]');
+  return Array.from(candidates).filter(el => {
+    const cls = String(el.className || "");
+    return !cls.includes("button") && !cls.includes("Icon") && !cls.includes("avatar") && !cls.includes("badge") && !cls.includes("tooltip");
+  });
 }
 
 function extractAuthor(root) {
@@ -113,9 +120,26 @@ let chatObserver = null;
 let discoveryObserver = null;
 
 function findChatContainer() {
-  const sample = document.querySelector('[data-test-id="CHATMESSAGE:root"], [data-test-id*="CHATMESSAGE"]');
-  if (sample) return sample.parentElement;
-  return document.querySelector('[data-test-id="CHAT:messages"], [class*="Chat_messages"], [class*="chat-messages"], [class*="Chat_scroll"]');
+  const sample = document.querySelector(
+    '[data-test-id="CHATMESSAGE:root"], [class*="ChatMessage-scss--module_root"], [class*="ChatMessage_root"], [data-test-id*="CHATMESSAGE"]'
+  );
+  if (sample) {
+    // Look upwards for virtual list or scroll container
+    const scrollContainer = sample.closest(
+      '[class*="ChatBoxBase"][class*="list"], [class*="Chat_scroll"], [class*="scroll"], [class*="Chat_messages"], [class*="messages"]'
+    );
+    if (scrollContainer) return scrollContainer;
+
+    // Fallback: if parent is an individual message row wrapper, go up to list container if possible
+    if (sample.parentElement && sample.parentElement.parentElement) {
+      return sample.parentElement.parentElement;
+    }
+    return sample.parentElement;
+  }
+
+  return document.querySelector(
+    '[class*="ChatBoxBase"][class*="list"], [data-test-id="CHAT:messages"], [class*="Chat_messages"], [class*="chat-messages"], [class*="Chat_scroll"]'
+  );
 }
 
 function processMessageNode(node) {
