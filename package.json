@@ -16,10 +16,13 @@
     "test:server": "node scripts/test-server.js",
     "test:resilience": "node scripts/verify-resilience.js",
     "test": "node scripts/test-server.js && node --test test/parser.test.js && node scripts/verify-resilience.js",
-    "test:integration": "node scripts/run-electron-test.js scripts/test-reconnect-electron.js && node scripts/run-electron-test.js scripts/test-parser-browser.js",
+    "test:integration": "node scripts/run-electron-test.js scripts/test-reconnect-electron.js && node scripts/run-electron-test.js scripts/test-parser-browser.js && node scripts/run-electron-test.js test/ui-redesign.test.js && node scripts/run-electron-test.js test/production-isolation.test.js",
     "test:all": "npm test && npm run test:integration",
     "dist": "electron-builder --publish never",
-    "dist:win": "electron-builder --win nsis --publish never"
+    "dist:win": "electron-builder --win nsis --publish never",
+    "ui:capture": "node scripts/ui-audit/capture.js",
+    "ui:capture:dashboard": "node scripts/ui-audit/capture.js --scope dashboard",
+    "ui:capture:overlay": "node scripts/ui-audit/capture.js --scope overlay"
   },
   "devDependencies": {
     "electron": "^37.2.6",

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Boosty Chat Overlay — Live Preview</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+      html, body {
+        background: transparent;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        padding: 0;
+        width: 100%;
+      }
+      #messages {
+        bottom: 16px;
+        left: 16px;
+        position: absolute;
+        right: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="messages" aria-live="polite"></main>
+    <script src="renderer.js"></script>
+    <script>
+      (function() {
+        const container = document.querySelector('#messages');
+
+        window.addEventListener('message', event => {
+          // Directive 5: strict verification of source & event structure
+          if (event.source !== window.parent) return;
+          const data = event.data;
+          if (!data || typeof data !== 'object') return;
+
+          if (data.type === 'preview:set-config' && data.config) {
+            window.BoostyRenderer.applyAppearanceConfig(document.documentElement, data.config);
+          } else if (data.type === 'preview:set-fixtures') {
+            container.innerHTML = '';
+            if (Array.isArray(data.fixtures)) {
+              for (const item of data.fixtures) {
+                container.append(window.BoostyRenderer.createMessageCard(item));
+              }
+            }
+          } else if (data.type === 'preview:reset' && data.config) {
+            window.BoostyRenderer.applyAppearanceConfig(document.documentElement, data.config);
+          }
+        });
+
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'preview:ready' }, '*');
+        }
+      })();
+    </script>
+  </body>
+</html>

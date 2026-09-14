@@ -7,8 +7,71 @@
     <link rel="stylesheet" href="app.css">
   </head>
   <body>
+    <!-- Hidden SVG sprite for unified, lightweight icon system -->
+    <svg style="display: none;" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <symbol id="icon-home" viewBox="0 0 24 24">
+          <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-palette" viewBox="0 0 24 24">
+          <circle cx="13.5" cy="6.5" r="1.5" fill="currentColor"/>
+          <circle cx="17.5" cy="10.5" r="1.5" fill="currentColor"/>
+          <circle cx="8.5" cy="7.5" r="1.5" fill="currentColor"/>
+          <circle cx="6.5" cy="12.5" r="1.5" fill="currentColor"/>
+          <path d="M12 2C6.49 2 2 6.49 2 12c0 4.97 4.03 9 9 9 1.1 0 2-.9 2-2 0-.48-.17-.93-.46-1.28-.28-.35-.45-.79-.45-1.27 0-1.1.9-2 2-2h2.41c3.59 0 6.5-2.91 6.5-6.5C23 6.49 17.51 2 12 2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-setup" viewBox="0 0 24 24">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.5a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
+        </symbol>
+        <symbol id="icon-info" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="12" y1="16" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="12" cy="8" r="1" fill="currentColor"/>
+        </symbol>
+        <symbol id="icon-extension" viewBox="0 0 24 24">
+          <path d="M19.5 13.5A2.5 2.5 0 0 0 17 11V6a2 2 0 0 0-2-2h-5a2.5 2.5 0 0 0-5 0H3a2 2 0 0 0-2 2v5a2.5 2.5 0 0 0 0 5v5a2 2 0 0 0 2 2h5a2.5 2.5 0 0 0 5 0h5a2 2 0 0 0 2-2v-5a2.5 2.5 0 0 0-2.5-2.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-boosty" viewBox="0 0 24 24">
+          <path d="M4.5 16.5c-1.5 1.26-2 3-1.5 4.5.7 2 3.5 2.5 5 1.5 2-1.3 3.5-3.5 4-6 .5 2.5 2 4.7 4 6 1.5 1 4.3.5 5-1.5.5-1.5 0-3.24-1.5-4.5C17.5 15 15 11 15 3c-3 4-4 8.5-7 10.5-1-1.5-1.5-3-1.5-4.5-1 2.5-1.5 5.5-2 7.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-obs" viewBox="0 0 24 24">
+          <rect x="2" y="3" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="8" y1="21" x2="16" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="12" y1="17" x2="12" y2="21" stroke="currentColor" stroke-width="2"/>
+        </symbol>
+        <symbol id="icon-sparkles" viewBox="0 0 24 24">
+          <path d="m12 3 2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5L12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-check" viewBox="0 0 24 24">
+          <path d="m5 13 4 4L19 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-clock" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+          <polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-arrow-up" viewBox="0 0 24 24">
+          <line x1="12" y1="19" x2="12" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <polyline points="5 12 12 5 19 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-refresh" viewBox="0 0 24 24">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-eye" viewBox="0 0 24 24">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
+        </symbol>
+        <symbol id="icon-rocket" viewBox="0 0 24 24">
+          <path d="M4.5 16.5c-1.5 1.26-2 3-1.5 4.5.7 2 3.5 2.5 5 1.5 2-1.3 3.5-3.5 4-6 .5 2.5 2 4.7 4 6 1.5 1 4.3.5 5-1.5.5-1.5 0-3.24-1.5-4.5C17.5 15 15 11 15 3c-3 4-4 8.5-7 10.5-1-1.5-1.5-3-1.5-4.5-1 2.5-1.5 5.5-2 7.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-chat" viewBox="0 0 24 24">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+      </defs>
+    </svg>
+
     <!-- 1. ONBOARDING WIZARD VIEW -->
-    <main id="onboarding-view" class="view">
+    <main id="onboarding-view" class="view" style="display: none;">
       <header class="app-header">
         <div class="logo">b</div>
         <div class="header-text">
@@ -61,8 +124,7 @@
             </div>
 
             <div id="ob-ext-success-msg" class="success-message" style="display: none;">
-              <div class="success-title">✓ Отлично! Расширение работает.</div>
-              <div id="ob-ext-boosty-substatus" class="subtext"></div>
+              <div class="success-title">✓ Отлично! Расширение подключено и работает.</div>
             </div>
           </div>
 
@@ -72,9 +134,9 @@
             <div id="ob-browser-options" class="browser-choice-grid"></div>
 
             <div class="actions center-actions">
-              <button id="ob-recheck-btn" class="secondary">🔄 Проверить снова</button>
               <button id="ob-open-setup-btn" class="primary btn-large">Настроить расширение</button>
-              <button id="ob-open-browser-btn" class="secondary">🌐 Открыть браузер</button>
+              <button id="ob-recheck-btn" class="secondary">Проверить снова</button>
+              <button id="ob-open-browser-btn" class="secondary">Открыть браузер</button>
             </div>
           </div>
 
@@ -108,20 +170,20 @@
               </div>
             </div>
             <div class="actions helper-actions">
-              <button id="ob-copy-url-again-btn" class="secondary">📋 Скопировать адрес ещё раз</button>
-              <button id="ob-reopen-folder-btn" class="secondary">📁 Открыть папку расширения</button>
-              <button id="ob-reopen-browser-btn" class="secondary">🌐 Открыть браузер</button>
+              <button id="ob-copy-url-again-btn" class="secondary">Скопировать адрес ещё раз</button>
+              <button id="ob-reopen-folder-btn" class="secondary">Открыть папку расширения</button>
+              <button id="ob-reopen-browser-btn" class="secondary">Открыть браузер</button>
             </div>
           </div>
 
           <!-- Connected quick action for Boosty if boosty not opened -->
           <div id="ob-connected-actions" class="actions center-actions" style="display: none; margin-top: 14px;">
-            <button id="ob-quick-open-boosty-btn" class="secondary">🚀 Открыть Boosty</button>
+            <button id="ob-quick-open-boosty-btn" class="secondary">Открыть Boosty</button>
           </div>
 
           <div class="wizard-actions">
-            <div></div>
-            <button id="ob-step1-next-btn" class="primary">Продолжить →</button>
+            <span id="ob-step1-reason" class="wizard-hint-reason">Сначала подключите расширение</span>
+            <button id="ob-step1-next-btn" class="primary" disabled>Продолжить →</button>
           </div>
         </div>
       </section>
@@ -156,7 +218,7 @@
       <section id="step-3" class="wizard-panel">
         <div class="card-hero">
           <h2>Подключение к OBS Studio</h2>
-          <p>Добавим оверлей чата прямо в вашу сцену стрима без лишних настроек.</p>
+          <p>Добавим оверлей чата прямо в вашу сцену стрима в 3 простых действия.</p>
         </div>
 
         <div class="card">
@@ -170,11 +232,33 @@
           </div>
 
           <div id="ob-obs-controls" class="scene-config-box">
-            <label for="ob-obs-scene-select" class="field-label">Куда добавить чат?</label>
-            <div class="actions">
-              <select id="ob-obs-scene-select" aria-label="Сцена OBS"></select>
-              <button id="ob-add-obs-btn" class="primary">Добавить чат</button>
-              <button id="ob-refresh-obs-btn" class="secondary icon-btn" title="Обновить список сцен">🔄</button>
+            <div class="obs-flow-steps">
+              <div class="obs-flow-step">
+                <span class="obs-flow-step-num">1</span>
+                <span class="obs-flow-step-label">Выберите сцену</span>
+              </div>
+              <div class="obs-flow-step-arrow">→</div>
+              <div class="obs-flow-step">
+                <span class="obs-flow-step-num">2</span>
+                <span class="obs-flow-step-label">Добавьте чат</span>
+              </div>
+              <div class="obs-flow-step-arrow">→</div>
+              <div class="obs-flow-step">
+                <span class="obs-flow-step-num">3</span>
+                <span class="obs-flow-step-label">Завершите настройку</span>
+              </div>
+            </div>
+
+            <div class="field-group" style="margin-top: 14px;">
+              <label for="ob-obs-scene-select" class="field-label">Сцена OBS Studio</label>
+              <div class="actions">
+                <select id="ob-obs-scene-select" aria-label="Сцена OBS"></select>
+                <button id="ob-add-obs-btn" class="primary">Добавить чат</button>
+                <button id="ob-refresh-obs-btn" class="secondary" title="Обновить список сцен" aria-label="Обновить список сцен">
+                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg>
+                  <span>Обновить</span>
+                </button>
+              </div>
             </div>
             <div id="ob-obs-password-row" class="password-row">
               <input id="ob-obs-password" type="password" placeholder="Пароль OBS WebSocket (если настроен)" autocomplete="off">
@@ -184,7 +268,10 @@
 
           <div class="wizard-actions">
             <button id="ob-step3-prev-btn" class="secondary">← Назад</button>
-            <button id="ob-step3-next-btn" class="primary">Завершить настройку →</button>
+            <div class="wizard-actions-right">
+              <span id="ob-step3-reason" class="wizard-hint-reason">Сначала добавьте чат в сцену</span>
+              <button id="ob-step3-next-btn" class="primary" disabled>Завершить настройку →</button>
+            </div>
           </div>
         </div>
       </section>
@@ -218,243 +305,591 @@
           </div>
 
           <div class="actions center-actions">
-            <button id="ob-test-btn" class="secondary">💬 Отправить тестовое сообщение</button>
+            <button id="ob-test-btn" class="secondary">Отправить тестовое сообщение</button>
           </div>
 
           <div class="wizard-actions center-actions">
-            <button id="ob-finish-btn" class="primary btn-large">Перейти к настройкам</button>
+            <button id="ob-finish-btn" class="primary btn-large">Перейти на главную</button>
           </div>
         </div>
       </section>
     </main>
 
-    <!-- 2. MAIN DASHBOARD VIEW -->
-    <main id="main-view" class="view" style="display: none;">
-      <header class="app-header">
-        <div class="logo">b</div>
-        <div class="header-text">
-          <h1>Boosty Chat Overlay</h1>
-          <p>Чат Boosty на стриме без облака и передачи паролей</p>
-        </div>
-        <div class="status-indicator">
-          <span class="pulse-dot"></span> Приложение активно
-        </div>
-      </header>
-
-      <!-- Compact Status Bar -->
-      <section class="status-summary-bar" aria-label="Состояние подключения">
-        <div id="dash-ext-pill" class="status-pill pending">
-          <span class="pill-title">Расширение:</span>
-          <span id="dash-ext-text" class="pill-value">Проверка…</span>
-          <button id="dash-ext-fix-btn" class="pill-action-btn">Исправить</button>
-        </div>
-        <div id="dash-boosty-pill" class="status-pill pending">
-          <span class="pill-title">Boosty:</span>
-          <span id="dash-boosty-text" class="pill-value">Проверка…</span>
-          <button id="dash-boosty-open-btn" class="pill-action-btn">Открыть</button>
-        </div>
-        <div id="dash-obs-pill" class="status-pill pending">
-          <span class="pill-title">OBS Studio:</span>
-          <span id="dash-obs-text" class="pill-value">Проверка…</span>
-          <button id="dash-obs-launch-btn" class="pill-action-btn" style="display: none;">Запустить</button>
-        </div>
-      </section>
-
-      <!-- Context Issue Banner (non-intrusive diagnosis & quick fixes) -->
-      <div id="dash-context-banner" class="context-banner" style="display: none;">
-        <div id="dash-context-icon" class="context-banner-icon">ℹ</div>
-        <div class="context-banner-content">
-          <div id="dash-context-title" class="context-banner-title"></div>
-          <div id="dash-context-text" class="context-banner-text"></div>
-        </div>
-        <div id="dash-context-actions" class="context-banner-actions"></div>
-      </div>
-
-      <!-- Quick Actions -->
-      <section class="quick-actions-bar">
-        <button id="dash-test-message-btn" class="primary">💬 Тестовое сообщение</button>
-        <button id="dash-open-overlay-btn" class="secondary">👁 Предпросмотр оверлея</button>
-        <button id="dash-open-boosty-btn" class="secondary">🚀 Открыть Boosty</button>
-      </section>
-
-      <!-- Card: OBS Scene Integration -->
-      <section class="card">
-        <div class="card-header">
-          <div>
-            <h2>Сцена OBS</h2>
-            <p>Управление источником чата в сценах стрима</p>
-          </div>
-          <div id="dash-obs-badge" class="badge">OBS не подключён</div>
-        </div>
-
-        <div class="actions">
-          <select id="dash-obs-scene" aria-label="Сцена OBS">
-            <option value="">Запустите OBS…</option>
-          </select>
-          <button id="dash-refresh-obs" class="secondary icon-btn" title="Обновить список сцен">🔄</button>
-          <input id="dash-obs-password" type="password" placeholder="Пароль (если требуется)" autocomplete="off">
-          <button id="dash-toggle-obs-scene" class="primary">Добавить в сцену</button>
-        </div>
-        <p id="dash-obs-result" class="result"></p>
-        <p id="dash-obs-targets-hint" class="hint"></p>
-      </section>
-
-      <!-- Card: Overlay Appearance -->
-      <section class="card">
-        <div class="card-header">
-          <div>
-            <h2>Внешний вид</h2>
-            <p>Изменения сразу применяются в OBS и сохраняются автоматически.</p>
+    <!-- 2. MAIN APPLICATION SHELL -->
+    <div id="main-app-shell" class="app-shell" style="display: none;">
+      <!-- Persistent Sidebar Navigation -->
+      <aside id="app-sidebar" class="app-sidebar" aria-label="Основная навигация">
+        <div class="sidebar-header">
+          <div class="logo">b</div>
+          <div class="brand-text">
+            <span class="brand-title">Boosty Chat</span>
+            <span class="brand-subtitle">Stream Overlay</span>
           </div>
         </div>
 
-        <div class="settings-grid">
-          <label class="checkbox full-width">
-            <input id="always-show" type="checkbox"> Всегда показывать последние сообщения
-          </label>
-          <label id="duration-container">
-            Исчезновение, сек.
-            <input id="duration" type="number" min="1" max="120">
-          </label>
-          <label>
-            Сообщений на экране
-            <input id="max-messages" type="number" min="1" max="20">
-          </label>
-          <label>
-            Размер текста
-            <input id="font-size" type="number" min="12" max="48">
-          </label>
-          <label>
-            Прозрачность фона, %
-            <input id="opacity" type="range" min="0" max="100">
-          </label>
-          <label>
-            Цвет акцента
-            <input id="accent" type="color">
-          </label>
-          <label class="checkbox">
-            <input id="avatars" type="checkbox"> Показывать аватары
-          </label>
-        </div>
-        <p id="settings-result" class="result"></p>
-      </section>
+        <nav class="sidebar-nav">
+          <button id="nav-dashboard" class="nav-item active" data-view="dashboard" type="button">
+            <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-home"/></svg></span>
+            <span class="nav-label">Главная</span>
+          </button>
+          <button id="nav-appearance" class="nav-item" data-view="appearance" type="button">
+            <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-palette"/></svg></span>
+            <span class="nav-label">Внешний вид</span>
+          </button>
+          <button id="nav-setup" class="nav-item" data-view="setup" type="button">
+            <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-setup"/></svg></span>
+            <span class="nav-label">Настройка</span>
+          </button>
 
-      <!-- Card: Diagnostics and Setup -->
-      <section class="card diagnostics-card">
-        <div class="card-header">
-          <div>
-            <h2>Диагностика и Настройка</h2>
-            <p>Управление мастером первого запуска и технические параметры</p>
+          <div class="nav-divider"></div>
+
+          <button id="nav-extra" class="nav-item nav-item-subordinated" data-view="extra" type="button">
+            <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-info"/></svg></span>
+            <span class="nav-label">Дополнительно</span>
+          </button>
+        </nav>
+      </aside>
+
+      <!-- Main Content Area -->
+      <div id="app-content" class="app-content">
+        <header class="content-header">
+          <h1 id="page-title" class="page-title">Главная</h1>
+          <div class="header-meta">
+            <span id="app-version-badge" class="version-badge">v0.4.0</span>
           </div>
-          <button id="dash-restart-onboarding-btn" class="secondary">Запустить настройку заново</button>
-        </div>
+        </header>
 
-        <details class="tech-details">
-          <summary>Технические сведения</summary>
-          <div class="tech-grid">
-            <div>
-              <strong>Адрес оверлея:</strong>
-              <code>http://127.0.0.1:17369/overlay/</code>
-              <button id="dash-copy-url-btn" class="secondary inline-btn">Скопировать</button>
+        <!-- VIEW 1: DASHBOARD -->
+        <section id="view-dashboard" class="content-view active">
+          <!-- Readiness Status Banner -->
+          <div id="readiness-status" class="readiness-banner ready">
+            <div class="readiness-dot-wrap">
+              <span class="readiness-dot"></span>
             </div>
-            <div>
-              <strong>Локальный порт:</strong>
-              <span>17369</span>
-            </div>
-            <div>
-              <strong>Статус расширения:</strong>
-              <span id="tech-ext-status">—</span>
-            </div>
-            <div>
-              <strong>Статус Boosty:</strong>
-              <span id="tech-boosty-status">—</span>
-            </div>
-            <div>
-              <strong>Получено сообщений:</strong>
-              <span id="tech-msg-count">0</span>
-            </div>
-            <div>
-              <strong>Версия приложения:</strong>
-              <span>0.4.0</span>
+            <div class="readiness-text-wrap">
+              <h2 id="readiness-title" class="readiness-title">Готово к стриму</h2>
+              <p id="readiness-desc" class="readiness-desc">Boosty и OBS подключены</p>
             </div>
           </div>
-        </details>
-      </section>
 
-      <!-- Extension Setup Modal (for targeted fix / update without restarting onboarding) -->
-      <div id="dash-ext-modal" class="modal-backdrop" style="display: none;">
-        <div class="modal-card">
-          <div class="modal-header">
-            <div>
-              <h2>Подключение расширения</h2>
-              <p>Оно передаёт сообщения из открытой вкладки Boosty в приложение.</p>
-            </div>
-            <button id="modal-close-btn" class="modal-close-icon" title="Закрыть" aria-label="Закрыть">✕</button>
-          </div>
-
-          <div class="modal-body">
-            <div class="status-box">
-              <div id="modal-ext-badge" class="badge checking">
-                <span class="badge-dot"></span> <span id="modal-ext-text">Проверяем расширение…</span>
+          <!-- Connection Summary Row (3 items) -->
+          <div id="connection-summary" class="connection-summary-grid">
+            <div id="dash-ext-pill" class="summary-pill ready">
+              <span class="pill-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-extension"/></svg></span>
+              <div class="pill-body">
+                <span class="pill-label">Расширение</span>
+                <span id="dash-ext-text" class="pill-status">Подключено</span>
               </div>
-              <div id="modal-ext-hint" class="hint-text"></div>
-              <div id="modal-ext-success-msg" class="success-message" style="display: none;">
-                <div class="success-title">✓ Отлично! Расширение работает.</div>
+              <button id="dash-ext-fix-btn" class="pill-action-btn" style="display: none;">Настроить</button>
+            </div>
+
+            <div id="dash-boosty-pill" class="summary-pill ready">
+              <span class="pill-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-boosty"/></svg></span>
+              <div class="pill-body">
+                <span class="pill-label">Boosty</span>
+                <span id="dash-boosty-text" class="pill-status">Стрим открыт</span>
+              </div>
+              <button id="dash-boosty-open-btn" class="pill-action-btn" style="display: none;">Открыть</button>
+            </div>
+
+            <div id="dash-obs-pill" class="summary-pill ready">
+              <span class="pill-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-obs"/></svg></span>
+              <div class="pill-body">
+                <span class="pill-label">OBS Studio</span>
+                <span id="dash-obs-text" class="pill-status">Подключено</span>
+              </div>
+              <button id="dash-obs-launch-btn" class="pill-action-btn" style="display: none;">Запустить</button>
+            </div>
+          </div>
+
+          <!-- Main Contextual Action Card (No duplicate problem banners!) -->
+          <section id="main-action-card" class="card action-card">
+            <div class="action-card-body">
+              <div class="action-card-header">
+                <div id="action-card-icon" class="action-card-icon"><svg class="icon-svg icon-lg" aria-hidden="true"><use href="#icon-sparkles"/></svg></div>
+                <div>
+                  <h3 id="action-card-title">Оверлей готов к стриму</h3>
+                  <p id="action-card-desc">Все компоненты активны и получают сообщения</p>
+                </div>
+              </div>
+
+              <div id="action-card-meta" class="action-card-meta">
+                <span>Получено сообщений: <strong id="meta-msg-count">0</strong></span>
+                <span class="meta-dot">•</span>
+                <span>OBS-сцена: <strong id="meta-obs-scene">Основная</strong></span>
+              </div>
+
+              <div id="main-action-actions" class="action-card-actions">
+                <button id="action-btn-preview" class="secondary">
+                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-palette"/></svg>
+                  <span>Предпросмотр</span>
+                </button>
+                <button id="dash-test-message-btn" class="secondary">
+                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-chat"/></svg>
+                  <span>Тестовое сообщение</span>
+                </button>
               </div>
             </div>
+          </section>
 
-            <div id="modal-browser-prompt" class="prompt-text">В каком браузере вы открываете Boosty?</div>
-            <div id="modal-browser-options" class="browser-choice-grid"></div>
+          <!-- Hidden Audit Hook Element for strict compatibility -->
+          <div id="dash-context-banner" style="display: none;"></div>
 
-            <div id="modal-guide-box" class="guide-box" style="display: none;">
-              <div class="guide-title">4 простых шага для подключения:</div>
-              <div class="guide-steps">
-                <div class="guide-step-item">
-                  <span class="guide-num">①</span>
-                  <div class="guide-text">
-                    <strong>Откройте страницу расширений</strong>
-                    <div class="shortcut-badge">
-                      <kbd>Ctrl</kbd> + <kbd>L</kbd> <span class="shortcut-arrow">→</span>
-                      <kbd>Ctrl</kbd> + <kbd>V</kbd> <span class="shortcut-arrow">→</span>
-                      <kbd>Enter</kbd>
-                    </div>
-                    <span class="subtext">Адрес уже скопирован в буфер обмена.</span>
+          <!-- Quick access shortcuts -->
+          <div class="dashboard-footer-bar">
+            <button id="dash-open-overlay-btn" class="secondary small-btn">
+              <svg class="icon-svg" aria-hidden="true"><use href="#icon-eye"/></svg>
+              <span>Открыть оверлей в браузере</span>
+            </button>
+            <button id="dash-open-boosty-btn" class="secondary small-btn">
+              <svg class="icon-svg" aria-hidden="true"><use href="#icon-boosty"/></svg>
+              <span>Открыть вкладку Boosty</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- VIEW 2: APPEARANCE (Two columns: Settings & Sticky Live Preview) -->
+        <section id="view-appearance" class="content-view" style="display: none;">
+          <div class="appearance-grid">
+            <!-- Left Column: Controls -->
+            <div id="appearance-settings-col" class="appearance-settings-col">
+              <!-- Presets Bar -->
+              <div class="card preset-card">
+                <div class="preset-header">
+                  <div>
+                    <span class="card-subtitle">Быстрые пресеты</span>
+                    <h3 class="card-title">Стиль отображения</h3>
+                  </div>
+                  <span id="preset-status-badge" class="preset-badge">Чистый</span>
+                </div>
+                <div class="preset-buttons">
+                  <button id="preset-btn-compact" class="preset-btn" data-preset="compact" type="button">Компактный</button>
+                  <button id="preset-btn-clean" class="preset-btn active" data-preset="clean" type="button">Чистый</button>
+                  <button id="preset-btn-large" class="preset-btn" data-preset="large" type="button">Крупный</button>
+                  <button id="preset-btn-glass" class="preset-btn" data-preset="glass" type="button">Стекло</button>
+                </div>
+              </div>
+
+              <!-- Group 1: Сообщения -->
+              <div class="card settings-group-card">
+                <h3 class="group-title">Сообщения</h3>
+                
+                <div class="setting-item">
+                  <label class="checkbox-row">
+                    <input id="always-show" type="checkbox">
+                    <span>Всегда показывать последние сообщения</span>
+                  </label>
+                </div>
+
+                <div id="duration-container" class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="duration">Время отображения</label>
+                    <span class="setting-val-display"><span id="duration-val">20</span> сек.</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="duration-slider" type="range" min="1" max="120" value="20">
+                    <input id="duration" class="num-input" type="number" min="1" max="120" value="20">
                   </div>
                 </div>
-                <div class="guide-step-item">
-                  <span class="guide-num">②</span>
-                  <div class="guide-text">Включите переключатель <strong>«Режим разработчика»</strong> (в правом верхнем углу)</div>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="max-messages">Сообщений на экране</label>
+                    <span class="setting-val-display"><span id="max-messages-val">6</span></span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="max-messages-slider" type="range" min="1" max="20" value="6">
+                    <input id="max-messages" class="num-input" type="number" min="1" max="20" value="6">
+                  </div>
                 </div>
-                <div class="guide-step-item">
-                  <span class="guide-num">③</span>
-                  <div class="guide-text">Нажмите кнопку <strong>«Загрузить распакованное расширение»</strong></div>
-                </div>
-                <div class="guide-step-item">
-                  <span class="guide-num">④</span>
-                  <div class="guide-text">Выберите открытую папку <strong>extension</strong></div>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="card-width">Ширина карточки</label>
+                    <span class="setting-val-display"><span id="card-width-val">520</span> px</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="card-width-slider" type="range" min="280" max="760" value="520">
+                    <input id="card-width" class="num-input" type="number" min="280" max="760" value="520">
+                  </div>
                 </div>
               </div>
-              <div class="actions helper-actions">
-                <button id="modal-copy-url-btn" class="secondary">📋 Скопировать адрес ещё раз</button>
-                <button id="modal-open-folder-btn" class="secondary">📁 Открыть папку расширения</button>
-                <button id="modal-open-browser-btn" class="secondary">🌐 Открыть браузер</button>
+
+              <!-- Group 2: Текст -->
+              <div class="card settings-group-card">
+                <h3 class="group-title">Текст</h3>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="font-size">Размер текста</label>
+                    <span class="setting-val-display"><span id="font-size-val">21</span> px</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="font-size-slider" type="range" min="12" max="48" value="21">
+                    <input id="font-size" class="num-input" type="number" min="12" max="48" value="21">
+                  </div>
+                </div>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="author-font-size">Размер имени автора</label>
+                    <span class="setting-val-display"><span id="author-font-size-val">16</span> px</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="author-font-size-slider" type="range" min="12" max="28" value="16">
+                    <input id="author-font-size" class="num-input" type="number" min="12" max="28" value="16">
+                  </div>
+                </div>
+
+                <div class="setting-item dual-color-row">
+                  <div class="color-item">
+                    <label for="accent">Цвет автора и акцент</label>
+                    <div class="color-picker-wrap">
+                      <input id="accent" type="color" value="#f15f2c">
+                      <input id="accent-hex" class="hex-input" type="text" value="#f15f2c" maxlength="7">
+                    </div>
+                  </div>
+                  <div class="color-item">
+                    <label for="text-color">Цвет текста</label>
+                    <div class="color-picker-wrap">
+                      <input id="text-color" type="color" value="#ffffff">
+                      <input id="text-color-hex" class="hex-input" type="text" value="#ffffff" maxlength="7">
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              <!-- Group 3: Карточка -->
+              <div class="card settings-group-card">
+                <h3 class="group-title">Карточка</h3>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="opacity">Прозрачность фона</label>
+                    <span class="setting-val-display"><span id="opacity-val">88</span>%</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="opacity" type="range" min="0" max="100" value="88">
+                  </div>
+                </div>
+
+                <div class="setting-item">
+                  <label for="background-color">Цвет фона карточки</label>
+                  <div class="color-picker-wrap">
+                    <input id="background-color" type="color" value="#121216">
+                    <input id="background-color-hex" class="hex-input" type="text" value="#121216" maxlength="7">
+                  </div>
+                </div>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="border-radius">Скругление углов</label>
+                    <span class="setting-val-display"><span id="border-radius-val">10</span> px</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="border-radius-slider" type="range" min="0" max="24" value="10">
+                    <input id="border-radius" class="num-input" type="number" min="0" max="24" value="10">
+                  </div>
+                </div>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="card-padding">Внутренние отступы</label>
+                    <span class="setting-val-display"><span id="card-padding-val">10</span> px</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="card-padding-slider" type="range" min="6" max="24" value="10">
+                    <input id="card-padding" class="num-input" type="number" min="6" max="24" value="10">
+                  </div>
+                </div>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="message-gap">Расстояние между сообщениями</label>
+                    <span class="setting-val-display"><span id="message-gap-val">10</span> px</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="message-gap-slider" type="range" min="4" max="24" value="10">
+                    <input id="message-gap" class="num-input" type="number" min="4" max="24" value="10">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Group 4: Аватар -->
+              <div class="card settings-group-card">
+                <h3 class="group-title">Аватар</h3>
+
+                <div class="setting-item">
+                  <label class="checkbox-row">
+                    <input id="avatars" type="checkbox" checked>
+                    <span>Показывать аватары</span>
+                  </label>
+                </div>
+
+                <div id="avatar-size-container" class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="avatar-size">Размер аватара</label>
+                    <span class="setting-val-display"><span id="avatar-size-val">42</span> px</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="avatar-size-slider" type="range" min="24" max="64" value="42">
+                    <input id="avatar-size" class="num-input" type="number" min="24" max="64" value="42">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Group 5: Эффекты -->
+              <div class="card settings-group-card">
+                <h3 class="group-title">Эффекты</h3>
+
+                <div class="setting-item">
+                  <label class="checkbox-row">
+                    <input id="card-shadow" type="checkbox" checked>
+                    <span>Тень под карточкой</span>
+                  </label>
+                </div>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label for="backdrop-blur">Размытие фона (Blur)</label>
+                    <span class="setting-val-display"><span id="backdrop-blur-val">0</span> px</span>
+                  </div>
+                  <div class="slider-row">
+                    <input id="backdrop-blur-slider" type="range" min="0" max="20" value="0">
+                    <input id="backdrop-blur" class="num-input" type="number" min="0" max="20" value="0">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Footer Bar with Save Feedback and Reset Button -->
+              <div class="appearance-footer-actions">
+                <button id="appearance-reset-btn" class="secondary" type="button">Сбросить настройки</button>
+                <div class="save-status-wrap">
+                  <span id="appearance-save-status" class="save-status-pill">✓ Сохранено</span>
+                  <button id="appearance-retry-save-btn" class="retry-save-btn" style="display: none;" type="button">Повторить</button>
+                </div>
+              </div>
+              <p id="settings-result" class="result" style="display: none;"></p>
             </div>
 
-            <div class="actions center-actions" style="margin-top: 18px;">
-              <button id="modal-start-setup-btn" class="primary btn-large">Начать настройку</button>
-              <button id="modal-recheck-btn" class="secondary">🔄 Проверить снова</button>
-              <button id="modal-done-btn" class="primary" style="display: none;">Готово</button>
+            <!-- Right Column: Sticky Live Preview -->
+            <div id="appearance-preview-col" class="appearance-preview-col">
+              <div id="sticky-preview-container" class="sticky-preview-container">
+                <div class="preview-header">
+                  <span class="preview-title">Предпросмотр на стриме</span>
+                  <div class="backdrop-selector" role="group" aria-label="Фон предпросмотра">
+                    <button id="bg-btn-dark" class="bg-selector-btn active" data-bg="dark" type="button">Тёмный</button>
+                    <button id="bg-btn-light" class="bg-selector-btn" data-bg="light" type="button">Светлый</button>
+                    <button id="bg-btn-gaming" class="bg-selector-btn" data-bg="gaming" type="button">Игровой</button>
+                  </div>
+                </div>
+
+                <!-- Preview Canvas Frame -->
+                <div id="preview-backdrop" class="preview-backdrop backdrop-dark">
+                  <iframe id="preview-iframe" class="preview-iframe" title="Оверлей чата — предпросмотр"></iframe>
+                </div>
+                <div class="preview-hint">
+                  <span>Изменения применяются мгновенно и отображаются как в OBS.</span>
+                </div>
+                <button id="preview-scroll-top-btn" class="preview-scroll-top-btn" type="button" aria-label="Вернуться к предпросмотру" style="display: none;">
+                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-arrow-up"/></svg>
+                  <span>Предпросмотр ↑</span>
+                </button>
+              </div>
             </div>
+          </div>
+        </section>
+
+        <!-- VIEW 3: SETUP -->
+        <section id="view-setup" class="content-view" style="display: none;">
+          <!-- 1. Browser & Extension Card -->
+          <div class="card setup-card">
+            <div class="card-header">
+              <div>
+                <span class="card-subtitle">Шаг 1</span>
+                <h3 class="card-title">Браузер и расширение</h3>
+                <p class="card-desc">Расширение передаёт сообщения из открытой вкладки Boosty прямо в приложение.</p>
+              </div>
+              <div id="setup-ext-badge" class="badge checking">Проверка…</div>
+            </div>
+
+            <div class="setup-body">
+              <div id="setup-browser-prompt" class="prompt-text">Выберите браузер, в котором открыт Boosty:</div>
+              <div id="setup-browser-options" class="browser-choice-grid"></div>
+
+              <div class="actions" style="margin-top: 16px;">
+                <button id="setup-open-ext-setup-btn" class="primary">Настроить расширение</button>
+                <button id="setup-open-browser-btn" class="secondary">🌐 Открыть браузер</button>
+                <button id="setup-recheck-btn" class="secondary">🔄 Проверить снова</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Boosty Tab Card -->
+          <div class="card setup-card">
+            <div class="card-header">
+              <div>
+                <span class="card-subtitle">Шаг 2</span>
+                <h3 class="card-title">Вкладка Boosty</h3>
+                <p class="card-desc">В браузере должна быть открыта страница вашей трансляции или блога.</p>
+              </div>
+              <div id="setup-boosty-badge" class="badge pending">Не открыт</div>
+            </div>
+
+            <div class="setup-body">
+              <div id="setup-boosty-url-info" class="hint-text" style="margin-bottom: 14px;">
+                Статус вкладки: <strong id="setup-boosty-url">Не обнаружена</strong>
+              </div>
+              <div class="actions">
+                <button id="setup-open-boosty-btn" class="primary">🚀 Открыть Boosty</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. OBS Studio Card -->
+          <div class="card setup-card">
+            <div class="card-header">
+              <div>
+                <span class="card-subtitle">Шаг 3</span>
+                <h3 class="card-title">OBS Studio</h3>
+                <p class="card-desc">Автоматическое добавление Browser Source в выбранную сцену стрима.</p>
+              </div>
+              <div id="dash-obs-badge" class="badge">OBS не подключён</div>
+            </div>
+
+            <div class="setup-body">
+              <div class="actions">
+                <select id="dash-obs-scene" aria-label="Сцена OBS">
+                  <option value="">Запустите OBS…</option>
+                </select>
+                <button id="dash-refresh-obs" class="secondary icon-btn" title="Обновить список сцен" aria-label="Обновить список сцен">
+                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg>
+                </button>
+                <input id="dash-obs-password" type="password" placeholder="Пароль WebSocket (если требуется)" autocomplete="off">
+                <button id="dash-toggle-obs-scene" class="primary">Добавить в сцену</button>
+                <button id="dash-obs-launch-btn-setup" class="secondary">Запустить OBS</button>
+              </div>
+              <p id="dash-obs-result" class="result"></p>
+              <p id="dash-obs-targets-hint" class="hint"></p>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 4: EXTRA / DIAGNOSTICS -->
+        <section id="view-extra" class="content-view" style="display: none;">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Диагностика и сведения</h3>
+                <p class="card-desc">Технические параметры локального сервера и соединений</p>
+              </div>
+              <button id="dash-restart-onboarding-btn" class="secondary">Запустить мастер настройки</button>
+            </div>
+
+            <div class="tech-grid" style="margin-top: 16px;">
+              <div>
+                <strong>Адрес оверлея:</strong>
+                <code id="tech-overlay-url">http://127.0.0.1:17369/overlay/</code>
+                <button id="dash-copy-url-btn" class="secondary inline-btn">Скопировать</button>
+              </div>
+              <div>
+                <strong>Локальный порт:</strong>
+                <span id="tech-port">17369</span>
+              </div>
+              <div>
+                <strong>Статус расширения:</strong>
+                <span id="tech-ext-status">—</span>
+              </div>
+              <div>
+                <strong>Статус Boosty:</strong>
+                <span id="tech-boosty-status">—</span>
+              </div>
+              <div>
+                <strong>Статус OBS WebSocket:</strong>
+                <span id="tech-obs-status">—</span>
+              </div>
+              <div>
+                <strong>Получено сообщений:</strong>
+                <span id="tech-msg-count">0</span>
+              </div>
+              <div>
+                <strong>Версия приложения:</strong>
+                <span id="tech-app-version">0.4.0</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Extension Setup Modal -->
+    <div id="dash-ext-modal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h2>Подключение расширения</h2>
+            <p>Оно передаёт сообщения из открытой вкладки Boosty в приложение.</p>
+          </div>
+          <button id="modal-close-btn" class="modal-close-icon" title="Закрыть" aria-label="Закрыть">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="status-box">
+            <div id="modal-ext-badge" class="badge checking">
+              <span class="badge-dot"></span> <span id="modal-ext-text">Проверяем расширение…</span>
+            </div>
+            <div id="modal-ext-hint" class="hint-text"></div>
+            <div id="modal-ext-success-msg" class="success-message" style="display: none;">
+              <div class="success-title">✓ Отлично! Расширение работает.</div>
+            </div>
+          </div>
+
+          <div id="modal-browser-prompt" class="prompt-text">В каком браузере вы открываете Boosty?</div>
+          <div id="modal-browser-options" class="browser-choice-grid"></div>
+
+          <div id="modal-guide-box" class="guide-box" style="display: none;">
+            <div class="guide-title">4 простых шага для подключения:</div>
+            <div class="guide-steps">
+              <div class="guide-step-item">
+                <span class="guide-num">①</span>
+                <div class="guide-text">
+                  <strong>Откройте страницу расширений</strong>
+                  <div class="shortcut-badge">
+                    <kbd>Ctrl</kbd> + <kbd>L</kbd> <span class="shortcut-arrow">→</span>
+                    <kbd>Ctrl</kbd> + <kbd>V</kbd> <span class="shortcut-arrow">→</span>
+                    <kbd>Enter</kbd>
+                  </div>
+                  <span class="subtext">Адрес уже скопирован в буфер обмена.</span>
+                </div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-num">②</span>
+                <div class="guide-text">Включите переключатель <strong>«Режим разработчика»</strong> (в правом верхнем углу)</div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-num">③</span>
+                <div class="guide-text">Нажмите кнопку <strong>«Загрузить распакованное расширение»</strong></div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-num">④</span>
+                <div class="guide-text">Выберите открытую папку <strong>extension</strong></div>
+              </div>
+            </div>
+            <div class="actions helper-actions">
+              <button id="modal-copy-url-btn" class="secondary">📋 Скопировать адрес ещё раз</button>
+              <button id="modal-open-folder-btn" class="secondary">📁 Открыть папку расширения</button>
+              <button id="modal-open-browser-btn" class="secondary">🌐 Открыть браузер</button>
+            </div>
+          </div>
+
+          <div class="actions center-actions" style="margin-top: 18px;">
+            <button id="modal-start-setup-btn" class="primary btn-large">Начать настройку</button>
+            <button id="modal-recheck-btn" class="secondary">🔄 Проверить снова</button>
+            <button id="modal-done-btn" class="primary" style="display: none;">Готово</button>
           </div>
         </div>
       </div>
-
-      <footer class="app-footer">
-        <span id="message-count">Получено сообщений: 0</span>
-        <span>Данные остаются на этом компьютере</span>
-      </footer>
-    </main>
+    </div>
 
     <script src="app.js"></script>
   </body>

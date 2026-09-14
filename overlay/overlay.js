@@ -42,10 +42,13 @@ function applyConfig(next) {
   const previousDuration = config.durationSeconds;
   config = { ...config, ...next };
 
-  document.documentElement.style.setProperty('--accent', config.accentColor);
-  document.documentElement.style.setProperty('--background-opacity', `${config.backgroundOpacity}%`);
-  document.documentElement.style.setProperty('--message-font-size', `${config.fontSize}px`);
-  document.body.classList.toggle('hide-avatars', !config.showAvatars);
+  if (window.BoostyRenderer) {
+    window.BoostyRenderer.applyAppearanceConfig(document.documentElement, config);
+  } else {
+    document.documentElement.style.setProperty('--accent', config.accentColor);
+    document.documentElement.style.setProperty('--message-font-size', `${config.fontSize}px`);
+    document.body.classList.toggle('hide-avatars', !config.showAvatars);
+  }
 
   // If maxMessages decreased, remove excess oldest cards
   const activeCards = getActiveCards();
@@ -106,23 +109,25 @@ function handleMessage(event) {
       }
     }
 
-    const card = document.createElement('article');
-    card.className = 'message';
+    const card = window.BoostyRenderer
+      ? window.BoostyRenderer.createMessageCard(message)
+      : (() => {
+          const c = document.createElement('article');
+          c.className = 'message';
+          const avatar = document.createElement('img');
+          avatar.className = 'avatar';
+          avatar.alt = '';
+          avatar.src = message.avatar || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+          const author = document.createElement('div');
+          author.className = 'author';
+          author.textContent = message.author;
+          const text = document.createElement('div');
+          text.className = 'text';
+          text.textContent = message.text;
+          c.append(avatar, author, text);
+          return c;
+        })();
 
-    const avatar = document.createElement('img');
-    avatar.className = 'avatar';
-    avatar.alt = '';
-    avatar.src = message.avatar || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
-
-    const author = document.createElement('div');
-    author.className = 'author';
-    author.textContent = message.author;
-
-    const text = document.createElement('div');
-    text.className = 'text';
-    text.textContent = message.text;
-
-    card.append(avatar, author, text);
     messages.append(card);
 
     const activeCards = getActiveCards();

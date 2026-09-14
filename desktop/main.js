@@ -580,4 +580,20 @@ ipcMain.handle('list-obs-scenes', (_event, password) => fetchActualObsState(pass
 ipcMain.handle('add-obs-scene', (_event, password, sceneIdentifier) => addSceneTarget(password, sceneIdentifier));
 ipcMain.handle('remove-obs-scene', (_event, password, sceneIdentifier) => removeSceneTarget(password, sceneIdentifier));
 ipcMain.handle('get-obs-status', () => lastObsState);
+ipcMain.handle('get-app-version', () => app.getVersion());
+
+if (process.env.UI_AUDIT_MODE === '1') {
+  // Disable animations and transitions in audit mode for absolute snapshot determinism
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('did-finish-load', () => {
+      contents.insertCSS(`
+        * {
+          animation: none !important;
+          transition: none !important;
+          caret-color: transparent !important;
+        }
+      `).catch(() => {});
+    });
+  });
+}
 

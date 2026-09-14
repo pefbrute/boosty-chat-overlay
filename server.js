@@ -49,14 +49,62 @@ const defaultConfig = {
   durationSeconds: 20,
   maxMessages: 6,
   fontSize: 21,
-  accentColor: '#f15f2c',
+  authorFontSize: 16,
+  cardWidth: 520,
+  borderRadius: 10,
+  cardPadding: 10,
+  messageGap: 10,
+  avatarSize: 42,
+  backdropBlur: 0,
   backgroundOpacity: 88,
+  accentColor: '#f15f2c',
+  textColor: '#ffffff',
+  backgroundColor: '#121216',
   showAvatars: true,
+  shadow: true,
 };
 let overlayConfig = { ...defaultConfig };
 
+function normalizedConfig(input, current = overlayConfig) {
+  const base = current || defaultConfig;
+  const number = (value, min, max, fallback) => {
+    if (value === undefined || value === null) return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+  };
+  const hex = (value, fallback) => {
+    if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim())) {
+      return value.trim().toLowerCase();
+    }
+    return fallback;
+  };
+  const bool = (value, fallback) => {
+    if (value === undefined || value === null) return fallback;
+    return Boolean(value);
+  };
+
+  return {
+    durationSeconds: Math.round(number(input?.durationSeconds, 0, 120, base.durationSeconds ?? 20)),
+    maxMessages: Math.round(number(input?.maxMessages, 1, 20, base.maxMessages ?? 6)),
+    fontSize: Math.round(number(input?.fontSize, 12, 48, base.fontSize ?? 21)),
+    authorFontSize: Math.round(number(input?.authorFontSize, 12, 28, base.authorFontSize ?? 16)),
+    cardWidth: Math.round(number(input?.cardWidth, 280, 760, base.cardWidth ?? 520)),
+    borderRadius: Math.round(number(input?.borderRadius, 0, 24, base.borderRadius ?? 10)),
+    cardPadding: Math.round(number(input?.cardPadding, 6, 24, base.cardPadding ?? 10)),
+    messageGap: Math.round(number(input?.messageGap, 4, 24, base.messageGap ?? 10)),
+    avatarSize: Math.round(number(input?.avatarSize, 24, 64, base.avatarSize ?? 42)),
+    backdropBlur: Math.round(number(input?.backdropBlur, 0, 20, base.backdropBlur ?? 0)),
+    backgroundOpacity: Math.round(number(input?.backgroundOpacity, 0, 100, base.backgroundOpacity ?? 88)),
+    accentColor: hex(input?.accentColor, base.accentColor ?? '#f15f2c'),
+    textColor: hex(input?.textColor, base.textColor ?? '#ffffff'),
+    backgroundColor: hex(input?.backgroundColor, base.backgroundColor ?? '#121216'),
+    showAvatars: bool(input?.showAvatars, base.showAvatars ?? true),
+    shadow: bool(input?.shadow, base.shadow ?? true),
+  };
+}
+
 try {
-  overlayConfig = { ...defaultConfig, ...JSON.parse(fs.readFileSync(configFile, 'utf8')) };
+  overlayConfig = normalizedConfig(JSON.parse(fs.readFileSync(configFile, 'utf8')), defaultConfig);
 } catch {
   // First launch: defaults are used until the user saves settings.
 }
@@ -92,24 +140,6 @@ function broadcast(message) {
 function broadcastConfig() {
   const event = `event: config\ndata: ${JSON.stringify(overlayConfig)}\n\n`;
   for (const client of clients) client.write(event);
-}
-
-function normalizedConfig(input) {
-  const number = (value, min, max, fallback) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
-  };
-  const accentColor = /^#[0-9a-f]{6}$/i.test(input?.accentColor ?? '')
-    ? input.accentColor
-    : overlayConfig.accentColor;
-  return {
-    durationSeconds: Math.round(number(input?.durationSeconds, 0, 120, overlayConfig.durationSeconds ?? 20)),
-    maxMessages: Math.round(number(input?.maxMessages, 1, 20, overlayConfig.maxMessages ?? 6)),
-    fontSize: Math.round(number(input?.fontSize, 12, 48, overlayConfig.fontSize ?? 21)),
-    accentColor,
-    backgroundOpacity: Math.round(number(input?.backgroundOpacity, 0, 100, overlayConfig.backgroundOpacity ?? 88)),
-    showAvatars: input?.showAvatars !== false,
-  };
 }
 
 function rememberMessage(id) {
@@ -178,7 +208,7 @@ const server = http.createServer((request, response) => {
     });
     request.on('end', () => {
       try {
-        overlayConfig = normalizedConfig(JSON.parse(body));
+        overlayConfig = normalizedConfig(JSON.parse(body), overlayConfig);
         fs.mkdirSync(path.dirname(configFile), { recursive: true });
         fs.writeFileSync(configFile, `${JSON.stringify(overlayConfig, null, 2)}\n`, { mode: 0o600 });
         broadcastConfig();

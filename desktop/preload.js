@@ -19,4 +19,23 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   launchObs: () => ipcRenderer.invoke('launch-obs'),
   hasObsExecutable: () => ipcRenderer.invoke('has-obs-executable'),
   openUrl: (url, browserId) => ipcRenderer.invoke('open-url', url, browserId),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 });
+
+if (process.env.UI_AUDIT_MODE === '1') {
+  contextBridge.exposeInMainWorld('boostyAudit', {
+    onApplyState: callback => {
+      ipcRenderer.on('audit:apply-state', async (_event, state) => {
+        try {
+          await callback(state);
+          ipcRenderer.send('audit:state-ready', { ok: true, id: state.id });
+        } catch (err) {
+          ipcRenderer.send('audit:state-ready', { ok: false, id: state.id, error: err?.message || String(err) });
+        }
+      });
+    },
+    notifyReady: () => {
+      ipcRenderer.send('audit:page-loaded');
+    },
+  });
+}

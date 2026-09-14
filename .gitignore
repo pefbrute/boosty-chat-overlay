@@ -6,6 +6,7 @@ dist/
 dist-electron/
 out/
 releases/
+artifacts/
 *.AppImage
 *.exe
 *.deb
