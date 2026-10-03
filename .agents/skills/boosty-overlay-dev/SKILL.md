@@ -8,6 +8,11 @@ description: >-
 
 # Boosty Chat Overlay Development Guide (`boosty-overlay-dev`)
 
+> [!IMPORTANT]
+> **Золотое правило UI-задач:**
+> Любые изменения `desktop/index.html`, `desktop/app.css`, `desktop/app.js` или `desktop/ui/*` считаются завершёнными **ТОЛЬКО** после `npm run test:ui:visual` и обязательного просмотра всех затронутых скриншотов через `view_file`.
+> Агент не имеет права сдавать работу или рапортовать о готовности без визуальной инспекции сгенерированных PNG в `artifacts/ui/`.
+
 This skill defines the architectural boundaries, critical invariants, and verification pipeline for developing and maintaining the `boosty-chat-overlay` codebase.
 
 ---
