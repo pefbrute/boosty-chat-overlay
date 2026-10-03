@@ -1,15 +1,19 @@
 # AI Agent Guidelines for Boosty Chat Overlay
 
-## 1. Mandatory UI Visual QA Rule (Strict Invariant)
+## 1. Mandatory UI Visual QA Rules (Strict Invariants)
 
 > [!IMPORTANT]
-> **Любые изменения `desktop/index.html`, `desktop/app.css`, `desktop/app.js` или `desktop/ui/*` считаются завершёнными ТОЛЬКО после запуска `npm run test:ui:visual` и обязательного просмотра всех затронутых скриншотов через `view_file`.**
+> **Разделение задач по интерфейсу:**
 >
-> Агенту категорически запрещено завершать задачу по UI или отчитываться пользователю, опираясь исключительно на то, что «код компилируется» или «тесты прошли». Необходима двухпроходная визуальная инспекция (Two-Pass Visual QA) созданных PNG-скриншотов в `artifacts/ui/`:
-> - Проверка отступов (4px/8px сетка);
-> - Контроль переноса и читаемости русских строк (Cyrillic localization);
-> - Контроль отсутствия горизонтального скролла (`scrollWidth <= innerWidth`);
-> - Контроль нулевых или съехавших элементов на всех трёх вьюпортах (`1280x850`, `1000x750`, `800x650`).
+> 1. **Desktop UI (`desktop/**/*`):**
+>    Любые изменения `desktop/index.html`, `desktop/app.css`, `desktop/app.js` или `desktop/ui/*` считаются завершёнными **ТОЛЬКО** после запуска `npm run test:ui:visual` и обязательного просмотра всех затронутых скриншотов в `artifacts/ui/` через `view_file`.
+>
+> 2. **OBS Overlay (`overlay/**/*`):**
+>    Любые изменения `overlay/index.html`, `overlay/overlay.js`, `overlay/renderer.js` или `overlay/style.css` считаются завершёнными **ТОЛЬКО** после запуска `npm run test:overlay:visual` и обязательного просмотра всех затронутых скриншотов в `artifacts/overlay/` через `view_file`.
+>
+> 3. **Desktop + Overlay:** Если задача затронула обе части — **обязательны обе команды** и просмотр скриншотов обеих папок.
+>
+> Агенту категорически запрещено завершать задачу по UI или отчитываться пользователю, опираясь исключительно на то, что «код компилируется» или «тесты прошли». Необходима двухпроходная визуальная инспекция (Two-Pass Visual QA) созданных PNG-скриншотов.
 
 ---
 
@@ -40,9 +44,12 @@ npm test
 # 3. Интеграционные тесты в реальном Electron
 npm run test:integration
 
-# 4. Визуальное тестирование UI (если затронут интерфейс)
+# 4. Визуальное тестирование Desktop UI (если затронут desktop/)
 npm run test:ui:visual
 
-# 5. Проверка форматирования и git diff
+# 5. Визуальное тестирование OBS Overlay (если затронут overlay/)
+npm run test:overlay:visual
+
+# 6. Проверка форматирования и git diff
 git diff --check
 ```

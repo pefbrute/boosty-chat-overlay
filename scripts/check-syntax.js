@@ -57,6 +57,7 @@ const files = [
   'scripts/ui-audit/archive.js',
   'scripts/ui-audit/overlay-wrapper.js',
   'scripts/visual-test-electron.js',
+  'scripts/visual-test-overlay.js',
 ];
 
 const rootDir = path.resolve(__dirname, '..');

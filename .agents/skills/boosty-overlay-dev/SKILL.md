@@ -9,9 +9,11 @@ description: >-
 # Boosty Chat Overlay Development Guide (`boosty-overlay-dev`)
 
 > [!IMPORTANT]
-> **Золотое правило UI-задач:**
-> Любые изменения `desktop/index.html`, `desktop/app.css`, `desktop/app.js` или `desktop/ui/*` считаются завершёнными **ТОЛЬКО** после `npm run test:ui:visual` и обязательного просмотра всех затронутых скриншотов через `view_file`.
-> Агент не имеет права сдавать работу или рапортовать о готовности без визуальной инспекции сгенерированных PNG в `artifacts/ui/`.
+> **Золотое правило UI-задач (Desktop & Overlay):**
+> 1. **Desktop UI (`desktop/**/*`):** Завершается **ТОЛЬКО** после `npm run test:ui:visual` и просмотра скриншотов в `artifacts/ui/` через `view_file`.
+> 2. **OBS Overlay (`overlay/**/*`):** Завершается **ТОЛЬКО** после `npm run test:overlay:visual` и просмотра скриншотов в `artifacts/overlay/` через `view_file`.
+> 3. **Desktop + Overlay:** Если затронуты обе части — обязательны **обе команды** и просмотр скриншотов обеих папок.
+> Агент не имеет права сдавать работу без двухпроходной визуальной инспекции (Two-Pass Visual QA) созданных PNG.
 
 This skill defines the architectural boundaries, critical invariants, and verification pipeline for developing and maintaining the `boosty-chat-overlay` codebase.
 
@@ -101,6 +103,7 @@ desktop/ (Electron Application)
 | Dashboard Status Hub logic and CTAs | [`desktop/ui/status-hub.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/ui/status-hub.js) |
 | Overlay visual card layout and CSS | [`overlay/renderer.js`](file:///home/fedor/projects/boosty-chat-overlay/overlay/renderer.js), [`overlay/style.css`](file:///home/fedor/projects/boosty-chat-overlay/overlay/style.css) |
 | Desktop Electron UI Visual QA runner | [`scripts/visual-test-electron.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-electron.js) |
+| OBS Overlay Visual QA runner | [`scripts/visual-test-overlay.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-overlay.js) |
 
 ---
 
@@ -118,16 +121,23 @@ npm test
 # 3. Integration tests inside real Electron instance
 npm run test:integration
 
-# 4. Playwright Electron UI Visual QA (viewports, states, zero errors)
+# 4. Playwright Desktop UI Visual QA (если затронут desktop/)
 npm run test:ui:visual
 
-# 5. Check for whitespace/git diff issues
+# 5. Playwright Overlay Visual QA (если затронут overlay/)
+npm run test:overlay:visual
+
+# 6. Check for whitespace/git diff issues
 git diff --check
 ```
 
-### Visual Inspection Protocol:
-If any file in `desktop/` or `overlay/` was modified:
-1. Run `npm run test:ui:visual`.
-2. Verify `artifacts/ui/console-errors.json` has 0 errors.
-3. Open and inspect key generated screenshots via `view_file` (e.g. `artifacts/ui/dashboard-1280x850.png`, `artifacts/ui/dashboard-800x650.png`, `artifacts/ui/appearance.png`).
-4. Verify typography hierarchy, Cyrillic text wrapping, and zero horizontal scroll overflow.
+### Visual Inspection Protocols:
+- **При изменении `desktop/`:**
+  1. Запустить `npm run test:ui:visual`.
+  2. Проверить `artifacts/ui/console-errors.json` (0 ошибок).
+  3. Открыть через `view_file`: `dashboard-1280x850.png`, `dashboard-800x650.png`, `appearance.png`, `state-obs-offline.png`.
+- **При изменении `overlay/`:**
+  1. Запустить `npm run test:overlay:visual`.
+  2. Проверить `artifacts/overlay/console-errors.json` (0 ошибок).
+  3. Открыть через `view_file`: `single-message.png`, `multiple-messages.png`, `long-message.png`, `narrow-source.png`, `small-height.png`, `top-right.png`.
+  4. Проверить отсутствие наложения карточек, корректность отступов, читаемость кириллицы и отсутствие горизонтального скролла.

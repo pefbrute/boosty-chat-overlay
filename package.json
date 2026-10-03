@@ -27,7 +27,8 @@
     "ui:capture": "node scripts/ui-audit/capture.js",
     "ui:capture:dashboard": "node scripts/ui-audit/capture.js --scope dashboard",
     "ui:capture:overlay": "node scripts/ui-audit/capture.js --scope overlay",
-    "test:ui:visual": "node scripts/visual-test-electron.js"
+    "test:ui:visual": "node scripts/visual-test-electron.js",
+    "test:overlay:visual": "node scripts/visual-test-overlay.js"
   },
   "devDependencies": {
     "electron": "^37.2.6",

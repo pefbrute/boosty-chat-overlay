@@ -280,6 +280,7 @@ npm run test:all          # Полный запуск всех наборов т
 | Вёрстка и оформление карточки сообщения в OBS | [`overlay/renderer.js`](file:///home/fedor/projects/boosty-chat-overlay/overlay/renderer.js), [`overlay/style.css`](file:///home/fedor/projects/boosty-chat-overlay/overlay/style.css) |
 | Поведение оверлея при получении сообщений | [`overlay/overlay.js`](file:///home/fedor/projects/boosty-chat-overlay/overlay/overlay.js) |
 | Сценарии визуального QA настольного интерфейса | [`scripts/visual-test-electron.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-electron.js) |
+| Сценарии визуального QA OBS-оверлея | [`scripts/visual-test-overlay.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-overlay.js) |
 
 ---
 
@@ -313,14 +314,34 @@ npm run test:all          # Полный запуск всех наборов т
    - Все ошибки консоли Chromium и необработанные исключения страницы сохраняются в `artifacts/ui/console-errors.json`.
    - Итоговый структурированный JSON-отчёт сохраняется в `artifacts/ui/visual-report.json`.
 
-### Изоляция тестового режима:
-- Тестовые хуки (`window.__BOOSTY_UI_TEST__` и `window.boostyAudit`) активны **только** при установке переменной окружения `BOOSTY_OVERLAY_UI_TEST=1`.
-- В обычном production-режиме эти хуки гарантированно отсутствуют (`undefined`), что подтверждается тестом `test/production-isolation.test.js`.
-- В тестовом режиме Electron не обращается к реальному OBS и реальному интернету, гарантируя 100% стабильность и повторяемость.
+---
+
+## 17. OBS Overlay Visual QA (`npm run test:overlay:visual`)
+
+Для сквозного визуального тестирования страницы чата, встраиваемой в OBS Browser Source (`overlay/index.html`, `overlay/overlay.js`, `overlay/renderer.js`, `overlay/style.css`), создан специализированный раннер [`scripts/visual-test-overlay.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-overlay.js).
+
+### Что проверяет раннер:
+1. **Реальный пайплайн доставки:** Запускается локальный HTTP-сервер на изолированном порту, страница открывается в Chromium через Playwright, сообщения подаются через настоящий `POST /message`, а конфигурация — через `POST /config`.
+2. **Сценарии контента чата:**
+   - Одиночное сообщение (`single-message.png`).
+   - Стек из нескольких сообщений с контролем отсутствия наложения bounding boxes (`multiple-messages.png`).
+   - Сообщение с цитатой/ответом (`reply-message.png`).
+   - Длинный текст на 350+ символов на русском (`long-message.png`).
+   - Экстремально длинный ник автора (`long-author.png`).
+   - Аватар отсутствует (fallback SVG) vs локальный SVG data URL без сетевых запросов (`no-avatar.png`, `local-avatar.png`).
+   - Эмодзи и юникод (`unicode-emoji.png`).
+3. **Геометрия и позиционирование в OBS:**
+   - Все 4 угла привязки (`top-left.png`, `top-right.png`, `bottom-left.png`, `bottom-right.png`) с автоматической проверкой квадрантов.
+   - Направление добавления сообщений (`newMessagePosition: top/bottom`).
+   - Ограничение максимальной высоты стека (`maxStackHeight`).
+   - Узкий Browser Source стримера: `400x700` (`narrow-source.png`).
+   - Невысокое окно: `600x300` (`small-height.png`).
+   - Полноразмерный эфирный холст: `1920x1080` (`viewport-1920x1080.png`).
+   - Пресеты отображения: Compact (`preset-compact.png`) и Large High-Contrast (`preset-large.png`).
+4. **Контроль ошибок и отчёты:**
+   - Полный запрет на необработанные исключения и `console.error` (`artifacts/overlay/console-errors.json`).
+   - Контроль отсутствия несанкционированных внешних сетевых запросов.
+   - Итоговый отчёт в `artifacts/overlay/visual-report.json`.
 
 > [!IMPORTANT]
-> **Обязательное правило для AI-агентов:** При любых изменениях стилей или разметки настольного интерфейса (`desktop/index.html`, `desktop/app.css`, `desktop/app.js`, `desktop/ui/`) агент обязан:
-> 1. Запустить `npm run test:ui:visual`.
-> 2. Убедиться в отсутствии консольных и структурных ошибок (`consoleErrorsCount === 0`, `layoutIssuesCount === 0`).
-> 3. Изучить сформированные скриншоты в папке `artifacts/ui/` с помощью инструмента `view_file` для проверки визуального ритма, отступов и читаемости текста.
-
+> **Обязательное правило для изменений оверлея:** При любых изменениях файлов `overlay/**/*` агент обязан запустить `npm run test:overlay:visual` и просмотреть созданные скриншоты в папке `artifacts/overlay/` через `view_file`.
