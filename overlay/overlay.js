@@ -178,7 +178,36 @@ function handleMessage(event) {
           const text = document.createElement('div');
           text.className = 'text';
           text.textContent = message.text;
-          c.append(avatar, author, text);
+
+          // Reply / Quote block handling
+          let replyContainer = null;
+          if (message.reply && typeof message.reply === 'object') {
+            const replyAuthor = typeof message.reply.author === 'string' ? message.reply.author.trim() : '';
+            const replyText = typeof message.reply.text === 'string' ? message.reply.text.trim() : '';
+            if (replyAuthor || replyText) {
+              replyContainer = document.createElement('div');
+              replyContainer.className = 'message-reply reply';
+              if (replyAuthor) {
+                const replyAuthorEl = document.createElement('div');
+                replyAuthorEl.className = 'message-reply-author';
+                replyAuthorEl.textContent = replyAuthor;
+                replyContainer.appendChild(replyAuthorEl);
+              }
+              if (replyText) {
+                const replyTextEl = document.createElement('div');
+                replyTextEl.className = 'message-reply-text';
+                replyTextEl.textContent = replyText;
+                replyContainer.appendChild(replyTextEl);
+              }
+            }
+          }
+
+          if (replyContainer) {
+            c.classList.add('has-reply');
+            c.append(replyContainer, avatar, author, text);
+          } else {
+            c.append(avatar, author, text);
+          }
           return c;
         })();
 

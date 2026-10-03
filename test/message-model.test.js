@@ -239,6 +239,91 @@ test('Message Model: end-to-end chain (parser fixture -> normalize -> SSE serial
     assert.strictEqual(card.querySelector('.author').textContent, 'Стример Борис');
     assert.strictEqual(card.querySelector('.text').textContent, 'Завтра в 19:00 по Москве, будем проходить финал!');
     assert.strictEqual(card.querySelector('.avatar').src, 'https://images.boosty.to/user/55/avatar.png');
+    assert.ok(card.classList.contains('has-reply'), 'Card must have has-reply class');
+    assert.ok(card.querySelector('.message-reply'), 'Card must contain .message-reply element');
+    assert.strictEqual(card.querySelector('.message-reply-author').textContent, 'Иван Про');
+    assert.strictEqual(card.querySelector('.message-reply-text').textContent, 'Когда следующий стрим?');
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+
+test('Overlay Renderer: reply DOM scenarios (normal, empty, partial, long, xss-safe)', () => {
+  const { parseHTML } = require('linkedom');
+  const BoostyRenderer = require('../overlay/renderer.js');
+  const { document: overlayDoc } = parseHTML('<!DOCTYPE html><html><body><div id="messages"></div></body></html>');
+  const prevDoc = globalThis.document;
+  globalThis.document = overlayDoc;
+
+  try {
+    // 1. Normal message without reply
+    const normalCard = BoostyRenderer.createMessageCard({
+      author: 'User1',
+      text: 'Simple text',
+      reply: null,
+    });
+    assert.strictEqual(normalCard.classList.contains('has-reply'), false);
+    assert.strictEqual(normalCard.querySelector('.message-reply'), null);
+
+    // 2. Empty reply: empty author and empty text
+    const emptyReplyCard = BoostyRenderer.createMessageCard({
+      author: 'User2',
+      text: 'Hello',
+      reply: { author: '', text: '' },
+    });
+    assert.strictEqual(emptyReplyCard.classList.contains('has-reply'), false);
+    assert.strictEqual(emptyReplyCard.querySelector('.message-reply'), null);
+
+    // 3. Partial reply: author only
+    const authorOnlyCard = BoostyRenderer.createMessageCard({
+      author: 'User3',
+      text: 'Replying with author only',
+      reply: { author: 'Alice', text: '' },
+    });
+    assert.strictEqual(authorOnlyCard.classList.contains('has-reply'), true);
+    assert.ok(authorOnlyCard.querySelector('.message-reply'));
+    assert.strictEqual(authorOnlyCard.querySelector('.message-reply-author').textContent, 'Alice');
+    assert.strictEqual(authorOnlyCard.querySelector('.message-reply-text'), null);
+
+    // 4. Partial reply: text only
+    const textOnlyCard = BoostyRenderer.createMessageCard({
+      author: 'User4',
+      text: 'Replying with text only',
+      reply: { author: '', text: 'Quoted question' },
+    });
+    assert.strictEqual(textOnlyCard.classList.contains('has-reply'), true);
+    assert.ok(textOnlyCard.querySelector('.message-reply'));
+    assert.strictEqual(textOnlyCard.querySelector('.message-reply-author'), null);
+    assert.strictEqual(textOnlyCard.querySelector('.message-reply-text').textContent, 'Quoted question');
+
+    // 5. Long reply scenario
+    const longCard = BoostyRenderer.createMessageCard({
+      author: 'User5',
+      text: 'Main answer',
+      reply: {
+        author: 'ОченьДлинныйНикПользователяКоторыйНеДолженСломатьИнтерфейс',
+        text: 'Очень длинный текст цитаты '.repeat(10),
+      },
+    });
+    assert.strictEqual(longCard.classList.contains('has-reply'), true);
+    assert.ok(longCard.querySelector('.message-reply-author'));
+    assert.ok(longCard.querySelector('.message-reply-text'));
+
+    // 6. Security / XSS: <script> or <img onerror> in reply and author
+    const xssPayload = '<img src=x onerror=alert(1)><script>alert("hack")</script>';
+    const xssCard = BoostyRenderer.createMessageCard({
+      author: xssPayload,
+      text: xssPayload,
+      reply: { author: xssPayload, text: xssPayload },
+    });
+    // Check that no img/script tags were created from string payloads
+    assert.strictEqual(xssCard.querySelectorAll('script').length, 0);
+    // avatar is the only img tag
+    assert.strictEqual(xssCard.querySelectorAll('img').length, 1);
+    assert.strictEqual(xssCard.querySelector('.message-reply-author').textContent, xssPayload);
+    assert.strictEqual(xssCard.querySelector('.message-reply-text').textContent, xssPayload);
+    assert.strictEqual(xssCard.querySelector('.author').textContent, xssPayload);
+    assert.strictEqual(xssCard.querySelector('.text').textContent, xssPayload);
   } finally {
     globalThis.document = prevDoc;
   }

@@ -341,41 +341,130 @@ async function runOverlayVisualQA() {
     console.log('✓ Multiple messages verified -> multiple-messages.png');
 
     // =========================================================================
-    // Scenario 3: Reply / Quote Message
+    // Scenario 3: Reply / Quote Scenarios
     // =========================================================================
-    console.log('\n--- Scenario 3: Reply Message ---');
+    console.log('\n--- Scenario 3: Reply Message Scenarios ---');
+
+    // 3.1 Short Reply
     await resetCards();
     await postMessage({
       id: 'visual-reply-1',
       platform: 'boosty',
       author: { name: 'Анна', avatar: null },
-      text: 'Ответ на предыдущее сообщение стримера',
+      text: 'Завтра в 19:00 по Москве, будем проходить финал!',
       reply: {
         author: 'Фёдор',
-        text: 'Обычное тестовое сообщение',
+        text: 'Когда следующий стрим?',
       },
       publishedAt: '21:37',
     });
     await waitForCardsCount(1);
-    await verifyLayout('reply-message');
+    await verifyLayout('reply-short');
+    await captureScreenshot('reply-short.png');
     await captureScreenshot('reply-message.png');
-    statesChecked.push('reply-message');
+    statesChecked.push('reply-short');
 
-    // Inspect reply UI presence in DOM
+    // Inspect reply UI presence and DOM content
     const replyPresence = await page.evaluate(() => {
       const card = document.querySelector('.message');
-      const hasReplyClass = card?.querySelector('.reply, .quote, [data-reply]') !== null;
-      return { hasReplyClass };
+      const hasReplyClass = card?.classList.contains('has-reply') || card?.querySelector('.reply, .quote, [data-reply], .message-reply') !== null;
+      const authorText = card?.querySelector('.message-reply-author')?.textContent;
+      const quoteText = card?.querySelector('.message-reply-text')?.textContent;
+      return { hasReplyClass, authorText, quoteText };
     });
+
+    if (!replyPresence.hasReplyClass || replyPresence.authorText !== 'Фёдор' || replyPresence.quoteText !== 'Когда следующий стрим?') {
+      throw new Error(`Reply DOM verification failed: ${JSON.stringify(replyPresence)}`);
+    }
 
     replyPipelineStatus = {
       received: true,
-      rendered: replyPresence.hasReplyClass,
-      notes: replyPresence.hasReplyClass
-        ? 'Reply UI element rendered.'
-        : 'Reply data preserved in model pipeline; visual renderer currently does not render reply quotes (expected current behavior).',
+      rendered: true,
+      notes: 'Reply UI element rendered successfully with author, quote text, and reply indicator.',
     };
-    console.log(`✓ Reply message verified (${replyPipelineStatus.notes}) -> reply-message.png`);
+    console.log(`✓ Reply short verified (${replyPipelineStatus.notes}) -> reply-short.png`);
+
+    // 3.2 Long Reply Text (300-500 chars Russian text)
+    await resetCards();
+    await postMessage({
+      id: 'visual-reply-long-text',
+      platform: 'boosty',
+      author: { name: 'Борис', avatar: null },
+      text: 'Спасибо за подробный вопрос, обязательно разберём всё на трансляции!',
+      reply: {
+        author: 'АктивныйЗритель',
+        text: 'Это очень длинное цитируемое сообщение из чата Boosty, содержащее более двухсот символов текста для проверки того, как оверлей применяет ограничение line-clamp и многоточие, не позволяя карточке раздуваться до половины экрана и сохраняя строгие отступы и границы.',
+      },
+      publishedAt: '21:38',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('reply-long');
+    await captureScreenshot('reply-long.png');
+    statesChecked.push('reply-long');
+    console.log('✓ Reply long text verified -> reply-long.png');
+
+    // 3.3 Long Reply Author Name
+    await resetCards();
+    await postMessage({
+      id: 'visual-reply-long-author',
+      platform: 'boosty',
+      author: { name: 'Модератор', avatar: null },
+      text: 'Приветствуем в чате трансляции!',
+      reply: {
+        author: 'ОченьДлинныйНикПользователяКоторыйНеДолженСломатьВерсткуКарточки123456789',
+        text: 'Проверка длинного никнейма в цитате',
+      },
+      publishedAt: '21:39',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('reply-long-author');
+    await captureScreenshot('reply-long-author.png');
+    statesChecked.push('reply-long-author');
+    console.log('✓ Reply long author verified -> reply-long-author.png');
+
+    // 3.4 Multiple Messages Stack with Mixed Normal and Reply Cards
+    await resetCards();
+    await postMessage({
+      id: 'visual-reply-multi-1',
+      platform: 'boosty',
+      author: { name: 'Иван', avatar: null },
+      text: 'Первое обычное сообщение без ответа',
+      publishedAt: '21:40',
+    });
+    await postMessage({
+      id: 'visual-reply-multi-2',
+      platform: 'boosty',
+      author: { name: 'Анна', avatar: null },
+      text: 'Ответ на вопрос про донаты и подписки',
+      reply: {
+        author: 'Максим',
+        text: 'Как работают уровни подписки на Boosty?',
+      },
+      publishedAt: '21:41',
+    });
+    await postMessage({
+      id: 'visual-reply-multi-3',
+      platform: 'boosty',
+      author: { name: 'Сергей', avatar: null },
+      text: 'Третье обычное сообщение в стеке',
+      publishedAt: '21:42',
+    });
+    await postMessage({
+      id: 'visual-reply-multi-4',
+      platform: 'boosty',
+      author: { name: 'Елена', avatar: null },
+      text: 'Ответ на вопрос про запись стрима',
+      reply: {
+        author: 'Ольга',
+        text: 'Запись будет доступна для всех?',
+      },
+      publishedAt: '21:43',
+    });
+    await waitForCardsCount(4);
+    await verifyLayout('reply-multiple-messages');
+    await captureScreenshot('reply-multiple-messages.png');
+    statesChecked.push('reply-multiple-messages');
+    console.log('✓ Reply multiple messages stack verified -> reply-multiple-messages.png');
 
     // =========================================================================
     // Scenario 4: Long Message (300-500 characters Russian text)
@@ -598,6 +687,25 @@ async function runOverlayVisualQA() {
     await captureScreenshot('narrow-source.png');
     statesChecked.push('narrow-source');
     console.log('✓ Narrow source verified (400x700) -> narrow-source.png');
+
+    // 11.2 Narrow Reply Scenario
+    await resetCards();
+    await postMessage({
+      id: 'narrow-reply-1',
+      platform: 'boosty',
+      author: { name: 'Стример', avatar: localAvatarSvg },
+      text: 'Ответ в узком источнике Browser Source без горизонтального скролла и переполнений.',
+      reply: {
+        author: 'ЗрительШортсов',
+        text: 'Как настроить вертикальный чат для компактной сцены?',
+      },
+      publishedAt: '21:51',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('reply-narrow-source');
+    await captureScreenshot('reply-narrow-source.png');
+    statesChecked.push('reply-narrow-source');
+    console.log('✓ Reply in narrow source verified (400x700) -> reply-narrow-source.png');
 
     // =========================================================================
     // Scenario 12: Small Height Viewport (600x300)
