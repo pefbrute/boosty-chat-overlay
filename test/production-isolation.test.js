@@ -21,13 +21,15 @@ app.whenReady().then(async () => {
 
     await win.loadURL('about:blank');
     const isAuditDefined = await win.webContents.executeJavaScript('window.boostyAudit !== undefined');
+    const isUiTestDefined = await win.webContents.executeJavaScript('window.__BOOSTY_UI_TEST__ !== undefined');
     console.log('Production isolation test: window.boostyAudit !== undefined is', isAuditDefined);
-    if (isAuditDefined) {
-      console.error('FAIL: window.boostyAudit must not be defined when UI_AUDIT_MODE is not 1!');
+    console.log('Production isolation test: window.__BOOSTY_UI_TEST__ !== undefined is', isUiTestDefined);
+    if (isAuditDefined || isUiTestDefined) {
+      console.error('FAIL: Test hooks must not be defined in normal production mode!');
       app.quit();
       process.exit(1);
     }
-    console.log('PASS: window.boostyAudit is strictly undefined in normal production mode.');
+    console.log('PASS: window.boostyAudit and window.__BOOSTY_UI_TEST__ are strictly undefined in normal production mode.');
     win.destroy();
     app.quit();
     process.exit(0);

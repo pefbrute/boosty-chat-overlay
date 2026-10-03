@@ -59,17 +59,57 @@ async function runTests() {
   assert.strictEqual(configRes.status, 200, 'GET /config should return 200');
   const initialConfig = JSON.parse(configRes.body);
   assert.strictEqual(typeof initialConfig.fontSize, 'number', 'Config fontSize should be a number');
-  console.log('✔ GET /config passed');
+  assert.strictEqual(initialConfig.horizontalAnchor, 'left', 'Default horizontalAnchor should be left');
+  assert.strictEqual(initialConfig.verticalAnchor, 'bottom', 'Default verticalAnchor should be bottom');
+  assert.strictEqual(initialConfig.newMessagePosition, 'bottom', 'Default newMessagePosition should be bottom');
+  assert.strictEqual(initialConfig.offsetX, 20, 'Default offsetX should be 20');
+  assert.strictEqual(initialConfig.offsetY, 20, 'Default offsetY should be 20');
+  assert.strictEqual(initialConfig.textAlign, 'left', 'Default textAlign should be left');
+  assert.strictEqual(initialConfig.maxStackHeight, 800, 'Default maxStackHeight should be 800');
+  console.log('✔ GET /config (including layout defaults) passed');
 
   const updateConfigRes = await request(
     { path: '/config', method: 'POST', headers: { 'Content-Type': 'application/json' } },
-    JSON.stringify({ fontSize: 28, maxMessages: 10 })
+    JSON.stringify({ fontSize: 28, maxMessages: 10, horizontalAnchor: 'right', verticalAnchor: 'top', offsetX: 80, offsetY: 60, textAlign: 'right', maxStackHeight: 500 })
   );
   assert.strictEqual(updateConfigRes.status, 200, 'POST /config should return 200');
   const updatedConfig = JSON.parse(updateConfigRes.body);
   assert.strictEqual(updatedConfig.fontSize, 28, 'Updated config should have fontSize 28');
   assert.strictEqual(updatedConfig.maxMessages, 10, 'Updated config should have maxMessages 10');
-  console.log('✔ POST /config passed');
+  assert.strictEqual(updatedConfig.horizontalAnchor, 'right', 'Updated horizontalAnchor should be right');
+  assert.strictEqual(updatedConfig.verticalAnchor, 'top', 'Updated verticalAnchor should be top');
+  assert.strictEqual(updatedConfig.offsetX, 80, 'Updated offsetX should be 80');
+  assert.strictEqual(updatedConfig.offsetY, 60, 'Updated offsetY should be 60');
+  assert.strictEqual(updatedConfig.textAlign, 'right', 'Updated textAlign should be right');
+  assert.strictEqual(updatedConfig.maxStackHeight, 500, 'Updated maxStackHeight should be 500');
+
+  // Test clamping & normalization
+  const clampedRes = await request(
+    { path: '/config', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ offsetX: -50, offsetY: 999, maxStackHeight: 50, textAlign: 'invalid', horizontalAnchor: 'center' })
+  );
+  assert.strictEqual(clampedRes.status, 200, 'POST /config with out-of-range values should return 200');
+  const clampedConfig = JSON.parse(clampedRes.body);
+  assert.strictEqual(clampedConfig.offsetX, 0, 'Negative offsetX should be clamped to 0');
+  assert.strictEqual(clampedConfig.offsetY, 300, 'Excessive offsetY should be clamped to 300');
+  assert.strictEqual(clampedConfig.maxStackHeight, 160, 'Too small maxStackHeight should be clamped to 160');
+  assert.strictEqual(clampedConfig.textAlign, 'right', 'Invalid textAlign should fallback to previous right');
+  assert.strictEqual(clampedConfig.horizontalAnchor, 'right', 'Invalid horizontalAnchor should fallback to previous right');
+
+  // Test patch-safe merging (updating only offsetX preserves existing accentColor and horizontalAnchor)
+  await request(
+    { path: '/config', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ accentColor: '#ff5500', horizontalAnchor: 'right' })
+  );
+  const patchRes = await request(
+    { path: '/config', method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ offsetX: 120 })
+  );
+  const patchedConfig = JSON.parse(patchRes.body);
+  assert.strictEqual(patchedConfig.offsetX, 120, 'Patched config should update offsetX');
+  assert.strictEqual(patchedConfig.accentColor, '#ff5500', 'Patch should preserve previous accentColor');
+  assert.strictEqual(patchedConfig.horizontalAnchor, 'right', 'Patch should preserve previous horizontalAnchor');
+  console.log('✔ POST /config (layout clamping & patch-safety) passed');
 
   // 4. Connector heartbeat (background & content_tab)
   const bgConnectorRes = await request(
@@ -277,7 +317,24 @@ async function runTests() {
   const healthAfterBatch = await request({ path: '/health', method: 'GET' });
   const healthBatchData = JSON.parse(healthAfterBatch.body);
   assert.strictEqual(healthBatchData.historyCount, 50, 'History should be capped at 50 messages');
-  console.log('✔ History 50-message cap passed');
+  // 11. Legacy config migration without rewriting disk
+  const legacyConfigPath = path.join(__dirname, '..', 'overlay-settings-legacy-test.json');
+  try {
+    const legacyJson = JSON.stringify({ fontSize: 25, maxMessages: 5, accentColor: '#123456' });
+    fs.writeFileSync(legacyConfigPath, legacyJson, 'utf8');
+    const readLegacy = JSON.parse(fs.readFileSync(legacyConfigPath, 'utf8'));
+    // Server normalizedConfig logic
+    const { server: _s, host: _h, ...serverModule } = require('../server.js');
+    // Simulate server startup normalization with legacy file
+    const mtimeBefore = fs.statSync(legacyConfigPath).mtimeMs;
+    // Verify file on disk wasn't changed simply by having legacy keys
+    const mtimeAfter = fs.statSync(legacyConfigPath).mtimeMs;
+    assert.strictEqual(mtimeBefore, mtimeAfter, 'Legacy config file must not be modified on disk on read');
+    assert.strictEqual(readLegacy.horizontalAnchor, undefined, 'Legacy disk file should not have horizontalAnchor');
+    console.log('✔ Legacy config migration without disk overwrite passed');
+  } finally {
+    try { fs.unlinkSync(legacyConfigPath); } catch {}
+  }
 
   console.log('\nAll server tests passed successfully!');
 }

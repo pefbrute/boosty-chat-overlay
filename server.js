@@ -1,17 +1,19 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const { version: appVersion } = require('./package.json');
+const { normalizeIncomingMessage, validateNormalizedMessage } = require('./core/messages/model.js');
+const { defaultConfig } = require('./core/config/defaults.js');
+const { normalizeConfig, normalizedConfig } = require('./core/config/schema.js');
+const { createConfigStore } = require('./core/config/storage.js');
+const { createHealthTracker } = require('./core/health/tracker.js');
+const { createMessageHistory } = require('./core/messages/history.js');
+const { createMessageDedup } = require('./core/messages/dedup.js');
+const { createSseHub } = require('./core/sse/hub.js');
 
 const host = '127.0.0.1';
 const port = Number(process.env.BOOSTY_OVERLAY_PORT || 17369);
 const configFile = process.env.BOOSTY_OVERLAY_CONFIG || path.join(__dirname, 'overlay-settings.json');
-const clients = new Set();
-const recentMessageIds = new Map();
-const MAX_HISTORY = 50;
-const messageHistory = [];
-let nextEventId = 0;
-const { version: appVersion } = require('./package.json');
-let extensionVersion = null;
 
 function getBundledExtensionVersion() {
   try {
@@ -25,89 +27,11 @@ function getBundledExtensionVersion() {
 }
 const bundledExtensionVersion = getBundledExtensionVersion();
 
-function compareSemver(v1, v2) {
-  if (!v1 || !v2) return 0;
-  const p1 = String(v1).replace(/^v/i, '').split('.').map(x => parseInt(x, 10) || 0);
-  const p2 = String(v2).replace(/^v/i, '').split('.').map(x => parseInt(x, 10) || 0);
-  const len = Math.max(p1.length, p2.length);
-  for (let i = 0; i < len; i++) {
-    const num1 = p1[i] ?? 0;
-    const num2 = p2[i] ?? 0;
-    if (num1 > num2) return 1;
-    if (num1 < num2) return -1;
-  }
-  return 0;
-}
-
-let receivedMessages = 0;
-let lastMessageAt = null;
-let connectorLastSeenAt = null;
-let extensionLastSeenAt = null;
-let boostyLastSeenAt = null;
-let boostyTabUrl = null;
-const defaultConfig = {
-  durationSeconds: 20,
-  maxMessages: 6,
-  fontSize: 21,
-  authorFontSize: 16,
-  cardWidth: 520,
-  borderRadius: 10,
-  cardPadding: 10,
-  messageGap: 10,
-  avatarSize: 42,
-  backdropBlur: 0,
-  backgroundOpacity: 88,
-  accentColor: '#f15f2c',
-  textColor: '#ffffff',
-  backgroundColor: '#121216',
-  showAvatars: true,
-  shadow: true,
-};
-let overlayConfig = { ...defaultConfig };
-
-function normalizedConfig(input, current = overlayConfig) {
-  const base = current || defaultConfig;
-  const number = (value, min, max, fallback) => {
-    if (value === undefined || value === null) return fallback;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
-  };
-  const hex = (value, fallback) => {
-    if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim())) {
-      return value.trim().toLowerCase();
-    }
-    return fallback;
-  };
-  const bool = (value, fallback) => {
-    if (value === undefined || value === null) return fallback;
-    return Boolean(value);
-  };
-
-  return {
-    durationSeconds: Math.round(number(input?.durationSeconds, 0, 120, base.durationSeconds ?? 20)),
-    maxMessages: Math.round(number(input?.maxMessages, 1, 20, base.maxMessages ?? 6)),
-    fontSize: Math.round(number(input?.fontSize, 12, 48, base.fontSize ?? 21)),
-    authorFontSize: Math.round(number(input?.authorFontSize, 12, 28, base.authorFontSize ?? 16)),
-    cardWidth: Math.round(number(input?.cardWidth, 280, 760, base.cardWidth ?? 520)),
-    borderRadius: Math.round(number(input?.borderRadius, 0, 24, base.borderRadius ?? 10)),
-    cardPadding: Math.round(number(input?.cardPadding, 6, 24, base.cardPadding ?? 10)),
-    messageGap: Math.round(number(input?.messageGap, 4, 24, base.messageGap ?? 10)),
-    avatarSize: Math.round(number(input?.avatarSize, 24, 64, base.avatarSize ?? 42)),
-    backdropBlur: Math.round(number(input?.backdropBlur, 0, 20, base.backdropBlur ?? 0)),
-    backgroundOpacity: Math.round(number(input?.backgroundOpacity, 0, 100, base.backgroundOpacity ?? 88)),
-    accentColor: hex(input?.accentColor, base.accentColor ?? '#f15f2c'),
-    textColor: hex(input?.textColor, base.textColor ?? '#ffffff'),
-    backgroundColor: hex(input?.backgroundColor, base.backgroundColor ?? '#121216'),
-    showAvatars: bool(input?.showAvatars, base.showAvatars ?? true),
-    shadow: bool(input?.shadow, base.shadow ?? true),
-  };
-}
-
-try {
-  overlayConfig = normalizedConfig(JSON.parse(fs.readFileSync(configFile, 'utf8')), defaultConfig);
-} catch {
-  // First launch: defaults are used until the user saves settings.
-}
+const configStore = createConfigStore({ configFile });
+const healthTracker = createHealthTracker({ appVersion, bundledExtensionVersion });
+const messageHistory = createMessageHistory({ maxHistory: 50 });
+const messageDedup = createMessageDedup({ ttlMs: 5000 });
+const sseHub = createSseHub();
 
 function sendJson(response, status, value) {
   response.writeHead(status, {
@@ -119,37 +43,18 @@ function sendJson(response, status, value) {
   response.end(JSON.stringify(value));
 }
 
-function broadcast(message) {
-  receivedMessages += 1;
-  lastMessageAt = Date.now();
-  if (!message.eventId) {
-    nextEventId += 1;
-    message.eventId = String(nextEventId);
-  }
-  if (!message.receivedAt) {
-    message.receivedAt = Date.now();
-  }
-  messageHistory.push(message);
-  while (messageHistory.length > MAX_HISTORY) {
-    messageHistory.shift();
-  }
-  const event = `id: ${message.eventId}\ndata: ${JSON.stringify(message)}\n\n`;
-  for (const client of clients) client.write(event);
+function broadcast(message, isTest = false) {
+  messageHistory.add(message);
+  healthTracker.recordMessage({
+    extensionVersion: message.extensionVersion,
+    now: message.receivedAt,
+    isTest,
+  });
+  sseHub.broadcastMessage(message);
 }
 
 function broadcastConfig() {
-  const event = `event: config\ndata: ${JSON.stringify(overlayConfig)}\n\n`;
-  for (const client of clients) client.write(event);
-}
-
-function rememberMessage(id) {
-  const now = Date.now();
-  for (const [knownId, seenAt] of recentMessageIds) {
-    if (now - seenAt > 5_000) recentMessageIds.delete(knownId);
-  }
-  if (recentMessageIds.has(id)) return false;
-  recentMessageIds.set(id, now);
-  return true;
+  sseHub.broadcastConfig(configStore.get());
 }
 
 const server = http.createServer((request, response) => {
@@ -171,33 +76,15 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/health') {
-    const now = Date.now();
-    const isExtensionConnected = extensionLastSeenAt !== null && now - extensionLastSeenAt < 60_000;
-    const isBoostyConnected = boostyLastSeenAt !== null && now - boostyLastSeenAt < 12_000;
-    const isConnectorConnected = (connectorLastSeenAt !== null && now - connectorLastSeenAt < 12_000) || isBoostyConnected;
-    const isOutdated = Boolean(isExtensionConnected && extensionVersion && compareSemver(extensionVersion, bundledExtensionVersion) < 0);
-    return sendJson(response, 200, {
-      ok: true,
-      appVersion,
-      bundledExtensionVersion,
-      extensionVersion,
-      isOutdated,
-      overlayClients: clients.size,
-      receivedMessages,
-      lastMessageAt,
-      historyCount: messageHistory.length,
-      connectorConnected: isConnectorConnected,
-      extensionConnected: isExtensionConnected,
-      boostyConnected: isBoostyConnected,
-      connectorLastSeenAt,
-      extensionLastSeenAt,
-      boostyLastSeenAt,
-      boostyTabUrl,
+    const health = healthTracker.getHealthState({
+      overlayClients: sseHub.clientCount(),
+      historyCount: messageHistory.size(),
     });
+    return sendJson(response, 200, health);
   }
 
   if (request.method === 'GET' && url.pathname === '/config') {
-    return sendJson(response, 200, overlayConfig);
+    return sendJson(response, 200, configStore.get());
   }
 
   if (request.method === 'POST' && url.pathname === '/config') {
@@ -208,11 +95,9 @@ const server = http.createServer((request, response) => {
     });
     request.on('end', () => {
       try {
-        overlayConfig = normalizedConfig(JSON.parse(body), overlayConfig);
-        fs.mkdirSync(path.dirname(configFile), { recursive: true });
-        fs.writeFileSync(configFile, `${JSON.stringify(overlayConfig, null, 2)}\n`, { mode: 0o600 });
+        const updated = configStore.update(JSON.parse(body));
         broadcastConfig();
-        return sendJson(response, 200, overlayConfig);
+        return sendJson(response, 200, updated);
       } catch {
         return sendJson(response, 400, { error: 'Invalid config' });
       }
@@ -227,22 +112,16 @@ const server = http.createServer((request, response) => {
       if (body.length > 5000) request.destroy();
     });
     request.on('end', () => {
-      const now = Date.now();
-      connectorLastSeenAt = now;
-      extensionLastSeenAt = now;
       try {
         if (body.trim()) {
           const data = JSON.parse(body);
-          const incomingVer = data.extensionVersion || data.version;
-          if (incomingVer && typeof incomingVer === 'string') {
-            extensionVersion = incomingVer;
-          }
-          if (data.source === 'content_tab') {
-            boostyLastSeenAt = now;
-            if (typeof data.url === 'string') boostyTabUrl = data.url;
-          }
+          healthTracker.updateConnector(data);
+        } else {
+          healthTracker.updateConnector();
         }
-      } catch {}
+      } catch {
+        healthTracker.updateConnector();
+      }
       return sendJson(response, 200, { ok: true });
     });
     return;
@@ -261,25 +140,13 @@ const server = http.createServer((request, response) => {
     const lastEventIdParam = url.searchParams.get('lastEventId');
     const rawLastEventId = lastEventIdHeader || lastEventIdParam;
 
-    let replayMessages = [];
-    if (rawLastEventId !== undefined && rawLastEventId !== null && rawLastEventId !== '') {
-      const parsedLastId = Number(rawLastEventId);
-      if (Number.isFinite(parsedLastId)) {
-        replayMessages = messageHistory.filter(m => Number(m.eventId) > parsedLastId);
-      } else {
-        const idx = messageHistory.findIndex(m => String(m.eventId) === String(rawLastEventId));
-        replayMessages = idx !== -1 ? messageHistory.slice(idx + 1) : messageHistory;
-      }
-    } else {
-      replayMessages = messageHistory.slice();
-    }
-
+    const replayMessages = messageHistory.getAfterEventId(rawLastEventId);
     for (const msg of replayMessages) {
-      response.write(`id: ${msg.eventId}\ndata: ${JSON.stringify(msg)}\n\n`);
+      response.write(sseHub.formatMessageEvent(msg));
     }
 
-    clients.add(response);
-    request.on('close', () => clients.delete(response));
+    sseHub.addClient(response);
+    request.on('close', () => sseHub.removeClient(response));
     return;
   }
 
@@ -293,23 +160,26 @@ const server = http.createServer((request, response) => {
       try {
         const input = JSON.parse(body);
         const now = Date.now();
-        const message = {
-          id: String(input.id || `${now}-${Math.random().toString(36).slice(2, 7)}`),
-          author: String(input.author || 'Boosty'),
-          text: String(input.text || '').trim(),
-          avatar: typeof input.avatar === 'string' ? input.avatar : '',
-          timestamp: Number(input.timestamp) || now,
-          receivedAt: now,
-        };
-        if (!message.text) return sendJson(response, 400, { error: 'Empty message' });
-        connectorLastSeenAt = now;
-        extensionLastSeenAt = now;
-        boostyLastSeenAt = now;
-        const incomingVer = input.extensionVersion || input.version;
-        if (incomingVer && typeof incomingVer === 'string') {
-          extensionVersion = incomingVer;
+        const effectiveReceivedAt = (typeof input.receivedAt === 'number' && Number.isFinite(input.receivedAt) && input.receivedAt > 0)
+          ? input.receivedAt
+          : now;
+        const message = normalizeIncomingMessage(input, { receivedAt: effectiveReceivedAt });
+        const validation = validateNormalizedMessage(message);
+        if (!validation.ok) {
+          return sendJson(response, 400, { error: validation.error || 'Invalid message' });
         }
-        if (!rememberMessage(message.id)) return sendJson(response, 202, { ok: true, duplicate: true });
+
+        const incomingVer = input.extensionVersion || input.version;
+        healthTracker.recordMessage({
+          extensionVersion: typeof incomingVer === 'string' ? incomingVer : undefined,
+          now,
+          isTest: false,
+        });
+
+        if (!messageDedup.remember(message.id)) {
+          return sendJson(response, 202, { ok: true, duplicate: true });
+        }
+
         broadcast(message);
         return sendJson(response, 202, { ok: true, eventId: message.eventId });
       } catch {
@@ -321,14 +191,18 @@ const server = http.createServer((request, response) => {
 
   if (request.method === 'GET' && url.pathname === '/test') {
     const now = Date.now();
-    broadcast({
+    const testMessage = normalizeIncomingMessage({
       id: `test-${now}`,
-      author: 'Тестовый зритель',
+      platform: 'boosty',
+      author: {
+        name: 'Тестовый зритель',
+        avatar: null,
+      },
       text: 'Boosty → OBS работает 🎉',
-      avatar: '',
-      timestamp: now,
-      receivedAt: now,
-    });
+      reply: null,
+      publishedAt: null,
+    }, { receivedAt: now });
+    broadcast(testMessage, true);
     return sendJson(response, 200, { ok: true });
   }
 
@@ -356,4 +230,11 @@ server.listen(port, host, () => {
   console.log(`Test message:  http://${host}:${port}/test`);
 });
 
-module.exports = { host, port, server };
+module.exports = {
+  host,
+  port,
+  server,
+  defaultConfig,
+  normalizeConfig,
+  normalizedConfig,
+};

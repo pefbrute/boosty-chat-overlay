@@ -14,6 +14,7 @@ let isModalGuideOpen = false;
 let currentSaveRevision = 0;
 let lastSavedConfig = null;
 let appVersion = '0.4.0';
+let hasObsExecutableCached = true;
 
 // --- Russian Time Formatting Helper ---
 function formatTimeAgo(timestamp) {
@@ -57,7 +58,7 @@ const extensionFlow = {
 };
 
 function getApiOrigin() {
-  return window.BOOSTY_API_ORIGIN || 'http://127.0.0.1:17369';
+  return window.BOOSTY_API_ORIGIN || window.boostyOverlay?.apiOrigin || 'http://127.0.0.1:17369';
 }
 
 // --- DOM Helpers ---
@@ -130,6 +131,7 @@ function showView(viewName) {
 
   if (targetView === 'appearance') {
     initPreviewIframe();
+    updatePreviewScale();
   }
 
   if (window.boostyAudit) {
@@ -279,6 +281,117 @@ function updateObsActionButton(selectId, btnId) {
   }
 }
 
+function renderStatusHubUi() {
+  if (typeof BoostyStatusHub === 'undefined' || typeof BoostyStatusHub.deriveSystemStatus !== 'function') {
+    return;
+  }
+
+  const isExtActive = Boolean(latestHealth && latestHealth.extensionConnected);
+  const isChecking = !isExtActive && Date.now() < checkGraceDeadline;
+
+  const obsState = {
+    ...(latestObsStatus || {}),
+    scenes: (latestObsStatus && Array.isArray(latestObsStatus.scenes) && latestObsStatus.scenes.length > 0)
+      ? latestObsStatus.scenes
+      : (latestObsScenes || []),
+  };
+
+  const derived = BoostyStatusHub.deriveSystemStatus({
+    health: latestHealth || {},
+    obs: obsState,
+    hasObsExecutable: typeof hasObsExecutableCached === 'boolean' ? hasObsExecutableCached : true,
+    isChecking,
+  });
+
+  // 1. OBS Pill
+  const dashObsPill = document.querySelector('#dash-obs-pill');
+  const dashObsText = document.querySelector('#dash-obs-text');
+  const dashObsDetail = document.querySelector('#dash-obs-detail');
+  const dashObsLaunchBtn = document.querySelector('#dash-obs-launch-btn');
+
+  if (dashObsPill) {
+    setDomClass(dashObsPill, `summary-pill ${derived.obs.badgeClass}`);
+    setDomText(dashObsText, derived.obs.text);
+    if (dashObsDetail) setDomText(dashObsDetail, derived.obs.detail);
+
+    if (dashObsLaunchBtn) {
+      if (derived.obs.action) {
+        setDomDisplay(dashObsLaunchBtn, 'inline-flex');
+        setDomText(dashObsLaunchBtn, derived.obs.action.label);
+        dashObsLaunchBtn.setAttribute('data-action-id', derived.obs.action.id);
+      } else {
+        setDomDisplay(dashObsLaunchBtn, 'none');
+      }
+    }
+  }
+
+  // 2. Extension Pill
+  const dashExtPill = document.querySelector('#dash-ext-pill');
+  const dashExtText = document.querySelector('#dash-ext-text');
+  const dashExtDetail = document.querySelector('#dash-ext-detail');
+  const dashExtFixBtn = document.querySelector('#dash-ext-fix-btn');
+
+  if (dashExtPill) {
+    setDomClass(dashExtPill, `summary-pill ${derived.extension.badgeClass}`);
+    setDomText(dashExtText, derived.extension.text);
+    if (dashExtDetail) setDomText(dashExtDetail, derived.extension.detail);
+
+    if (dashExtFixBtn) {
+      if (derived.extension.action) {
+        setDomDisplay(dashExtFixBtn, 'inline-flex');
+        setDomText(dashExtFixBtn, derived.extension.action.label);
+        dashExtFixBtn.setAttribute('data-action-id', derived.extension.action.id);
+      } else {
+        setDomDisplay(dashExtFixBtn, 'none');
+      }
+    }
+  }
+
+  // 3. Boosty Pill
+  const dashBoostyPill = document.querySelector('#dash-boosty-pill');
+  const dashBoostyText = document.querySelector('#dash-boosty-text');
+  const dashBoostyDetail = document.querySelector('#dash-boosty-detail');
+  const dashBoostyOpenBtn = document.querySelector('#dash-boosty-open-btn');
+
+  if (dashBoostyPill) {
+    setDomClass(dashBoostyPill, `summary-pill ${derived.stream.badgeClass}`);
+    setDomText(dashBoostyText, derived.stream.text);
+    if (dashBoostyDetail) setDomText(dashBoostyDetail, derived.stream.detail);
+
+    if (dashBoostyOpenBtn) {
+      if (derived.stream.action) {
+        setDomDisplay(dashBoostyOpenBtn, 'inline-flex');
+        setDomText(dashBoostyOpenBtn, derived.stream.action.label);
+        dashBoostyOpenBtn.setAttribute('data-action-id', derived.stream.action.id);
+      } else {
+        setDomDisplay(dashBoostyOpenBtn, 'none');
+      }
+    }
+  }
+
+  // 4. Overlay Pill
+  const dashOverlayPill = document.querySelector('#dash-overlay-pill');
+  const dashOverlayText = document.querySelector('#dash-overlay-text');
+  const dashOverlayDetail = document.querySelector('#dash-overlay-detail');
+  const dashOverlayActionBtn = document.querySelector('#dash-overlay-action-btn');
+
+  if (dashOverlayPill) {
+    setDomClass(dashOverlayPill, `summary-pill ${derived.overlay.badgeClass}`);
+    setDomText(dashOverlayText, derived.overlay.text);
+    if (dashOverlayDetail) setDomText(dashOverlayDetail, derived.overlay.detail);
+
+    if (dashOverlayActionBtn) {
+      if (derived.overlay.action) {
+        setDomDisplay(dashOverlayActionBtn, 'inline-flex');
+        setDomText(dashOverlayActionBtn, derived.overlay.action.label);
+        dashOverlayActionBtn.setAttribute('data-action-id', derived.overlay.action.id);
+      } else {
+        setDomDisplay(dashOverlayActionBtn, 'none');
+      }
+    }
+  }
+}
+
 function renderObsUi(result) {
   latestObsStatus = result;
 
@@ -289,24 +402,11 @@ function renderObsUi(result) {
   const dashBadge = document.querySelector('#dash-obs-badge');
   const dashTargetsHint = document.querySelector('#dash-obs-targets-hint');
   const launchContainer = document.querySelector('#ob-obs-launch-container');
-  const dashObsPill = document.querySelector('#dash-obs-pill');
-  const dashObsText = document.querySelector('#dash-obs-text');
-  const dashObsLaunchBtn = document.querySelector('#dash-obs-launch-btn');
   const setupLaunchBtn = document.querySelector('#dash-obs-launch-btn-setup');
 
   const isConnected = Boolean(result && result.ok && result.connected);
 
-  if (dashObsPill) {
-    if (isConnected) {
-      setDomClass(dashObsPill, 'summary-pill ready');
-      setDomText(dashObsText, 'Подключено');
-      setDomDisplay(dashObsLaunchBtn, 'none');
-    } else {
-      setDomClass(dashObsPill, 'summary-pill pending');
-      setDomText(dashObsText, 'Не подключён');
-      setDomDisplay(dashObsLaunchBtn, 'none');
-    }
-  }
+  renderStatusHubUi();
 
   if (setupLaunchBtn) {
     setDomDisplay(setupLaunchBtn, isConnected ? 'none' : 'inline-flex');
@@ -333,6 +433,7 @@ function renderObsUi(result) {
     updateObsActionButton('#ob-obs-scene-select', '#ob-add-obs-btn');
     updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
     updateContextualActionCard();
+    renderStatusHubUi();
     return;
   }
 
@@ -387,6 +488,7 @@ function renderObsUi(result) {
   updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
   updateObsStep3State();
   updateContextualActionCard();
+  renderStatusHubUi();
 }
 
 function updateObsStep3State() {
@@ -601,7 +703,18 @@ const PREVIEW_FIXTURES = [
 
 let previewReady = false;
 
+function updatePreviewScale() {
+  const backdrop = document.querySelector('#preview-backdrop');
+  if (!backdrop) return;
+  const w = backdrop.clientWidth;
+  const h = backdrop.clientHeight;
+  if (!w || !h) return;
+  const scale = Math.min(w / 1920, h / 1080);
+  backdrop.style.setProperty('--preview-scale', String(scale));
+}
+
 function initPreviewIframe() {
+  updatePreviewScale();
   const iframe = document.querySelector('#preview-iframe');
   if (!iframe) return;
 
@@ -610,10 +723,12 @@ function initPreviewIframe() {
     iframe.src = targetSrc;
     iframe.onload = () => {
       previewReady = true;
+      updatePreviewScale();
       sendFixturesToPreview();
       sendConfigToPreview(gatherCurrentConfig());
     };
   } else if (previewReady) {
+    updatePreviewScale();
     sendConfigToPreview(gatherCurrentConfig());
   }
 }
@@ -636,11 +751,32 @@ function sendFixturesToPreview() {
   }, '*');
 }
 
+let previewAckResolvers = [];
+
+function waitForPreviewAck(timeoutMs = 1500) {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => {
+      previewAckResolvers = previewAckResolvers.filter(r => r !== onAck);
+      resolve();
+    }, timeoutMs);
+
+    function onAck() {
+      clearTimeout(timer);
+      resolve();
+    }
+    previewAckResolvers.push(onAck);
+  });
+}
+
 window.addEventListener('message', event => {
   if (event.data && event.data.type === 'preview:ready') {
     previewReady = true;
     sendFixturesToPreview();
     sendConfigToPreview(gatherCurrentConfig());
+  } else if (event.data && event.data.type === 'preview:ack') {
+    const resolvers = previewAckResolvers;
+    previewAckResolvers = [];
+    for (const r of resolvers) r();
   }
 });
 
@@ -649,6 +785,9 @@ const PRESETS = {
   compact: {
     fontSize: 16,
     authorFontSize: 13,
+    accentColor: '#f15f2c',
+    textColor: '#ffffff',
+    backgroundColor: '#121216',
     cardWidth: 380,
     borderRadius: 6,
     cardPadding: 8,
@@ -662,6 +801,9 @@ const PRESETS = {
   clean: {
     fontSize: 21,
     authorFontSize: 16,
+    accentColor: '#f15f2c',
+    textColor: '#ffffff',
+    backgroundColor: '#121216',
     cardWidth: 520,
     borderRadius: 10,
     cardPadding: 10,
@@ -675,6 +817,9 @@ const PRESETS = {
   large: {
     fontSize: 26,
     authorFontSize: 18,
+    accentColor: '#f15f2c',
+    textColor: '#ffffff',
+    backgroundColor: '#121216',
     cardWidth: 640,
     borderRadius: 14,
     cardPadding: 14,
@@ -688,6 +833,9 @@ const PRESETS = {
   glass: {
     fontSize: 20,
     authorFontSize: 15,
+    accentColor: '#f15f2c',
+    textColor: '#ffffff',
+    backgroundColor: '#121216',
     cardWidth: 520,
     borderRadius: 16,
     cardPadding: 12,
@@ -698,6 +846,52 @@ const PRESETS = {
     backdropBlur: 10,
     shadow: true,
   },
+};
+
+const STYLE_KEYS = [
+  'fontSize',
+  'authorFontSize',
+  'accentColor',
+  'textColor',
+  'backgroundColor',
+  'cardWidth',
+  'borderRadius',
+  'cardPadding',
+  'messageGap',
+  'avatarSize',
+  'backgroundOpacity',
+  'showAvatars',
+  'backdropBlur',
+  'shadow',
+];
+
+const LAYOUT_KEYS = [
+  'horizontalAnchor',
+  'verticalAnchor',
+  'newMessagePosition',
+  'offsetX',
+  'offsetY',
+  'textAlign',
+  'maxStackHeight',
+];
+
+const APPEARANCE_KEYS = STYLE_KEYS;
+
+const DEFAULT_LAYOUT = {
+  horizontalAnchor: 'left',
+  verticalAnchor: 'bottom',
+  newMessagePosition: 'bottom',
+  offsetX: 20,
+  offsetY: 20,
+  textAlign: 'left',
+  maxStackHeight: 800,
+};
+
+const CORNER_LABELS = {
+  'left-top': 'Слева сверху',
+  'right-top': 'Справа сверху',
+  'left-bottom': 'Слева снизу',
+  'right-bottom': 'Справа снизу',
 };
 
 const appearanceInputs = {
@@ -731,11 +925,27 @@ const appearanceInputs = {
   shadow: document.querySelector('#card-shadow'),
   backdropBlur: document.querySelector('#backdrop-blur'),
   backdropBlurSlider: document.querySelector('#backdrop-blur-slider'),
+  offsetX: document.querySelector('#offset-x'),
+  offsetXSlider: document.querySelector('#offset-x-slider'),
+  offsetY: document.querySelector('#offset-y'),
+  offsetYSlider: document.querySelector('#offset-y-slider'),
+  maxStackHeight: document.querySelector('#max-stack-height'),
+  maxStackHeightSlider: document.querySelector('#max-stack-height-slider'),
 };
 
 function gatherCurrentConfig() {
   const alwaysShow = Boolean(appearanceInputs.alwaysShow?.checked);
   const durationVal = Number(appearanceInputs.duration?.value) || lastNonZeroDuration;
+
+  const activeCornerBtn = document.querySelector('.corner-btn.active');
+  const cornerVal = activeCornerBtn ? activeCornerBtn.getAttribute('data-corner') : 'left-bottom';
+  const [hAnchor, vAnchor] = cornerVal ? cornerVal.split('-') : ['left', 'bottom'];
+
+  const activePosBtn = document.querySelector('[data-new-msg-pos].active');
+  const newMsgPos = activePosBtn ? activePosBtn.getAttribute('data-new-msg-pos') : 'bottom';
+
+  const activeAlignBtn = document.querySelector('[data-text-align].active');
+  const textAlign = activeAlignBtn ? activeAlignBtn.getAttribute('data-text-align') : 'left';
 
   return {
     durationSeconds: alwaysShow ? 0 : Math.max(1, durationVal),
@@ -754,6 +964,14 @@ function gatherCurrentConfig() {
     avatarSize: Math.max(24, Math.min(64, Number(appearanceInputs.avatarSize?.value) || 42)),
     shadow: Boolean(appearanceInputs.shadow?.checked),
     backdropBlur: Math.max(0, Math.min(20, Number(appearanceInputs.backdropBlur?.value) || 0)),
+
+    horizontalAnchor: hAnchor === 'right' ? 'right' : 'left',
+    verticalAnchor: vAnchor === 'top' ? 'top' : 'bottom',
+    newMessagePosition: newMsgPos === 'top' ? 'top' : 'bottom',
+    offsetX: Math.max(0, Math.min(300, Number(appearanceInputs.offsetX?.value) ?? 20)),
+    offsetY: Math.max(0, Math.min(300, Number(appearanceInputs.offsetY?.value) ?? 20)),
+    textAlign: ['left', 'center', 'right'].includes(textAlign) ? textAlign : 'left',
+    maxStackHeight: Math.max(160, Math.min(2160, Number(appearanceInputs.maxStackHeight?.value) || 800)),
   };
 }
 
@@ -769,6 +987,12 @@ function updateAppearanceLabels(config) {
   setDomText(document.querySelector('#message-gap-val'), String(config.messageGap));
   setDomText(document.querySelector('#avatar-size-val'), String(config.avatarSize));
   setDomText(document.querySelector('#backdrop-blur-val'), String(config.backdropBlur));
+  setDomText(document.querySelector('#offset-x-val'), String(config.offsetX ?? 20));
+  setDomText(document.querySelector('#offset-y-val'), String(config.offsetY ?? 20));
+  setDomText(document.querySelector('#max-stack-height-val'), String(config.maxStackHeight ?? 800));
+
+  const cornerKey = `${config.horizontalAnchor || 'left'}-${config.verticalAnchor || 'bottom'}`;
+  setDomText(document.querySelector('#corner-active-label'), CORNER_LABELS[cornerKey] || 'Слева снизу');
 
   const durationContainer = document.querySelector('#duration-container');
   if (durationContainer) {
@@ -803,17 +1027,20 @@ function syncInputsFromConfig(config) {
     if (slider) slider.value = val;
   };
 
-  syncNum(appearanceInputs.maxMessages, appearanceInputs.maxMessagesSlider, config.maxMessages);
-  syncNum(appearanceInputs.cardWidth, appearanceInputs.cardWidthSlider, config.cardWidth ?? 520);
-  syncNum(appearanceInputs.fontSize, appearanceInputs.fontSizeSlider, config.fontSize);
-  syncNum(appearanceInputs.authorFontSize, appearanceInputs.authorFontSizeSlider, config.authorFontSize ?? 16);
-  syncNum(appearanceInputs.borderRadius, appearanceInputs.borderRadiusSlider, config.borderRadius ?? 10);
-  syncNum(appearanceInputs.cardPadding, appearanceInputs.cardPaddingSlider, config.cardPadding ?? 10);
-  syncNum(appearanceInputs.messageGap, appearanceInputs.messageGapSlider, config.messageGap ?? 10);
-  syncNum(appearanceInputs.avatarSize, appearanceInputs.avatarSizeSlider, config.avatarSize ?? 42);
-  syncNum(appearanceInputs.backdropBlur, appearanceInputs.backdropBlurSlider, config.backdropBlur ?? 0);
+  if (config.maxMessages !== undefined) syncNum(appearanceInputs.maxMessages, appearanceInputs.maxMessagesSlider, config.maxMessages);
+  if (config.cardWidth !== undefined) syncNum(appearanceInputs.cardWidth, appearanceInputs.cardWidthSlider, config.cardWidth);
+  if (config.fontSize !== undefined) syncNum(appearanceInputs.fontSize, appearanceInputs.fontSizeSlider, config.fontSize);
+  if (config.authorFontSize !== undefined) syncNum(appearanceInputs.authorFontSize, appearanceInputs.authorFontSizeSlider, config.authorFontSize);
+  if (config.borderRadius !== undefined) syncNum(appearanceInputs.borderRadius, appearanceInputs.borderRadiusSlider, config.borderRadius);
+  if (config.cardPadding !== undefined) syncNum(appearanceInputs.cardPadding, appearanceInputs.cardPaddingSlider, config.cardPadding);
+  if (config.messageGap !== undefined) syncNum(appearanceInputs.messageGap, appearanceInputs.messageGapSlider, config.messageGap);
+  if (config.avatarSize !== undefined) syncNum(appearanceInputs.avatarSize, appearanceInputs.avatarSizeSlider, config.avatarSize);
+  if (config.backdropBlur !== undefined) syncNum(appearanceInputs.backdropBlur, appearanceInputs.backdropBlurSlider, config.backdropBlur);
+  if (config.offsetX !== undefined) syncNum(appearanceInputs.offsetX, appearanceInputs.offsetXSlider, config.offsetX);
+  if (config.offsetY !== undefined) syncNum(appearanceInputs.offsetY, appearanceInputs.offsetYSlider, config.offsetY);
+  if (config.maxStackHeight !== undefined) syncNum(appearanceInputs.maxStackHeight, appearanceInputs.maxStackHeightSlider, config.maxStackHeight);
 
-  if (appearanceInputs.backgroundOpacity && config.backgroundOpacity !== undefined) {
+  if (config.backgroundOpacity !== undefined && appearanceInputs.backgroundOpacity) {
     appearanceInputs.backgroundOpacity.value = config.backgroundOpacity;
   }
 
@@ -824,14 +1051,40 @@ function syncInputsFromConfig(config) {
   };
 
   syncColor(appearanceInputs.accentColor, appearanceInputs.accentColorHex, config.accentColor);
-  syncColor(appearanceInputs.textColor, appearanceInputs.textColorHex, config.textColor ?? '#ffffff');
-  syncColor(appearanceInputs.backgroundColor, appearanceInputs.backgroundColorHex, config.backgroundColor ?? '#121216');
+  syncColor(appearanceInputs.textColor, appearanceInputs.textColorHex, config.textColor);
+  syncColor(appearanceInputs.backgroundColor, appearanceInputs.backgroundColorHex, config.backgroundColor);
 
   if (appearanceInputs.showAvatars && config.showAvatars !== undefined) {
     appearanceInputs.showAvatars.checked = Boolean(config.showAvatars);
   }
   if (appearanceInputs.shadow && config.shadow !== undefined) {
     appearanceInputs.shadow.checked = Boolean(config.shadow);
+  }
+
+  if (config.horizontalAnchor || config.verticalAnchor) {
+    const cornerKey = `${config.horizontalAnchor || 'left'}-${config.verticalAnchor || 'bottom'}`;
+    document.querySelectorAll('.corner-btn').forEach(btn => {
+      const isMatch = btn.getAttribute('data-corner') === cornerKey;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-pressed', String(isMatch));
+    });
+    setDomText(document.querySelector('#corner-active-label'), CORNER_LABELS[cornerKey] || 'Слева снизу');
+  }
+
+  if (config.newMessagePosition) {
+    document.querySelectorAll('[data-new-msg-pos]').forEach(btn => {
+      const isMatch = btn.getAttribute('data-new-msg-pos') === config.newMessagePosition;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-pressed', String(isMatch));
+    });
+  }
+
+  if (config.textAlign) {
+    document.querySelectorAll('[data-text-align]').forEach(btn => {
+      const isMatch = btn.getAttribute('data-text-align') === config.textAlign;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-pressed', String(isMatch));
+    });
   }
 
   const current = gatherCurrentConfig();
@@ -846,26 +1099,12 @@ const PRESET_LABELS = {
   glass: 'Стекло',
 };
 
-const APPEARANCE_KEYS = [
-  'fontSize',
-  'authorFontSize',
-  'cardWidth',
-  'borderRadius',
-  'cardPadding',
-  'messageGap',
-  'avatarSize',
-  'backgroundOpacity',
-  'showAvatars',
-  'backdropBlur',
-  'shadow',
-];
-
 // Preset matching helper — strictly compares normalized appearance fields
 function detectActivePreset(config) {
   if (!config) return null;
   for (const [name, preset] of Object.entries(PRESETS)) {
     let matches = true;
-    for (const key of APPEARANCE_KEYS) {
+    for (const key of STYLE_KEYS) {
       if (config[key] !== preset[key]) {
         matches = false;
         break;
@@ -1015,28 +1254,16 @@ function setupEventListeners() {
     });
   });
 
-  // Appearance Reset
+  // Appearance Reset (resets only STYLE_KEYS)
   document.querySelector('#appearance-reset-btn')?.addEventListener('click', () => {
-    const defaults = {
-      durationSeconds: 20,
-      maxMessages: 6,
-      fontSize: 21,
-      authorFontSize: 16,
-      cardWidth: 520,
-      borderRadius: 10,
-      cardPadding: 10,
-      messageGap: 10,
-      avatarSize: 42,
-      backdropBlur: 0,
-      backgroundOpacity: 88,
-      accentColor: '#f15f2c',
-      textColor: '#ffffff',
-      backgroundColor: '#121216',
-      showAvatars: true,
-      shadow: true,
-    };
-    syncInputsFromConfig(defaults);
+    syncInputsFromConfig(PRESETS.clean);
     updatePresetUi('clean');
+    triggerSave(true);
+  });
+
+  // Layout Reset (resets only LAYOUT_KEYS)
+  document.querySelector('#layout-reset-btn')?.addEventListener('click', () => {
+    syncInputsFromConfig(DEFAULT_LAYOUT);
     triggerSave(true);
   });
 
@@ -1083,6 +1310,84 @@ function setupEventListeners() {
   pairInputs(appearanceInputs.messageGap, appearanceInputs.messageGapSlider);
   pairInputs(appearanceInputs.avatarSize, appearanceInputs.avatarSizeSlider);
   pairInputs(appearanceInputs.backdropBlur, appearanceInputs.backdropBlurSlider);
+  pairInputs(appearanceInputs.offsetX, appearanceInputs.offsetXSlider);
+  pairInputs(appearanceInputs.offsetY, appearanceInputs.offsetYSlider);
+  pairInputs(appearanceInputs.maxStackHeight, appearanceInputs.maxStackHeightSlider);
+
+  // Corner buttons click & 2D arrow keys navigation
+  const cornerBtns = Array.from(document.querySelectorAll('.corner-btn'));
+  cornerBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      cornerBtns.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+      const cornerKey = btn.getAttribute('data-corner') || 'left-bottom';
+      setDomText(document.querySelector('#corner-active-label'), CORNER_LABELS[cornerKey] || 'Слева снизу');
+      triggerSave();
+    });
+
+    btn.addEventListener('keydown', e => {
+      const current = btn.getAttribute('data-corner');
+      let target = null;
+      if (e.key === 'ArrowRight') {
+        if (current === 'left-top') target = 'right-top';
+        if (current === 'left-bottom') target = 'right-bottom';
+      } else if (e.key === 'ArrowLeft') {
+        if (current === 'right-top') target = 'left-top';
+        if (current === 'right-bottom') target = 'left-bottom';
+      } else if (e.key === 'ArrowDown') {
+        if (current === 'left-top') target = 'left-bottom';
+        if (current === 'right-top') target = 'right-bottom';
+      } else if (e.key === 'ArrowUp') {
+        if (current === 'left-bottom') target = 'left-top';
+        if (current === 'right-bottom') target = 'right-top';
+      }
+      if (target) {
+        e.preventDefault();
+        const targetBtn = document.querySelector(`.corner-btn[data-corner="${target}"]`);
+        if (targetBtn) {
+          targetBtn.focus();
+          targetBtn.click();
+        }
+      }
+    });
+  });
+
+  // Segmented controls: New Message Position
+  document.querySelectorAll('[data-new-msg-pos]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-new-msg-pos]').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+      triggerSave();
+    });
+  });
+
+  // Segmented controls: Text Alignment
+  document.querySelectorAll('[data-text-align]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-text-align]').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+      triggerSave();
+    });
+  });
+
+  // Preview container scale observer
+  const previewBackdropEl = document.querySelector('#preview-backdrop');
+  if (previewBackdropEl && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(updatePreviewScale).observe(previewBackdropEl);
+  }
+  window.addEventListener('resize', updatePreviewScale);
 
   // Opacity slider
   appearanceInputs.backgroundOpacity?.addEventListener('input', () => {
@@ -1206,6 +1511,29 @@ function setupEventListeners() {
 
   document.querySelector('#dash-obs-launch-btn-setup')?.addEventListener('click', () => {
     window.boostyOverlay.launchObs();
+  });
+
+  // Status Hub Action Buttons
+  document.querySelector('#dash-obs-launch-btn')?.addEventListener('click', () => {
+    window.boostyOverlay.launchObs();
+  });
+
+  document.querySelector('#dash-ext-fix-btn')?.addEventListener('click', (e) => {
+    const actionId = e.currentTarget?.getAttribute('data-action-id');
+    openExtensionModal(actionId === 'update-ext' ? 'update' : 'setup');
+  });
+
+  document.querySelector('#dash-boosty-open-btn')?.addEventListener('click', () => {
+    window.boostyOverlay.openUrl('https://boosty.to/', selectedBrowser);
+  });
+
+  document.querySelector('#dash-overlay-action-btn')?.addEventListener('click', (e) => {
+    const actionId = e.currentTarget?.getAttribute('data-action-id');
+    if (actionId === 'test-overlay') {
+      fetch(`${getApiOrigin()}/test`).catch(() => {});
+    } else {
+      showView('setup');
+    }
   });
 
   // Diagnostics / Extra View Actions
@@ -1463,37 +1791,8 @@ async function refreshStatus() {
     }
     const isChecking = !isExtActive && Date.now() < checkGraceDeadline;
 
-    // Dashboard connection summary pills
-    const dashExtPill = document.querySelector('#dash-ext-pill');
-    const dashExtText = document.querySelector('#dash-ext-text');
-    const dashBoostyPill = document.querySelector('#dash-boosty-pill');
-    const dashBoostyText = document.querySelector('#dash-boosty-text');
-
-    if (dashExtPill) {
-      if (isExtActive) {
-        setDomClass(dashExtPill, 'summary-pill ready');
-        setDomText(dashExtText, health.extensionVersion ? `Подключено (v${health.extensionVersion})` : 'Подключено');
-      } else if (isChecking) {
-        setDomClass(dashExtPill, 'summary-pill pending');
-        setDomText(dashExtText, 'Проверка…');
-      } else {
-        setDomClass(dashExtPill, 'summary-pill pending');
-        setDomText(dashExtText, 'Не обнаружено');
-      }
-    }
-
-    if (dashBoostyPill) {
-      if (isBoostyActive) {
-        setDomClass(dashBoostyPill, 'summary-pill ready');
-        setDomText(dashBoostyText, 'Стрим открыт');
-      } else if (isExtActive) {
-        setDomClass(dashBoostyPill, 'summary-pill pending');
-        setDomText(dashBoostyText, 'Не открыт');
-      } else {
-        setDomClass(dashBoostyPill, 'summary-pill pending');
-        setDomText(dashBoostyText, 'Недоступно');
-      }
-    }
+    // Dashboard Status Hub
+    renderStatusHubUi();
 
     // Setup view status cards
     const setupExtBadge = document.querySelector('#setup-ext-badge');
@@ -1615,6 +1914,7 @@ async function refreshStatus() {
     }
 
     updateContextualActionCard();
+    renderStatusHubUi();
     if (window.boostyAudit) {
       updateAuditDiagnosticState();
     }
@@ -1635,6 +1935,12 @@ function updateAuditDiagnosticState() {
   const isReady = isExtConnected && isBoostyConnected && isObsConnected;
   const bannerVisible = !isReady;
 
+  const curCfg = gatherCurrentConfig();
+  const topPosBtn = document.querySelector('[data-new-msg-pos="top"]');
+  const bottomPosBtn = document.querySelector('[data-new-msg-pos="bottom"]');
+  const rightAlignBtn = document.querySelector('[data-text-align="right"]');
+  const leftAlignBtn = document.querySelector('[data-text-align="left"]');
+
   window.__UI_AUDIT_RENDER_STATE__ = {
     view: activeView === 'dashboard' ? 'main' : activeView,
     step: currentStep,
@@ -1643,7 +1949,18 @@ function updateAuditDiagnosticState() {
     boostyConnected: isBoostyConnected,
     bannerVisible,
     receivedMessages: latestHealth?.receivedMessages || 0,
-    activePreset: detectActivePreset(gatherCurrentConfig()),
+    activePreset: detectActivePreset(curCfg),
+    newMessagePosition: curCfg.newMessagePosition,
+    textAlign: curCfg.textAlign,
+    horizontalAnchor: curCfg.horizontalAnchor,
+    verticalAnchor: curCfg.verticalAnchor,
+    offsetX: curCfg.offsetX,
+    offsetY: curCfg.offsetY,
+    maxStackHeight: curCfg.maxStackHeight,
+    ariaPressedTop: topPosBtn?.getAttribute('aria-pressed') === 'true',
+    ariaPressedBottom: bottomPosBtn?.getAttribute('aria-pressed') === 'true',
+    ariaPressedRight: rightAlignBtn?.getAttribute('aria-pressed') === 'true',
+    ariaPressedLeft: leftAlignBtn?.getAttribute('aria-pressed') === 'true',
   };
 }
 
@@ -1653,10 +1970,12 @@ async function init() {
     setupEventListeners();
     await renderBrowserSelection();
 
-    // Fetch dynamic app version (Directive 11)
     try {
       if (window.boostyOverlay?.getAppVersion) {
         appVersion = await window.boostyOverlay.getAppVersion();
+      }
+      if (window.boostyOverlay?.hasObsExecutable) {
+        hasObsExecutableCached = await window.boostyOverlay.hasObsExecutable();
       }
     } catch {}
 
@@ -1686,11 +2005,15 @@ async function init() {
 
 const initPromise = init();
 
-// --- UI Audit Automation Hook ---
+// --- UI Audit & Visual QA Automation Hook ---
 if (window.boostyAudit) {
-  window.boostyAudit.onApplyState(async state => {
+  async function applyAuditState(state) {
     await initPromise;
-    const mock = state.mock || {};
+    const mock = (state && state.mock) ? state.mock : (state || {});
+
+    if (typeof mock.hasObsExecutable === 'boolean') {
+      hasObsExecutableCached = mock.hasObsExecutable;
+    }
 
     if (mock.health) {
       window.__AUDIT_HEALTH_MOCK__ = { ...mock.health };
@@ -1725,16 +2048,44 @@ if (window.boostyAudit) {
     if (mock.config) {
       syncInputsFromConfig(mock.config);
       const effectiveConfig = gatherCurrentConfig();
+      if (!previewReady) {
+        initPreviewIframe();
+      }
       sendConfigToPreview(effectiveConfig);
       updatePresetUi(detectActivePreset(effectiveConfig));
+      await waitForPreviewAck(800);
+    } else if (mock.view === 'appearance' || (mock.view === 'main' && mock.focusSettings)) {
+      if (!previewReady) {
+        initPreviewIframe();
+      }
+      await waitForPreviewAck(800);
     }
 
     updateContextualActionCard();
+    renderStatusHubUi();
     updateAuditDiagnosticState();
+
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
 
     await document.fonts.ready;
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  });
+  }
+
+  window.boostyAudit.onApplyState(applyAuditState);
+
+  window.__BOOSTY_UI_TEST__ = {
+    setState: applyAuditState,
+    applyState: applyAuditState,
+    getState: () => ({
+      currentView,
+      currentStep,
+      latestHealth,
+      latestObsStatus,
+      latestObsScenes,
+    }),
+  };
 
   document.fonts.ready.then(() => {
     window.boostyAudit.notifyReady();

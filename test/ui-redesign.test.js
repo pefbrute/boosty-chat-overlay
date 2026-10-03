@@ -360,6 +360,8 @@ app.whenReady().then(async () => {
     // 8. Save Error state handling
     console.log('Testing Save error state and retry handling...');
     await win.webContents.executeJavaScript(`
+      clearTimeout(saveTimer);
+      currentSaveRevision += 1;
       showSaveStatus('error');
     `);
 

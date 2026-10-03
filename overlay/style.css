@@ -22,13 +22,52 @@ html, body {
 }
 
 #messages {
-  bottom: 20px;
+  position: fixed;
   display: flex;
   flex-direction: column;
   gap: var(--message-gap, 10px);
-  left: 20px;
-  position: fixed;
-  right: 20px;
+  width: calc(var(--card-width, 520px) + 28px);
+  max-width: calc(100vw - var(--overlay-offset-x, 20px) * 2);
+  max-height: min(
+    var(--stack-max-height, 800px),
+    max(0px, calc(100vh - var(--overlay-offset-y, 20px) - 8px))
+  );
+  overflow: hidden;
+  box-sizing: border-box;
+  pointer-events: none;
+  left: var(--overlay-offset-x, 20px);
+  right: auto;
+  bottom: var(--overlay-offset-y, 20px);
+  top: auto;
+  justify-content: flex-end;
+}
+
+#messages.anchor-left {
+  left: var(--overlay-offset-x, 20px);
+  right: auto;
+}
+
+#messages.anchor-right {
+  right: var(--overlay-offset-x, 20px);
+  left: auto;
+}
+
+#messages.anchor-top {
+  top: var(--overlay-offset-y, 20px);
+  bottom: auto;
+}
+
+#messages.anchor-bottom {
+  bottom: var(--overlay-offset-y, 20px);
+  top: auto;
+}
+
+#messages.order-bottom {
+  justify-content: flex-end;
+}
+
+#messages.order-top {
+  justify-content: flex-start;
 }
 
 .message {
@@ -43,7 +82,7 @@ html, body {
   display: grid;
   gap: 2px 10px;
   grid-template-columns: var(--avatar-size, 42px) 1fr;
-  max-width: var(--card-width, 520px);
+  max-width: min(var(--card-width, 520px), calc(100vw - var(--overlay-offset-x, 20px) * 2 - 28px));
   padding: var(--card-padding, 10px 14px 10px 10px);
   will-change: transform, opacity;
 }
@@ -66,6 +105,7 @@ html, body {
   color: var(--accent);
   font-size: var(--author-font-size, 16px);
   font-weight: 750;
+  text-align: var(--text-align, left);
 }
 
 .text {
@@ -73,6 +113,7 @@ html, body {
   font-size: var(--message-font-size, 21px);
   line-height: 1.25;
   overflow-wrap: anywhere;
+  text-align: var(--text-align, left);
 }
 
 .hide-avatars .message {

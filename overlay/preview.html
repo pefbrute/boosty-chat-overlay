@@ -8,17 +8,11 @@
     <style>
       html, body {
         background: transparent;
-        height: 100%;
+        height: 1080px;
         margin: 0;
         overflow: hidden;
         padding: 0;
-        width: 100%;
-      }
-      #messages {
-        bottom: 16px;
-        left: 16px;
-        position: absolute;
-        right: 16px;
+        width: 1920px;
       }
     </style>
   </head>
@@ -28,6 +22,19 @@
     <script>
       (function() {
         const container = document.querySelector('#messages');
+        let currentFixtures = [];
+        let currentConfig = null;
+
+        function renderPreviewCards() {
+          container.innerHTML = '';
+          if (!Array.isArray(currentFixtures)) return;
+          const items = currentConfig && currentConfig.newMessagePosition === 'top'
+            ? [...currentFixtures].reverse()
+            : currentFixtures;
+          for (const item of items) {
+            container.append(window.BoostyRenderer.createMessageCard(item));
+          }
+        }
 
         window.addEventListener('message', event => {
           // Directive 5: strict verification of source & event structure
@@ -36,16 +43,25 @@
           if (!data || typeof data !== 'object') return;
 
           if (data.type === 'preview:set-config' && data.config) {
+            currentConfig = data.config;
             window.BoostyRenderer.applyAppearanceConfig(document.documentElement, data.config);
+            renderPreviewCards();
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'preview:ack' }, '*');
+            }
           } else if (data.type === 'preview:set-fixtures') {
-            container.innerHTML = '';
-            if (Array.isArray(data.fixtures)) {
-              for (const item of data.fixtures) {
-                container.append(window.BoostyRenderer.createMessageCard(item));
-              }
+            currentFixtures = data.fixtures || [];
+            renderPreviewCards();
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'preview:ack' }, '*');
             }
           } else if (data.type === 'preview:reset' && data.config) {
+            currentConfig = data.config;
             window.BoostyRenderer.applyAppearanceConfig(document.documentElement, data.config);
+            renderPreviewCards();
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'preview:ack' }, '*');
+            }
           }
         });
 

@@ -49,15 +49,16 @@ const hasFlag = flag => args.includes(flag);
 const scopeArg = getArg('--scope') || 'all';
 const stateArg = getArg('--state') || null;
 const isInteractive = hasFlag('--interactive');
-const outDirArg = getArg('--out-dir') || null;
+const isTargetedLayout = hasFlag('--targeted-layout');
+const projectRoot = path.resolve(__dirname, '..', '..');
+const outDirArg = getArg('--out-dir') || (isTargetedLayout ? path.join(projectRoot, 'artifacts', 'ui-audit', 'layout-v1') : null);
 
 // Determine target directory
 const nowStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const timestampFolder = nowStr.replace('T', '_');
-const projectRoot = path.resolve(__dirname, '..', '..');
 const artifactsBaseDir = path.join(projectRoot, 'artifacts', 'ui-audit');
 const targetDir = outDirArg || path.join(artifactsBaseDir, timestampFolder);
-const screenshotsDir = path.join(targetDir, 'screenshots');
+const screenshotsDir = isTargetedLayout ? targetDir : path.join(targetDir, 'screenshots');
 const zipPath = path.join(artifactsBaseDir, `ui-audit-${timestampFolder}.zip`);
 
 // Ensure directories exist
@@ -65,7 +66,27 @@ fs.mkdirSync(screenshotsDir, { recursive: true });
 
 // Determine which states to capture
 let statesToCapture = [];
-if (stateArg) {
+if (isTargetedLayout) {
+  const baseState = findStateById('appearance-custom');
+  statesToCapture = [
+    {
+      ...baseState,
+      index: 1,
+      width: 1280,
+      height: 800,
+      filename: 'appearance-layout-custom__1280x800.png',
+      description: 'Appearance settings with custom layout at 1280x800',
+    },
+    {
+      ...baseState,
+      index: 2,
+      width: 800,
+      height: 650,
+      filename: 'appearance-layout-custom__800x650.png',
+      description: 'Appearance settings with custom layout at compact 800x650',
+    },
+  ];
+} else if (stateArg) {
   const found = findStateById(stateArg);
   if (!found) {
     console.error(`✖ State "${stateArg}" not found in registry.`);
@@ -320,6 +341,145 @@ app.whenReady().then(async () => {
             }
             if (state.expected.activePreset !== undefined && renderState.activePreset !== state.expected.activePreset) {
               throw new Error(`Expected activePreset "${state.expected.activePreset}" but rendered "${renderState.activePreset}"`);
+            }
+            if (state.expected.newMessagePosition !== undefined && renderState.newMessagePosition !== state.expected.newMessagePosition) {
+              throw new Error(`Expected newMessagePosition "${state.expected.newMessagePosition}" but rendered "${renderState.newMessagePosition}"`);
+            }
+            if (state.expected.textAlign !== undefined && renderState.textAlign !== state.expected.textAlign) {
+              throw new Error(`Expected textAlign "${state.expected.textAlign}" but rendered "${renderState.textAlign}"`);
+            }
+            if (state.expected.horizontalAnchor !== undefined && renderState.horizontalAnchor !== state.expected.horizontalAnchor) {
+              throw new Error(`Expected horizontalAnchor "${state.expected.horizontalAnchor}" but rendered "${renderState.horizontalAnchor}"`);
+            }
+            if (state.expected.verticalAnchor !== undefined && renderState.verticalAnchor !== state.expected.verticalAnchor) {
+              throw new Error(`Expected verticalAnchor "${state.expected.verticalAnchor}" but rendered "${renderState.verticalAnchor}"`);
+            }
+            if (state.expected.offsetX !== undefined && renderState.offsetX !== state.expected.offsetX) {
+              throw new Error(`Expected offsetX ${state.expected.offsetX} but rendered ${renderState.offsetX}`);
+            }
+            if (state.expected.offsetY !== undefined && renderState.offsetY !== state.expected.offsetY) {
+              throw new Error(`Expected offsetY ${state.expected.offsetY} but rendered ${renderState.offsetY}`);
+            }
+            if (state.expected.maxStackHeight !== undefined && renderState.maxStackHeight !== state.expected.maxStackHeight) {
+              throw new Error(`Expected maxStackHeight ${state.expected.maxStackHeight} but rendered ${renderState.maxStackHeight}`);
+            }
+            // Direct DOM assertions for controls & layout state
+            const domChecks = await desktopWin.webContents.executeJavaScript(`
+              (() => {
+                const getAria = sel => document.querySelector(sel)?.getAttribute('aria-pressed');
+                const cornerBtns = Array.from(document.querySelectorAll('.corner-btn'));
+                const activeCorners = cornerBtns.filter(b => b.classList.contains('active'));
+                const activeCornerData = activeCorners[0]?.getAttribute('data-corner') || null;
+
+                const iframe = document.querySelector('#preview-iframe');
+                let iframeInfo = null;
+                try {
+                  if (iframe && iframe.contentDocument) {
+                    const idoc = iframe.contentDocument;
+                    const msgs = idoc.querySelector('#messages');
+                    const cards = idoc.querySelectorAll('#messages .message');
+                    iframeInfo = {
+                      cardsCount: cards.length,
+                      anchorRight: msgs ? msgs.classList.contains('anchor-right') : false,
+                      anchorTop: msgs ? msgs.classList.contains('anchor-top') : false,
+                      orderTop: msgs ? msgs.classList.contains('order-top') : false,
+                      textAlign: idoc.documentElement ? idoc.documentElement.style.getPropertyValue('--text-align') : '',
+                    };
+                  }
+                } catch {}
+
+                return {
+                  ariaTop: getAria('[data-message-position="top"]') ?? getAria('[data-new-msg-pos="top"]'),
+                  ariaBottom: getAria('[data-message-position="bottom"]') ?? getAria('[data-new-msg-pos="bottom"]'),
+                  ariaRight: getAria('[data-text-align="right"]'),
+                  ariaCenter: getAria('[data-text-align="center"]'),
+                  ariaLeft: getAria('[data-text-align="left"]'),
+                  ariaCornerRightTop: getAria('[data-corner="right-top"]'),
+                  ariaCornerRightBottom: getAria('[data-corner="right-bottom"]'),
+                  ariaCornerLeftTop: getAria('[data-corner="left-top"]'),
+                  ariaCornerLeftBottom: getAria('[data-corner="left-bottom"]'),
+                  activeCornersCount: activeCorners.length,
+                  activeCornerData,
+                  offsetX: document.querySelector('#offset-x')?.value,
+                  offsetY: document.querySelector('#offset-y')?.value,
+                  maxStackHeight: document.querySelector('#max-stack-height')?.value,
+                };
+              })()
+            `);
+
+            // Inspect preview iframe if needed
+            let iframeInfo = null;
+            if (state.id === 'appearance-custom') {
+              const previewFrame = desktopWin.webContents.mainFrame.frames.find(f => f.url.includes('preview.html'));
+              if (previewFrame) {
+                iframeInfo = await previewFrame.executeJavaScript(`
+                  (() => {
+                    const msgs = document.querySelector('#messages');
+                    const cards = document.querySelectorAll('#messages .message');
+                    return {
+                      cardsCount: cards.length,
+                      anchorRight: msgs ? msgs.classList.contains('anchor-right') : false,
+                      anchorTop: msgs ? msgs.classList.contains('anchor-top') : false,
+                      orderTop: msgs ? msgs.classList.contains('order-top') : false,
+                      textAlign: document.documentElement ? document.documentElement.style.getPropertyValue('--text-align') : '',
+                    };
+                  })()
+                `);
+              }
+            }
+
+            if (state.expected.ariaPressedTop !== undefined) {
+              if (domChecks.ariaTop !== (state.expected.ariaPressedTop ? 'true' : 'false')) {
+                throw new Error(`DOM expected [data-message-position="top"] aria-pressed="${state.expected.ariaPressedTop}" but got "${domChecks.ariaTop}"`);
+              }
+            }
+            if (state.expected.ariaPressedBottom !== undefined) {
+              if (domChecks.ariaBottom !== (state.expected.ariaPressedBottom ? 'true' : 'false')) {
+                throw new Error(`DOM expected [data-message-position="bottom"] aria-pressed="${state.expected.ariaPressedBottom}" but got "${domChecks.ariaBottom}"`);
+              }
+            }
+            if (state.expected.ariaPressedRight !== undefined) {
+              if (domChecks.ariaRight !== (state.expected.ariaPressedRight ? 'true' : 'false')) {
+                throw new Error(`DOM expected [data-text-align="right"] aria-pressed="${state.expected.ariaPressedRight}" but got "${domChecks.ariaRight}"`);
+              }
+              if (state.expected.ariaPressedRight) {
+                if (domChecks.ariaCenter !== 'false' || domChecks.ariaLeft !== 'false') {
+                  throw new Error(`Expected left and center text-align buttons to have aria-pressed="false"`);
+                }
+              }
+            }
+            if (state.expected.horizontalAnchor === 'right' && state.expected.verticalAnchor === 'top') {
+              if (domChecks.ariaCornerRightTop !== 'true') {
+                throw new Error(`DOM expected [data-corner="right-top"] aria-pressed="true" but got "${domChecks.ariaCornerRightTop}"`);
+              }
+              if (domChecks.ariaCornerLeftTop !== 'false' || domChecks.ariaCornerLeftBottom !== 'false' || domChecks.ariaCornerRightBottom !== 'false') {
+                throw new Error(`DOM expected all other corner buttons to have aria-pressed="false"`);
+              }
+              if (domChecks.activeCornersCount !== 1) {
+                throw new Error(`DOM expected exactly 1 active corner button but found ${domChecks.activeCornersCount}`);
+              }
+              if (domChecks.activeCornerData !== 'right-top') {
+                throw new Error(`DOM expected active corner to be "right-top" but got "${domChecks.activeCornerData}"`);
+              }
+            }
+
+            // Preview assertions for appearance-custom (state 08)
+            if (state.id === 'appearance-custom') {
+              if (!iframeInfo) {
+                throw new Error('Preview iframe or its document is not accessible');
+              }
+              if (iframeInfo.cardsCount < 3) {
+                throw new Error(`Preview iframe expected at least 3 message cards, but found ${iframeInfo.cardsCount}`);
+              }
+              if (!iframeInfo.anchorRight) {
+                throw new Error('Preview iframe #messages must have class "anchor-right"');
+              }
+              if (!iframeInfo.anchorTop) {
+                throw new Error('Preview iframe #messages must have class "anchor-top"');
+              }
+              if (iframeInfo.textAlign !== 'right') {
+                throw new Error(`Preview iframe expected --text-align "right", but got "${iframeInfo.textAlign}"`);
+              }
             }
           }
 

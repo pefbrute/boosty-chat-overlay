@@ -98,9 +98,12 @@ async function forward(root) {
 
   const message = {
     id: messageId,
+    platform: 'boosty',
     author,
     text,
     avatar: parsed ? parsed.avatar : avatarUrl(root),
+    publishTime: parsed?.publishTime || '',
+    reply: parsed?.reply || null,
     extensionVersion,
     version: extensionVersion,
     timestamp: Date.now(),

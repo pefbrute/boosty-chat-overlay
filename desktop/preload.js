@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('boostyOverlay', {
+  apiOrigin: `http://127.0.0.1:${process.env.BOOSTY_OVERLAY_PORT || 17369}`,
   copyOverlayUrl: () => ipcRenderer.invoke('copy-overlay-url'),
   listObsScenes: password => ipcRenderer.invoke('list-obs-scenes', password),
   addObsScene: (password, sceneIdentifier) => ipcRenderer.invoke('add-obs-scene', password, sceneIdentifier),
@@ -22,7 +23,7 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 });
 
-if (process.env.UI_AUDIT_MODE === '1') {
+if (process.env.UI_AUDIT_MODE === '1' || process.env.BOOSTY_OVERLAY_UI_TEST === '1') {
   contextBridge.exposeInMainWorld('boostyAudit', {
     onApplyState: callback => {
       ipcRenderer.on('audit:apply-state', async (_event, state) => {
