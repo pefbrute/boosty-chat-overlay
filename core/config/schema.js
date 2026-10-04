@@ -1,5 +1,53 @@
 const { defaultConfig } = require('./defaults.js');
 
+const ANIMATION_TYPES = ['none', 'fade', 'slide-up', 'slide-side'];
+const ANIMATION_DURATION_MIN = 150;
+const ANIMATION_DURATION_MAX = 1000;
+const ANIMATION_DURATION_DEFAULT = 280;
+
+/**
+ * Validates and normalizes message animation type.
+ *
+ * @param {unknown} value
+ * @param {string} [fallback='fade']
+ * @returns {'none' | 'fade' | 'slide-up' | 'slide-side'}
+ */
+function normalizeAnimationType(value, fallback = 'fade') {
+  const safeFallback =
+    typeof fallback === 'string' && ANIMATION_TYPES.includes(fallback.trim().toLowerCase())
+      ? fallback.trim().toLowerCase()
+      : 'fade';
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (ANIMATION_TYPES.includes(normalized)) {
+      return normalized;
+    }
+  }
+  return safeFallback;
+}
+
+/**
+ * Validates and clamps message animation duration in milliseconds (150..1000).
+ *
+ * @param {unknown} value
+ * @param {number} [fallback=280]
+ * @returns {number}
+ */
+function normalizeAnimationDuration(value, fallback = ANIMATION_DURATION_DEFAULT) {
+  const parsedFallback = Number(fallback);
+  const safeFallback = Number.isFinite(parsedFallback)
+    ? Math.round(Math.min(ANIMATION_DURATION_MAX, Math.max(ANIMATION_DURATION_MIN, parsedFallback)))
+    : ANIMATION_DURATION_DEFAULT;
+  if (value === undefined || value === null || value === '' || typeof value === 'boolean') {
+    return safeFallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return safeFallback;
+  }
+  return Math.round(Math.min(ANIMATION_DURATION_MAX, Math.max(ANIMATION_DURATION_MIN, parsed)));
+}
+
 /**
  * Validates and normalizes overlay configuration.
  *
@@ -31,6 +79,22 @@ function normalizeConfig(input, current = defaultConfig) {
     return fallback;
   };
 
+  const rawAnimType =
+    input?.animationType !== undefined ? input.animationType : input?.animation?.type;
+  const baseAnimType = normalizeAnimationType(
+    base.animationType ?? base.animation?.type,
+    defaultConfig.animationType ?? 'fade'
+  );
+
+  const rawAnimDuration =
+    input?.animationDurationMs !== undefined
+      ? input.animationDurationMs
+      : input?.animation?.durationMs;
+  const baseAnimDuration = normalizeAnimationDuration(
+    base.animationDurationMs ?? base.animation?.durationMs,
+    defaultConfig.animationDurationMs ?? ANIMATION_DURATION_DEFAULT
+  );
+
   return {
     durationSeconds: Math.round(number(input?.durationSeconds, 0, 120, base.durationSeconds ?? 20)),
     maxMessages: Math.round(number(input?.maxMessages, 1, 20, base.maxMessages ?? 6)),
@@ -51,14 +115,35 @@ function normalizeConfig(input, current = defaultConfig) {
     horizontalAnchor: choice(input?.horizontalAnchor, ['left', 'right'], base.horizontalAnchor ?? 'left'),
     verticalAnchor: choice(input?.verticalAnchor, ['top', 'bottom'], base.verticalAnchor ?? 'bottom'),
     newMessagePosition: choice(input?.newMessagePosition, ['top', 'bottom'], base.newMessagePosition ?? 'bottom'),
-    offsetX: Math.round(number(input?.offsetX, 0, 300, base.offsetX ?? 20)),
-    offsetY: Math.round(number(input?.offsetY, 0, 300, base.offsetY ?? 20)),
+    offsetX: Math.round(number(input?.offsetX, 0, 1000, base.offsetX ?? 20)),
+    offsetY: Math.round(number(input?.offsetY, 0, 800, base.offsetY ?? 20)),
     textAlign: choice(input?.textAlign, ['left', 'center', 'right'], base.textAlign ?? 'left'),
     maxStackHeight: Math.round(number(input?.maxStackHeight, 160, 2160, base.maxStackHeight ?? 800)),
+    animationType: normalizeAnimationType(rawAnimType, baseAnimType),
+    animationDurationMs: normalizeAnimationDuration(rawAnimDuration, baseAnimDuration),
   };
 }
 
 module.exports = {
+  ANIMATION_TYPES,
+  ANIMATION_DURATION_MIN,
+  ANIMATION_DURATION_MAX,
+  ANIMATION_DURATION_DEFAULT,
+  normalizeAnimationType,
+  normalizeAnimationDuration,
   normalizeConfig,
   normalizedConfig: normalizeConfig,
 };
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.BoostySchema = {
+    ANIMATION_TYPES,
+    ANIMATION_DURATION_MIN,
+    ANIMATION_DURATION_MAX,
+    ANIMATION_DURATION_DEFAULT,
+    normalizeAnimationType,
+    normalizeAnimationDuration,
+    normalizeConfig,
+    normalizedConfig: normalizeConfig,
+  };
+}

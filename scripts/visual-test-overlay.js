@@ -95,6 +95,29 @@ const localAvatarSvg = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '</svg>'
 );
 
+// Inline SVG Data URLs for Boosty custom emoji testing (zero external network requests)
+const emojiHeartSvg = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">' +
+  '<circle cx="28" cy="28" r="26" fill="#ff3b5c" opacity="0.18"/>' +
+  '<path d="M28 46 C28 46 10 33.5 10 20.5 C10 14.5 14.8 10 20.5 10 C24.1 10 26.8 12 28 14.5 C29.2 12 31.9 10 35.5 10 C41.2 10 46 14.5 46 20.5 C46 33.5 28 46 28 46 Z" fill="#ff3b5c"/>' +
+  '</svg>'
+);
+
+const emojiFireSvg = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">' +
+  '<circle cx="28" cy="28" r="26" fill="#f97316" opacity="0.18"/>' +
+  '<path d="M29 8 C29 8 42 18 42 31 C42 40 35.5 47 28 47 C20.5 47 14 40 14 31 C14 24 19 18 22 15 C22 19 25 21 25 21 C24 14 29 8 29 8 Z" fill="#f97316"/>' +
+  '<path d="M28 25 C28 25 35 30 35 36 C35 41 31.8 45 28 45 C24.2 45 21 41 21 36 C21 32 24 28 28 25 Z" fill="#fde047"/>' +
+  '</svg>'
+);
+
+const emojiStarSvg = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">' +
+  '<circle cx="28" cy="28" r="26" fill="#eab308" opacity="0.18"/>' +
+  '<polygon points="28,9 33.8,20.8 46.8,22.7 37.4,31.8 39.6,44.8 28,38.6 16.4,44.8 18.6,31.8 9.2,22.7 22.2,20.8" fill="#facc15" stroke="#ca8a04" stroke-width="1.5"/>' +
+  '</svg>'
+);
+
 // =============================================================================
 // 3. Main Runner
 // =============================================================================
@@ -537,9 +560,9 @@ async function runOverlayVisualQA() {
     console.log('✓ Local avatar verified -> local-avatar.png');
 
     // =========================================================================
-    // Scenario 7: Unicode & Emoji
+    // Scenario 7: Unicode & Custom Boosty Emoji + Mentions (Segments)
     // =========================================================================
-    console.log('\n--- Scenario 7: Unicode & Emoji ---');
+    console.log('\n--- Scenario 7: Unicode, Custom Boosty Emoji & Mentions ---');
     await resetCards();
     await postMessage({
       id: 'visual-unicode-1',
@@ -553,6 +576,324 @@ async function runOverlayVisualQA() {
     await captureScreenshot('unicode-emoji.png');
     statesChecked.push('unicode-emoji');
     console.log('✓ Unicode & emoji verified -> unicode-emoji.png');
+
+    // 7.1 Single Custom Boosty Emoji (emoji-single.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-emoji-single',
+      platform: 'boosty',
+      author: { name: 'Дарья', avatar: localAvatarSvg },
+      text: ':heart:',
+      segments: [
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+      ],
+      publishedAt: '21:43',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('emoji-single');
+    await captureScreenshot('emoji-single.png');
+    statesChecked.push('emoji-single');
+    console.log('✓ Custom emoji single verified -> emoji-single.png');
+
+    // 7.2 Multiple Custom Boosty Emojis in a Row (emoji-multiple.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-emoji-multiple',
+      platform: 'boosty',
+      author: { name: 'Артём', avatar: localAvatarSvg },
+      text: ':heart::fire::star:',
+      segments: [
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+        { type: 'emoji', id: ':fire:', alt: ':fire:', url: emojiFireSvg },
+        { type: 'emoji', id: ':star:', alt: ':star:', url: emojiStarSvg },
+      ],
+      publishedAt: '21:44',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('emoji-multiple');
+    await captureScreenshot('emoji-multiple.png');
+    statesChecked.push('emoji-multiple');
+    console.log('✓ Custom emoji multiple verified -> emoji-multiple.png');
+
+    // 7.3 Inline Custom Emoji with Text (emoji-inline-text.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-emoji-inline-text',
+      platform: 'boosty',
+      author: { name: 'Екатерина', avatar: localAvatarSvg },
+      text: 'Привет :heart: спасибо за отличный стрим :fire: и атмосферу!',
+      segments: [
+        { type: 'text', text: 'Привет ' },
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+        { type: 'text', text: ' спасибо за отличный стрим ' },
+        { type: 'emoji', id: ':fire:', alt: ':fire:', url: emojiFireSvg },
+        { type: 'text', text: ' и атмосферу!' },
+      ],
+      publishedAt: '21:45',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('emoji-inline-text');
+    await captureScreenshot('emoji-inline-text.png');
+    statesChecked.push('emoji-inline-text');
+    console.log('✓ Custom emoji inline text verified -> emoji-inline-text.png');
+
+    // 7.4 Mention Segment (mention.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-mention-1',
+      platform: 'boosty',
+      author: { name: 'Стример Борис', avatar: localAvatarSvg },
+      text: '@Иван_Про привет! Рад видеть тебя на трансляции, как дела?',
+      segments: [
+        { type: 'mention', userId: '12345', displayName: 'Иван_Про' },
+        { type: 'text', text: ' привет! Рад видеть тебя на трансляции, как дела?' },
+      ],
+      publishedAt: '21:46',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('mention');
+    await captureScreenshot('mention.png');
+    statesChecked.push('mention');
+    console.log('✓ Mention verified -> mention.png');
+
+    // 7.5 Mixed Mention and Custom Emoji (mention-and-emoji.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-mention-and-emoji',
+      platform: 'boosty',
+      author: { name: 'Максим', avatar: localAvatarSvg },
+      text: 'Привет :heart: @Стример_Борис лови :fire: :star: за крутой контент!',
+      segments: [
+        { type: 'text', text: 'Привет ' },
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+        { type: 'text', text: ' ' },
+        { type: 'mention', userId: '777', displayName: 'Стример_Борис' },
+        { type: 'text', text: ' лови ' },
+        { type: 'emoji', id: ':fire:', alt: ':fire:', url: emojiFireSvg },
+        { type: 'text', text: ' ' },
+        { type: 'emoji', id: ':star:', alt: ':star:', url: emojiStarSvg },
+        { type: 'text', text: ' за крутой контент!' },
+      ],
+      publishedAt: '21:47',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('mention-and-emoji');
+    await captureScreenshot('mention-and-emoji.png');
+    statesChecked.push('mention-and-emoji');
+
+    // Assert DOM structure of mention-and-emoji card
+    const mixedDomCheck = await page.evaluate(() => {
+      const card = document.querySelector('.message');
+      const emojis = Array.from(card?.querySelectorAll('img.message-emoji') || []);
+      const mentions = Array.from(card?.querySelectorAll('.message-mention') || []);
+      return {
+        emojiCount: emojis.length,
+        allEmojisLoaded: emojis.every(img => img.complete && img.getBoundingClientRect().width > 0 && img.getBoundingClientRect().height > 0),
+        mentionCount: mentions.length,
+        mentionText: mentions[0]?.textContent || '',
+      };
+    });
+    if (mixedDomCheck.emojiCount !== 3 || !mixedDomCheck.allEmojisLoaded || mixedDomCheck.mentionCount !== 1 || mixedDomCheck.mentionText !== '@Стример_Борис') {
+      throw new Error(`Mixed mention-and-emoji DOM check failed: ${JSON.stringify(mixedDomCheck)}`);
+    }
+    console.log('✓ Mixed mention and custom emoji verified -> mention-and-emoji.png');
+
+    // 7.6 Long Message with Multiple Emojis and Mentions (emoji-long-message.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-emoji-long-message',
+      platform: 'boosty',
+      author: { name: 'АктивныйЗритель', avatar: localAvatarSvg },
+      text: '@Стример_Борис огромное спасибо за подробный разбор механик босса :fire: ! Мы всем чатом смотрели на одном дыхании :heart: и болели за каждую попытку :star: — обязательно сохрани эту запись на Boosty для подписчиков!',
+      segments: [
+        { type: 'mention', userId: '777', displayName: 'Стример_Борис' },
+        { type: 'text', text: ' огромное спасибо за подробный разбор механик босса ' },
+        { type: 'emoji', id: ':fire:', alt: ':fire:', url: emojiFireSvg },
+        { type: 'text', text: ' ! Мы всем чатом смотрели на одном дыхании ' },
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+        { type: 'text', text: ' и болели за каждую попытку ' },
+        { type: 'emoji', id: ':star:', alt: ':star:', url: emojiStarSvg },
+        { type: 'text', text: ' — обязательно сохрани эту запись на Boosty для подписчиков!' },
+      ],
+      publishedAt: '21:48',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('emoji-long-message');
+    await captureScreenshot('emoji-long-message.png');
+    statesChecked.push('emoji-long-message');
+    console.log('✓ Emoji long message verified -> emoji-long-message.png');
+
+    // =========================================================================
+    // Scenario 7B: Author Role Badges (streamer / moderator / normal)
+    // =========================================================================
+    console.log('\n--- Scenario 7B: Author Role Badges ---');
+
+    // 7B.1 Streamer Role Badge (role-streamer.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-role-streamer',
+      platform: 'boosty',
+      author: { name: 'Фёдор Стример', avatar: localAvatarSvg, role: 'streamer' },
+      text: 'Всем привет! Начинаем наш вечерний стрим, сегодня проходим босса.',
+      publishedAt: '21:49',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('role-streamer');
+    await captureScreenshot('role-streamer.png');
+    statesChecked.push('role-streamer');
+
+    const streamerDomCheck = await page.evaluate(() => {
+      const badge = document.querySelector('.message .author-role.author-role--streamer');
+      const rect = badge?.getBoundingClientRect();
+      return {
+        exists: Boolean(badge),
+        ariaLabel: badge?.getAttribute('aria-label') || '',
+        hasSvg: Boolean(badge?.querySelector('svg.author-role-icon path')),
+        width: rect?.width || 0,
+        height: rect?.height || 0,
+      };
+    });
+    if (!streamerDomCheck.exists || streamerDomCheck.ariaLabel !== 'Стример' || !streamerDomCheck.hasSvg || streamerDomCheck.width <= 0) {
+      throw new Error(`Streamer badge DOM check failed: ${JSON.stringify(streamerDomCheck)}`);
+    }
+    console.log('✓ Streamer role badge verified -> role-streamer.png');
+
+    // 7B.2 Moderator Role Badge (role-moderator.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-role-moderator',
+      platform: 'boosty',
+      author: { name: 'Модератор Иван', avatar: localAvatarSvg, role: 'moderator' },
+      text: 'Напоминаю: в чате общаемся вежливо и без спойлеров к сюжету!',
+      publishedAt: '21:50',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('role-moderator');
+    await captureScreenshot('role-moderator.png');
+    statesChecked.push('role-moderator');
+
+    const modDomCheck = await page.evaluate(() => {
+      const badge = document.querySelector('.message .author-role.author-role--moderator');
+      const rect = badge?.getBoundingClientRect();
+      return {
+        exists: Boolean(badge),
+        ariaLabel: badge?.getAttribute('aria-label') || '',
+        hasSvg: Boolean(badge?.querySelector('svg.author-role-icon path')),
+        width: rect?.width || 0,
+        height: rect?.height || 0,
+      };
+    });
+    if (!modDomCheck.exists || modDomCheck.ariaLabel !== 'Модератор' || !modDomCheck.hasSvg || modDomCheck.width <= 0) {
+      throw new Error(`Moderator badge DOM check failed: ${JSON.stringify(modDomCheck)}`);
+    }
+    console.log('✓ Moderator role badge verified -> role-moderator.png');
+
+    // 7B.3 Normal User without Role Badge (role-normal-user.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-role-normal',
+      platform: 'boosty',
+      author: { name: 'Алексей Зритель', avatar: localAvatarSvg, role: null },
+      text: 'Отличный звук и картинка, всем приятного просмотра!',
+      publishedAt: '21:51',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('role-normal-user');
+    await captureScreenshot('role-normal-user.png');
+    statesChecked.push('role-normal-user');
+
+    const normalRoleExists = await page.evaluate(() => Boolean(document.querySelector('.message .author-role')));
+    if (normalRoleExists) {
+      throw new Error('Normal user card must not contain .author-role element');
+    }
+    console.log('✓ Normal user (no badge) verified -> role-normal-user.png');
+
+    // 7B.4 Long Author Name with Role Badge (role-long-author.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-role-long-author',
+      platform: 'boosty',
+      author: {
+        name: 'ОченьОченьОченьДлинныйНикнеймСтримераКоторыйДолженАккуратноОбрезатьсяМноготочием',
+        avatar: localAvatarSvg,
+        role: 'streamer',
+      },
+      text: 'Проверка того, что бейдж роли остаётся видимым, а длинный ник аккуратно обрезается с многоточием.',
+      publishedAt: '21:52',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('role-long-author');
+    await captureScreenshot('role-long-author.png');
+    statesChecked.push('role-long-author');
+    console.log('✓ Role badge with long author name verified -> role-long-author.png');
+
+    // 7B.5 Role Badge with Reply Quote (role-with-reply.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-role-with-reply',
+      platform: 'boosty',
+      author: { name: 'Фёдор Стример', avatar: localAvatarSvg, role: 'streamer' },
+      text: 'Да, запись эфира обязательно выйдет завтра утром в открытом доступе!',
+      reply: {
+        author: 'Дмитрий',
+        text: 'Будет ли запись сегодняшнего стрима?',
+      },
+      publishedAt: '21:53',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('role-with-reply');
+    await captureScreenshot('role-with-reply.png');
+    statesChecked.push('role-with-reply');
+    console.log('✓ Role badge with reply verified -> role-with-reply.png');
+
+    // 7B.6 Role Badges with Emoji, Mention & Multi-Role Stack (role-with-emoji-mention.png)
+    await resetCards();
+    await postMessage({
+      id: 'visual-role-stack-1',
+      platform: 'boosty',
+      author: { name: 'Мария', avatar: localAvatarSvg, role: null },
+      text: 'Всем привет :heart: удачного стрима!',
+      segments: [
+        { type: 'text', text: 'Всем привет ' },
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+        { type: 'text', text: ' удачного стрима!' },
+      ],
+      publishedAt: '21:54',
+    });
+    await postMessage({
+      id: 'visual-role-stack-2',
+      platform: 'boosty',
+      author: { name: 'Модератор Иван', avatar: localAvatarSvg, role: 'moderator' },
+      text: '@Мария добро пожаловать в чат :star: !',
+      segments: [
+        { type: 'mention', userId: '101', displayName: 'Мария' },
+        { type: 'text', text: ' добро пожаловать в чат ' },
+        { type: 'emoji', id: ':star:', alt: ':star:', url: emojiStarSvg },
+        { type: 'text', text: ' !' },
+      ],
+      publishedAt: '21:55',
+    });
+    await postMessage({
+      id: 'visual-role-stack-3',
+      platform: 'boosty',
+      author: { name: 'Фёдор Стример', avatar: localAvatarSvg, role: 'streamer' },
+      text: 'Спасибо @Мария :heart: :fire: погнали!',
+      segments: [
+        { type: 'text', text: 'Спасибо ' },
+        { type: 'mention', userId: '101', displayName: 'Мария' },
+        { type: 'text', text: ' ' },
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+        { type: 'text', text: ' ' },
+        { type: 'emoji', id: ':fire:', alt: ':fire:', url: emojiFireSvg },
+        { type: 'text', text: ' погнали!' },
+      ],
+      publishedAt: '21:56',
+    });
+    await waitForCardsCount(3);
+    await verifyLayout('role-with-emoji-mention');
+    await captureScreenshot('role-with-emoji-mention.png');
+    statesChecked.push('role-with-emoji-mention');
+    console.log('✓ Role badges with emoji & mention stack verified -> role-with-emoji-mention.png');
 
     // =========================================================================
     // Scenario 8: 4 Corner Anchors & Quadrant Assertions
@@ -707,6 +1048,62 @@ async function runOverlayVisualQA() {
     statesChecked.push('reply-narrow-source');
     console.log('✓ Reply in narrow source verified (400x700) -> reply-narrow-source.png');
 
+    // 11.3 Narrow Emoji & Mention Scenario (emoji-narrow-source.png)
+    await resetCards();
+    await postMessage({
+      id: 'narrow-emoji-1',
+      platform: 'boosty',
+      author: { name: 'МобильныйЗритель', avatar: localAvatarSvg },
+      text: 'Привет @Стример_Борис :heart: :fire: проверяем перенос строк со смайлами в узком окне OBS 400px :star: !',
+      segments: [
+        { type: 'text', text: 'Привет ' },
+        { type: 'mention', userId: '777', displayName: 'Стример_Борис' },
+        { type: 'text', text: ' ' },
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+        { type: 'text', text: ' ' },
+        { type: 'emoji', id: ':fire:', alt: ':fire:', url: emojiFireSvg },
+        { type: 'text', text: ' проверяем перенос строк со смайлами в узком окне OBS 400px ' },
+        { type: 'emoji', id: ':star:', alt: ':star:', url: emojiStarSvg },
+        { type: 'text', text: ' !' },
+      ],
+      publishedAt: '21:52',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('emoji-narrow-source');
+    await captureScreenshot('emoji-narrow-source.png');
+    statesChecked.push('emoji-narrow-source');
+    console.log('✓ Emoji & mention in narrow source verified (400x700) -> emoji-narrow-source.png');
+
+    // 11.4 Narrow Role Badges Scenario (role-narrow-source.png)
+    await resetCards();
+    await postMessage({
+      id: 'narrow-role-1',
+      platform: 'boosty',
+      author: { name: 'Фёдор Стример', avatar: localAvatarSvg, role: 'streamer' },
+      text: 'Стрим в узком вертикальном окне 400x700 :fire:',
+      segments: [
+        { type: 'text', text: 'Стрим в узком вертикальном окне 400x700 ' },
+        { type: 'emoji', id: ':fire:', alt: ':fire:', url: emojiFireSvg },
+      ],
+      publishedAt: '21:53',
+    });
+    await postMessage({
+      id: 'narrow-role-2',
+      platform: 'boosty',
+      author: { name: 'Модератор_С_Длинным_Никнеймом_В_Узком_Окне', avatar: localAvatarSvg, role: 'moderator' },
+      text: '@Фёдор Стример бейдж модератора и длинный никнейм в 400px!',
+      segments: [
+        { type: 'mention', userId: '1', displayName: 'Фёдор Стример' },
+        { type: 'text', text: ' бейдж модератора и длинный никнейм в 400px!' },
+      ],
+      publishedAt: '21:54',
+    });
+    await waitForCardsCount(2);
+    await verifyLayout('role-narrow-source');
+    await captureScreenshot('role-narrow-source.png');
+    statesChecked.push('role-narrow-source');
+    console.log('✓ Role badges in narrow source verified (400x700) -> role-narrow-source.png');
+
     // =========================================================================
     // Scenario 12: Small Height Viewport (600x300)
     // =========================================================================
@@ -817,6 +1214,158 @@ async function runOverlayVisualQA() {
     await captureScreenshot('viewport-1920x1080.png');
     statesChecked.push('viewport-1920x1080');
     console.log('✓ Full HD 1920x1080 verified -> viewport-1920x1080.png');
+
+    // =========================================================================
+    // Scenario 14: Message Animations v1 Visual QA (Requirement #23)
+    // =========================================================================
+    console.log('\n--- Scenario 14: Message Animations Visual QA ---');
+    await page.setViewportSize({ width: 800, height: 600 });
+    viewportsTested.push('800x600');
+
+    // 14.1 animation-none.png
+    await resetCards();
+    await postConfig({ animationType: 'none', animationDurationMs: 180, horizontalAnchor: 'left', verticalAnchor: 'bottom' });
+    await postMessage({
+      id: 'anim-none-msg',
+      platform: 'boosty',
+      author: { name: 'Алексей', avatar: localAvatarSvg },
+      text: 'Сообщение в режиме без анимации (мгновенное появление и удаление).',
+      publishedAt: '22:01',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('animation-none');
+    await captureScreenshot('animation-none.png');
+    statesChecked.push('animation-none');
+    console.log('✓ animation-none verified -> animation-none.png');
+
+    // 14.2 animation-fade.png
+    await resetCards();
+    await postConfig({ animationType: 'fade', animationDurationMs: 280 });
+    await postMessage({
+      id: 'anim-fade-msg',
+      platform: 'boosty',
+      author: { name: 'Борис', avatar: localAvatarSvg },
+      text: 'Сообщение с плавным появлением (opacity: 0 -> 1, без сдвига).',
+      publishedAt: '22:02',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('animation-fade');
+    await captureScreenshot('animation-fade.png');
+    statesChecked.push('animation-fade');
+    console.log('✓ animation-fade verified -> animation-fade.png');
+
+    // 14.3 animation-slide-up.png
+    await resetCards();
+    await postConfig({ animationType: 'slide-up', animationDurationMs: 280 });
+    await postMessage({
+      id: 'anim-slide-up-msg',
+      platform: 'boosty',
+      author: { name: 'Виктор', avatar: localAvatarSvg },
+      text: 'Сообщение с аккуратным подъёмом снизу вверх (translateY: 16px -> 0).',
+      publishedAt: '22:03',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('animation-slide-up');
+    await captureScreenshot('animation-slide-up.png');
+    statesChecked.push('animation-slide-up');
+    console.log('✓ animation-slide-up verified -> animation-slide-up.png');
+
+    // 14.4 animation-slide-left-anchor.png (left anchor slide-side)
+    await resetCards();
+    await postConfig({ animationType: 'slide-side', animationDurationMs: 280, horizontalAnchor: 'left', verticalAnchor: 'bottom' });
+    await postMessage({
+      id: 'anim-slide-left-msg',
+      platform: 'boosty',
+      author: { name: 'Григорий', avatar: localAvatarSvg },
+      text: 'Сообщение с левым якорем, слегка приезжающее слева (translateX: -16px -> 0).',
+      publishedAt: '22:04',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('animation-slide-left-anchor');
+    await captureScreenshot('animation-slide-left-anchor.png');
+    statesChecked.push('animation-slide-left-anchor');
+    console.log('✓ animation-slide-left-anchor verified -> animation-slide-left-anchor.png');
+
+    // 14.5 animation-slide-right-anchor.png (right anchor slide-side)
+    await resetCards();
+    await postConfig({ animationType: 'slide-side', animationDurationMs: 280, horizontalAnchor: 'right', verticalAnchor: 'bottom' });
+    await postMessage({
+      id: 'anim-slide-right-msg',
+      platform: 'boosty',
+      author: { name: 'Дмитрий', avatar: localAvatarSvg },
+      text: 'Сообщение с правым якорем, слегка приезжающее справа (translateX: 16px -> 0).',
+      publishedAt: '22:05',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('animation-slide-right-anchor');
+    await captureScreenshot('animation-slide-right-anchor.png');
+    statesChecked.push('animation-slide-right-anchor');
+    console.log('✓ animation-slide-right-anchor verified -> animation-slide-right-anchor.png');
+
+    // Reset back to left anchor
+    await postConfig({ horizontalAnchor: 'left' });
+
+    // 14.6 animation-with-reply.png
+    await resetCards();
+    await postConfig({ animationType: 'fade', animationDurationMs: 280 });
+    await postMessage({
+      id: 'anim-reply-msg',
+      platform: 'boosty',
+      author: { name: 'Елена', avatar: localAvatarSvg },
+      text: 'Карточка с ответом на цитату, анимированная целиком как единый блок.',
+      reply: {
+        author: 'Зритель',
+        text: 'Анимация корректно применяется ко всей карточке целиком?',
+      },
+      publishedAt: '22:06',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('animation-with-reply');
+    await captureScreenshot('animation-with-reply.png');
+    statesChecked.push('animation-with-reply');
+    console.log('✓ animation-with-reply verified -> animation-with-reply.png');
+
+    // 14.7 animation-with-emoji.png
+    await resetCards();
+    await postMessage({
+      id: 'anim-emoji-msg',
+      platform: 'boosty',
+      author: { name: 'Фёдор Стример', avatar: localAvatarSvg, role: 'streamer' },
+      text: 'Анимация с кастомными эмодзи :heart: :fire: и бейджем роли :star: !',
+      segments: [
+        { type: 'text', text: 'Анимация с кастомными эмодзи ' },
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: emojiHeartSvg },
+        { type: 'text', text: ' ' },
+        { type: 'emoji', id: ':fire:', alt: ':fire:', url: emojiFireSvg },
+        { type: 'text', text: ' и бейджем роли ' },
+        { type: 'emoji', id: ':star:', alt: ':star:', url: emojiStarSvg },
+        { type: 'text', text: ' !' },
+      ],
+      publishedAt: '22:07',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('animation-with-emoji');
+    await captureScreenshot('animation-with-emoji.png');
+    statesChecked.push('animation-with-emoji');
+    console.log('✓ animation-with-emoji verified -> animation-with-emoji.png');
+
+    // 14.8 animation-narrow-source.png (400x700 narrow source with slide-side)
+    await resetCards();
+    await page.setViewportSize({ width: 400, height: 700 });
+    viewportsTested.push('400x700');
+    await postConfig({ animationType: 'slide-side', horizontalAnchor: 'left' });
+    await postMessage({
+      id: 'anim-narrow-msg',
+      platform: 'boosty',
+      author: { name: 'МобильныйЧат', avatar: localAvatarSvg },
+      text: 'Проверка анимации slide-side в узком источнике 400x700 без горизонтального скролла и переполнений.',
+      publishedAt: '22:08',
+    });
+    await waitForCardsCount(1);
+    await verifyLayout('animation-narrow-source');
+    await captureScreenshot('animation-narrow-source.png');
+    statesChecked.push('animation-narrow-source');
+    console.log('✓ animation-narrow-source verified -> animation-narrow-source.png');
 
     // =========================================================================
     // 4. Verification Results & Reporting

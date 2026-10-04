@@ -25,22 +25,66 @@
     });
   }
 
+  function normalizeAuthorName(raw) {
+    if (typeof raw !== "string") return "";
+    // Boosty renders author name as [author.name, ":"] inside CHATMESSAGE:author.
+    // Strip at most one trailing presentation colon while preserving colons inside nicknames.
+    return raw.trim().replace(/:\s*$/, "").trim();
+  }
+
   function extractAuthor(root) {
     if (!root || typeof root.querySelector !== "function") return "";
 
     // 1. Explicit data-test-id
     const byTestId = root.querySelector('[data-test-id="CHATMESSAGE:author"], [data-test-id*="author"]');
-    if (byTestId?.textContent?.trim()) return byTestId.textContent.trim();
+    if (byTestId?.textContent?.trim()) return normalizeAuthorName(byTestId.textContent);
 
     // 2. Specific author classes
     const byClass = root.querySelector(
       '[class*="ChatMessage_author"], [class*="ChatMessage__author"], [class*="Author_name"], [class*="authorName"], [class*="author-name"], [class*="Author"], [class*="author"]'
     );
-    return byClass?.textContent?.trim() || "";
+    return normalizeAuthorName(byClass?.textContent || "");
   }
 
-  function extractText(root) {
-    if (!root || typeof root.querySelector !== "function") return "";
+  function extractAuthorRole(root) {
+    if (!root || typeof root.querySelectorAll !== "function") return null;
+
+    const authorEl =
+      root.querySelector('[data-test-id="CHATMESSAGE:author"], [data-test-id*="author"]') ||
+      root.querySelector(
+        '[class*="ChatMessage_author"], [class*="ChatMessage__author"], [class*="Author_name"], [class*="authorName"], [class*="author-name"], [class*="Author"], [class*="author"]'
+      );
+
+    const searchScope = authorEl && authorEl.parentElement ? authorEl.parentElement : root;
+    const useNodes = searchScope.querySelectorAll ? searchScope.querySelectorAll("svg use, use") : [];
+
+    for (const use of useNodes) {
+      if (!use || typeof use.getAttribute !== "function") continue;
+      if (
+        use.closest &&
+        use.closest(
+          '[data-test-id="CHATMESSAGE:message"], [data-test-id*="reply"], [class*="Reply"], [class*="reply"], [class*="Quote"], [class*="quote"], blockquote, button, [class*="button"]'
+        )
+      ) {
+        continue;
+      }
+
+      const rawHref = (use.getAttribute("href") || use.getAttribute("xlink:href") || "").trim().toLowerCase();
+      if (!rawHref) continue;
+
+      if (/(?:^|#)icon-star(?=$|[-_])/i.test(rawHref)) {
+        return "streamer";
+      }
+      if (/(?:^|#)icon-sword(?=$|[-_])/i.test(rawHref)) {
+        return "moderator";
+      }
+    }
+
+    return null;
+  }
+
+  function findMessageContainer(root) {
+    if (!root || typeof root.querySelector !== "function") return null;
 
     // 1. Explicit data-test-id
     let target = root.querySelector('[data-test-id="CHATMESSAGE:message"], [data-test-id*="message"], [data-test-id*="text"]');
@@ -72,21 +116,214 @@
       }
     }
 
-    if (!target) return "";
+    return target || null;
+  }
 
-    // Handle inline emoji images with alt text
-    const images = target.querySelectorAll ? target.querySelectorAll("img[alt]") : [];
-    if (images.length > 0) {
-      const clone = target.cloneNode(true);
-      const cloneImgs = clone.querySelectorAll("img[alt]");
-      for (const img of cloneImgs) {
-        const alt = img.getAttribute("alt") || "";
-        img.replaceWith(alt);
+  function isSafeEmojiUrl(url) {
+    if (typeof url !== "string") return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    if (/^data:image\/(png|webp|gif|jpeg|jpg|svg\+xml)[;,]/i.test(trimmed)) {
+      return true;
+    }
+    try {
+      const parsed = new URL(trimmed);
+      return parsed.protocol === "https:" || parsed.protocol === "http:";
+    } catch {
+      return false;
+    }
+  }
+
+  function isExcludedMessageSubtree(el) {
+    if (!el || typeof el.getAttribute !== "function") return false;
+    // Boosty places a smile hover tooltip div inside [data-test-id="CHATMESSAGE:message"]
+    // and writes the hovered emoji alt code into its innerText. We must exclude tooltip
+    // and embedded quote/reply containers from message text and segment traversal.
+    const role = (el.getAttribute("role") || "").toLowerCase();
+    if (role === "tooltip") return true;
+
+    const testId = (el.getAttribute("data-test-id") || "").toLowerCase();
+    if (testId.includes("tooltip") || testId.includes("reply")) return true;
+
+    const cls = String(el.className || "").toLowerCase();
+    if (cls.includes("tooltip") || cls.includes("reply") || cls.includes("quote")) {
+      return true;
+    }
+    const tag = String(el.tagName || "").toUpperCase();
+    if (tag === "BLOCKQUOTE" || tag === "SCRIPT" || tag === "STYLE") {
+      return true;
+    }
+    return false;
+  }
+
+  function isMentionElement(el) {
+    if (!el || typeof el.getAttribute !== "function") return false;
+    if (el.hasAttribute && (el.hasAttribute("data-mention-id") || el.hasAttribute("data-display-name"))) {
+      return true;
+    }
+    if (el.classList && el.classList.contains("mention")) {
+      return true;
+    }
+    const cls = String(el.className || "");
+    return /\bmention\b/.test(cls);
+  }
+
+  function isCustomSmileImage(el) {
+    if (!el || String(el.tagName || "").toUpperCase() !== "IMG") return false;
+    const dataType = (el.getAttribute && el.getAttribute("data-type")) || el.dataset?.type || "";
+    return dataType === "smile";
+  }
+
+  function normalizeDomTextNodeValue(rawValue) {
+    if (typeof rawValue !== "string" || !rawValue) return "";
+    // Remove HTML template formatting newlines/indentation at node boundaries,
+    // and collapse internal multiline indentation to a single space while preserving inline spaces.
+    return rawValue
+      .replace(/^\s*[\r\n]+\s*/, "")
+      .replace(/\s*[\r\n]+\s*$/, "")
+      .replace(/\s*[\r\n]+\s*/g, " ");
+  }
+
+  function appendTextSegment(segments, textValue) {
+    if (!textValue) return;
+    const prev = segments.length > 0 ? segments[segments.length - 1] : null;
+    if (prev && prev.type === "text") {
+      prev.text += textValue;
+    } else {
+      segments.push({ type: "text", text: textValue });
+    }
+  }
+
+  function extractSegments(root) {
+    const target = findMessageContainer(root);
+    if (!target) return [];
+
+    const rawSegments = [];
+
+    function walk(node) {
+      if (!node) return;
+      const nodeType = node.nodeType;
+
+      // Text node (Node.TEXT_NODE === 3)
+      if (nodeType === 3) {
+        const textVal = normalizeDomTextNodeValue(node.nodeValue ?? node.textContent ?? "");
+        if (textVal) {
+          appendTextSegment(rawSegments, textVal);
+        }
+        return;
       }
-      return clone.textContent?.trim() || "";
+
+      // Element node (Node.ELEMENT_NODE === 1)
+      if (nodeType === 1) {
+        if (node !== target && isExcludedMessageSubtree(node)) {
+          return;
+        }
+
+        // 1. Boosty custom emoji: img[data-type="smile"]
+        if (isCustomSmileImage(node)) {
+          const rawId = (node.getAttribute && node.getAttribute("data-id")) || node.dataset?.id || "";
+          const id = rawId.trim() || null;
+          const rawAlt = (node.getAttribute && node.getAttribute("alt")) || "";
+          const alt = rawAlt.trim() || id || ":emoji:";
+          const rawUrl = ((node.getAttribute && node.getAttribute("src")) || node.src || "").trim();
+
+          if (isSafeEmojiUrl(rawUrl)) {
+            rawSegments.push({
+              type: "emoji",
+              id,
+              alt,
+              url: rawUrl,
+            });
+          } else if (alt) {
+            appendTextSegment(rawSegments, alt);
+          }
+          return;
+        }
+
+        // 2. Legacy / generic inline <img alt="..."> (non-smile)
+        if (String(node.tagName || "").toUpperCase() === "IMG") {
+          const alt = (node.getAttribute && node.getAttribute("alt")) || "";
+          if (alt) {
+            appendTextSegment(rawSegments, alt);
+          }
+          return;
+        }
+
+        // 3. Mention element: span.mention[data-mention-id][data-display-name]
+        if (node !== target && isMentionElement(node)) {
+          const rawUserId = (node.getAttribute && node.getAttribute("data-mention-id")) || node.dataset?.mentionId || "";
+          const userId = rawUserId.trim() || null;
+          const rawDisplay =
+            (node.getAttribute && node.getAttribute("data-display-name")) ||
+            node.dataset?.displayName ||
+            node.textContent ||
+            "";
+          const displayName = rawDisplay.trim().replace(/^@+/, "").trim();
+          if (displayName) {
+            rawSegments.push({
+              type: "mention",
+              userId,
+              displayName,
+            });
+          }
+          return;
+        }
+
+        // 4. Recurse into child nodes in DOM order
+        const children = node.childNodes || [];
+        for (let i = 0; i < children.length; i++) {
+          walk(children[i]);
+        }
+      }
     }
 
-    return target.textContent?.trim() || "";
+    walk(target);
+
+    // Trim leading whitespace on the first text segment
+    while (rawSegments.length > 0 && rawSegments[0].type === "text") {
+      rawSegments[0].text = rawSegments[0].text.replace(/^\s+/, "");
+      if (!rawSegments[0].text) {
+        rawSegments.shift();
+      } else {
+        break;
+      }
+    }
+
+    // Trim trailing whitespace on the last text segment
+    while (rawSegments.length > 0 && rawSegments[rawSegments.length - 1].type === "text") {
+      const lastIdx = rawSegments.length - 1;
+      rawSegments[lastIdx].text = rawSegments[lastIdx].text.replace(/\s+$/, "");
+      if (!rawSegments[lastIdx].text) {
+        rawSegments.pop();
+      } else {
+        break;
+      }
+    }
+
+    return rawSegments;
+  }
+
+  function segmentsToPlainText(segments) {
+    if (!Array.isArray(segments) || segments.length === 0) return "";
+    return segments
+      .map(seg => {
+        if (!seg || typeof seg !== "object") return "";
+        if (seg.type === "text") return seg.text || "";
+        if (seg.type === "emoji") return seg.alt || seg.id || "";
+        if (seg.type === "mention") {
+          const name = String(seg.displayName || "").replace(/^@+/, "").trim();
+          return name ? `@${name}` : "";
+        }
+        return "";
+      })
+      .join("")
+      .trim();
+  }
+
+  function extractText(root) {
+    if (!root || typeof root.querySelector !== "function") return "";
+    const segments = extractSegments(root);
+    return segmentsToPlainText(segments);
   }
 
   function extractAvatarUrl(root) {
@@ -138,14 +375,24 @@
 
   function extractReplyInfo(root) {
     if (!root || typeof root.querySelector !== "function") return null;
-    const replyContainer = root.querySelector(
-      '[data-test-id*="reply"], [class*="Reply"], [class*="reply"], [class*="Quote"], [class*="quote"]'
-    );
+    const candidates = root.querySelectorAll
+      ? root.querySelectorAll('[data-test-id*="reply"], [class*="Reply"], [class*="reply"], [class*="Quote"], [class*="quote"], blockquote')
+      : [];
+
+    let replyContainer = null;
+    for (const el of candidates) {
+      const tag = String(el.tagName || "").toUpperCase();
+      const cls = String(el.className || "").toLowerCase();
+      if (tag === "BUTTON" || cls.includes("button")) continue;
+      replyContainer = el;
+      break;
+    }
+
     if (!replyContainer) return null;
 
     const replyAuthorEl = replyContainer.querySelector('[class*="author"], [class*="Author"], [class*="name"]');
     const replyTextEl = replyContainer.querySelector('[class*="text"], [class*="Text"], [class*="message"]');
-    const author = replyAuthorEl?.textContent?.trim() || "";
+    const author = normalizeAuthorName(replyAuthorEl?.textContent || "");
     const text = replyTextEl?.textContent?.trim() || "";
     if (!author && !text) return null;
 
@@ -179,9 +426,11 @@
     const explicitId = (root.getAttribute && (root.getAttribute("data-message-id") || root.getAttribute("data-id"))) || root.id || "";
     if (explicitId) return explicitId;
 
-    // 2. Stable attribute on sub-elements
-    const subEl = root.querySelector && root.querySelector('[data-message-id], [data-id]');
-    if (subEl) {
+    // 2. Stable attribute on sub-elements (excluding smile images which use data-id=":emoji:")
+    const subCandidates = root.querySelectorAll ? root.querySelectorAll('[data-message-id], [data-id]') : [];
+    for (const subEl of subCandidates) {
+      if (isCustomSmileImage(subEl) || String(subEl.tagName || "").toUpperCase() === "IMG") continue;
+      if (subEl.closest && subEl.closest('[data-test-id="CHATMESSAGE:message"]')) continue;
       const subId = subEl.getAttribute('data-message-id') || subEl.getAttribute('data-id');
       if (subId) return subId;
     }
@@ -206,8 +455,9 @@
   function parseBoostyMessage(root, options = {}) {
     if (!root) return null;
     const author = extractAuthor(root);
-    const text = extractText(root);
-    if (!author || !text) {
+    const segments = extractSegments(root);
+    const text = segmentsToPlainText(segments);
+    if (!author || (!text && segments.length === 0)) {
       // Only log if element matches chat message root selector to avoid false noise
       if (root.matches && (root.matches('[data-test-id*="CHATMESSAGE"]') || root.matches('[class*="ChatMessage"]'))) {
         logParserFailure(!author ? "missing author" : "missing text");
@@ -215,6 +465,7 @@
       return null;
     }
 
+    const role = extractAuthorRole(root);
     const avatar = extractAvatarUrl(root);
     const publishTime = extractPublishTime(root);
     const reply = extractReplyInfo(root);
@@ -223,7 +474,9 @@
     return {
       id,
       author,
+      role,
       text,
+      segments,
       avatar,
       publishTime,
       reply,
@@ -232,7 +485,10 @@
 
   return {
     queryRootElements,
+    normalizeAuthorName,
     extractAuthor,
+    extractAuthorRole,
+    extractSegments,
     extractText,
     extractAvatarUrl,
     extractPublishTime,

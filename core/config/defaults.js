@@ -26,6 +26,8 @@ const defaultConfig = {
   offsetY: 20,
   textAlign: 'left',
   maxStackHeight: 800,
+  animationType: 'fade',
+  animationDurationMs: 280,
 };
 
 module.exports = {

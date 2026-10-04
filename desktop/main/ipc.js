@@ -88,12 +88,42 @@ function registerIpcHandlers(deps = {}) {
     return obsService.getStatus();
   });
 
-  // --- Application Information ---
+  ipcMain.handle('fit-obs-overlay', (_event, password) => {
+    return obsService.fitOverlayToCanvas(password);
+  });
+
+  ipcMain.handle('refresh-obs-overlay', () => {
+    return obsService.refreshOverlay();
+  });
+
+  // --- Application Information & Diagnostics ---
   ipcMain.handle('get-app-version', () => {
     if (app && typeof app.getVersion === 'function') {
       return app.getVersion();
     }
     return '0.4.0';
+  });
+
+  ipcMain.handle('export-connectivity-diagnostic', async () => {
+    try {
+      const http = require('node:http');
+      return await new Promise((resolve) => {
+        const req = http.get('http://127.0.0.1:17369/diagnostic', (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(data));
+            } catch {
+              resolve({ ok: false, error: 'Invalid diagnostic response' });
+            }
+          });
+        });
+        req.on('error', (err) => resolve({ ok: false, error: err.message }));
+      });
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 }
 

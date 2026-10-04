@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  cleanAuthorName,
   normalizeIncomingMessage,
   validateNormalizedMessage,
 } = require('../core/messages/model.js');
@@ -34,8 +35,10 @@ test('Message Model: standard normalized message with full fields', () => {
     author: {
       name: 'Фёдор Стример',
       avatar: 'https://images.boosty.to/user/42/avatar.jpg',
+      role: null,
     },
     text: 'Привет чату, начинаем трансляцию!',
+    segments: null,
     reply: {
       author: 'Модератор',
       text: 'Правила закреплены',
@@ -64,8 +67,10 @@ test('Message Model: legacy compatibility - flat author string and avatar URL', 
   assert.deepStrictEqual(normalized.author, {
     name: 'Иван Зритель',
     avatar: 'https://images.boosty.to/avatar.png',
+    role: null,
   });
   assert.strictEqual(normalized.text, 'Старый формат от extension v0.4');
+  assert.strictEqual(normalized.segments, null);
   assert.strictEqual(normalized.publishedAt, '15:30');
   assert.strictEqual(normalized.reply, null);
   assert.strictEqual(normalized.receivedAt, 1760000005000);
@@ -154,6 +159,7 @@ test('Message Model: invalid inputs safely rejected by validateNormalizedMessage
     platform: 'boosty',
     author: { name: 'A', avatar: null },
     text: 'T',
+    segments: null,
     reply: null,
     publishedAt: null,
     receivedAt: Date.now(),
@@ -164,6 +170,7 @@ test('Message Model: invalid inputs safely rejected by validateNormalizedMessage
     platform: '',
     author: { name: 'A', avatar: null },
     text: 'T',
+    segments: null,
     reply: null,
     publishedAt: null,
     receivedAt: Date.now(),
@@ -326,5 +333,275 @@ test('Overlay Renderer: reply DOM scenarios (normal, empty, partial, long, xss-s
     assert.strictEqual(xssCard.querySelector('.text').textContent, xssPayload);
   } finally {
     globalThis.document = prevDoc;
+  }
+});
+
+test('Message Model: segments normalization, unknown segment filtering, and URL safety', () => {
+  // 1. Valid mixed segments preserved in exact order
+  const rawMixed = {
+    id: 'seg-1',
+    author: 'Иван:',
+    text: 'Привет :heart: @Борис!',
+    segments: [
+      { type: 'text', text: 'Привет ' },
+      { type: 'emoji', id: ':heart:', alt: ':heart:', url: 'https://static.boosty.to/assets/images/small.heart.png' },
+      { type: 'text', text: ' ' },
+      { type: 'mention', userId: '42', displayName: 'Борис' },
+      { type: 'text', text: '!' },
+    ],
+  };
+
+  const normMixed = normalizeIncomingMessage(rawMixed, { receivedAt: 1760000020000 });
+  assert.strictEqual(validateNormalizedMessage(normMixed).ok, true);
+  assert.strictEqual(normMixed.author.name, 'Иван', 'Trailing presentation colon must be stripped');
+  assert.strictEqual(normMixed.text, 'Привет :heart: @Борис!');
+  assert.deepStrictEqual(normMixed.segments, [
+    { type: 'text', text: 'Привет ' },
+    { type: 'emoji', id: ':heart:', alt: ':heart:', url: 'https://static.boosty.to/assets/images/small.heart.png' },
+    { type: 'text', text: ' ' },
+    { type: 'mention', userId: '42', displayName: 'Борис' },
+    { type: 'text', text: '!' },
+  ]);
+
+  // Verify JSON serialization over SSE preserves exact order
+  const overWire = JSON.parse(JSON.stringify(normMixed));
+  assert.deepStrictEqual(overWire.segments, normMixed.segments);
+
+  // 2. Unknown segment types and malformed emoji URLs are safely dropped without breaking message
+  const rawWithUnknownAndUnsafe = {
+    id: 'seg-2',
+    author: 'Тестер',
+    text: 'Безопасный текст :evil:',
+    segments: [
+      { type: 'text', text: 'Безопасный текст ' },
+      { type: 'unknown_rich_widget', foo: 'bar' },
+      { type: 'emoji', id: ':evil:', alt: ':evil:', url: 'javascript:alert(1)' },
+      { type: 'emoji', id: ':html:', alt: ':html:', url: 'data:text/html,<script>alert(1)</script>' },
+      { type: 'mention', userId: '99', displayName: 'Анна' },
+    ],
+  };
+
+  const normFiltered = normalizeIncomingMessage(rawWithUnknownAndUnsafe);
+  assert.strictEqual(validateNormalizedMessage(normFiltered).ok, true);
+  assert.strictEqual(normFiltered.text, 'Безопасный текст :evil:');
+  assert.deepStrictEqual(normFiltered.segments, [
+    { type: 'text', text: 'Безопасный текст ' },
+    { type: 'mention', userId: '99', displayName: 'Анна' },
+  ]);
+});
+
+test('Overlay Renderer: segments DOM rendering (order, .message-emoji, .message-mention) and XSS safety', () => {
+  const { parseHTML } = require('linkedom');
+  const BoostyRenderer = require('../overlay/renderer.js');
+  const { document: overlayDoc } = parseHTML('<!DOCTYPE html><html><body><div id="messages"></div></body></html>');
+  const prevDoc = globalThis.document;
+  globalThis.document = overlayDoc;
+
+  try {
+    // 1. Ordered DOM rendering of text + mention + emoji + text
+    const card = BoostyRenderer.createMessageCard({
+      author: 'Стример',
+      text: 'Привет @Иван :heart: за донат!',
+      segments: [
+        { type: 'text', text: 'Привет ' },
+        { type: 'mention', userId: '123', displayName: 'Иван' },
+        { type: 'text', text: ' ' },
+        { type: 'emoji', id: ':heart:', alt: ':heart:', url: 'https://static.boosty.to/assets/images/small.heart.png' },
+        { type: 'text', text: ' за донат!' },
+      ],
+    });
+
+    const textEl = card.querySelector('.text');
+    assert.ok(textEl, '.text container must exist');
+    const childNodes = Array.from(textEl.childNodes);
+    assert.strictEqual(childNodes.length, 5, 'Should render 5 child nodes matching segments order');
+
+    assert.strictEqual(childNodes[0].nodeType, 3, '1st node must be TextNode');
+    assert.strictEqual(childNodes[0].textContent, 'Привет ');
+
+    assert.strictEqual(childNodes[1].nodeType, 1, '2nd node must be Element');
+    assert.ok(childNodes[1].classList.contains('message-mention'), '2nd node must have .message-mention');
+    assert.strictEqual(childNodes[1].textContent, '@Иван');
+
+    assert.strictEqual(childNodes[2].nodeType, 3, '3rd node must be TextNode');
+    assert.strictEqual(childNodes[2].textContent, ' ');
+
+    assert.strictEqual(childNodes[3].nodeType, 1, '4th node must be Element');
+    assert.strictEqual(String(childNodes[3].tagName).toUpperCase(), 'IMG', '4th node must be IMG');
+    assert.ok(childNodes[3].classList.contains('message-emoji'), '4th node must have .message-emoji');
+    assert.strictEqual(childNodes[3].src, 'https://static.boosty.to/assets/images/small.heart.png');
+    assert.strictEqual(childNodes[3].alt, ':heart:');
+
+    assert.strictEqual(childNodes[4].nodeType, 3, '5th node must be TextNode');
+    assert.strictEqual(childNodes[4].textContent, ' за донат!');
+
+    // 2. XSS safety in segments (mention displayName, text segment, and javascript: emoji URL)
+    const xssSegmentCard = BoostyRenderer.createMessageCard({
+      author: 'Хакер',
+      text: 'XSS test',
+      segments: [
+        { type: 'text', text: '<script>alert(1)</script>' },
+        { type: 'mention', userId: '1', displayName: '<img src=x onerror=alert(1)>' },
+        { type: 'emoji', id: ':xss:', alt: ':xss:', url: 'javascript:alert(1)' },
+      ],
+    });
+
+    const xssTextEl = xssSegmentCard.querySelector('.text');
+    assert.strictEqual(xssTextEl.querySelectorAll('script').length, 0, 'No script element may be created');
+    assert.strictEqual(xssTextEl.querySelectorAll('img').length, 0, 'javascript: emoji URL must not create an img element');
+    const mentionSpan = xssTextEl.querySelector('.message-mention');
+    assert.ok(mentionSpan, 'Mention span must exist');
+    assert.strictEqual(mentionSpan.querySelectorAll('img').length, 0, 'Mention displayName must not inject HTML');
+    assert.strictEqual(mentionSpan.textContent, '@<img src=x onerror=alert(1)>');
+    assert.strictEqual(xssTextEl.textContent, '<script>alert(1)</script>@<img src=x onerror=alert(1)>:xss:');
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+
+test('Message Model: author.role whitelist normalization and validation (streamer, moderator, null, invalid, legacy)', () => {
+  // 1. author.role = streamer (structured & flat)
+  const normStreamerObj = normalizeIncomingMessage({
+    id: 'role-1',
+    author: { name: 'Фёдор', avatar: null, role: 'streamer' },
+    text: 'Привет',
+  });
+  assert.strictEqual(normStreamerObj.author.role, 'streamer');
+  assert.strictEqual(validateNormalizedMessage(normStreamerObj).ok, true);
+
+  const normStreamerFlat = normalizeIncomingMessage({
+    id: 'role-2',
+    author: 'Фёдор:',
+    role: 'STREAMER',
+    text: 'Привет',
+  });
+  assert.strictEqual(normStreamerFlat.author.name, 'Фёдор');
+  assert.strictEqual(normStreamerFlat.author.role, 'streamer');
+  assert.strictEqual(validateNormalizedMessage(normStreamerFlat).ok, true);
+
+  // 2. author.role = moderator
+  const normMod = normalizeIncomingMessage({
+    id: 'role-3',
+    author: { name: 'Иван', avatar: null, role: 'moderator' },
+    text: 'Правила чата',
+  });
+  assert.strictEqual(normMod.author.role, 'moderator');
+  assert.strictEqual(validateNormalizedMessage(normMod).ok, true);
+
+  // 3. author.role = null / undefined / legacy author
+  const normNull = normalizeIncomingMessage({
+    id: 'role-4',
+    author: { name: 'Зритель', avatar: null, role: null },
+    text: 'Обычное сообщение',
+  });
+  assert.strictEqual(normNull.author.role, null);
+  assert.strictEqual(validateNormalizedMessage(normNull).ok, true);
+
+  const normLegacy = normalizeIncomingMessage({
+    id: 'role-5',
+    author: { name: 'СтарыйФормат', avatar: null },
+    text: 'Без поля role',
+  });
+  assert.strictEqual(normLegacy.author.role, null);
+  assert.strictEqual(validateNormalizedMessage(normLegacy).ok, true);
+
+  // 4. Invalid / unverified roles normalize to null
+  const invalidRoles = ['admin', 'subscriber', 'premium', 'tier1', 'vip', '<script>alert(1)</script>', 123, {}, []];
+  for (const badRole of invalidRoles) {
+    const normBad = normalizeIncomingMessage({
+      id: 'role-bad',
+      author: { name: 'Тест', avatar: null, role: badRole },
+      text: 'Текст',
+    });
+    assert.strictEqual(normBad.author.role, null, `Invalid role ${JSON.stringify(badRole)} must normalize to null`);
+    assert.strictEqual(validateNormalizedMessage(normBad).ok, true);
+
+    // Direct validation of un-normalized object with invalid role must fail
+    const corrupted = {
+      ...normBad,
+      author: { ...normBad.author, role: badRole },
+    };
+    assert.strictEqual(validateNormalizedMessage(corrupted).ok, false, `validateNormalizedMessage must reject role=${JSON.stringify(badRole)}`);
+  }
+});
+
+test('Overlay Renderer: role badges DOM (.author-role--streamer, .author-role--moderator, normal absence, XSS safety)', () => {
+  const { parseHTML } = require('linkedom');
+  const BoostyRenderer = require('../overlay/renderer.js');
+  const { document: overlayDoc } = parseHTML('<!DOCTYPE html><html><body><div id="messages"></div></body></html>');
+  const prevDoc = globalThis.document;
+  globalThis.document = overlayDoc;
+
+  try {
+    // 1. Streamer role badge
+    const streamerCard = BoostyRenderer.createMessageCard({
+      author: { name: 'Фёдор', avatar: null, role: 'streamer' },
+      text: 'Всем привет!',
+      reply: { author: 'Зритель', text: 'Когда стрим?' },
+    });
+    const streamerBadge = streamerCard.querySelector('.author-role.author-role--streamer');
+    assert.ok(streamerBadge, '.author-role--streamer must exist for streamer');
+    assert.strictEqual(streamerBadge.getAttribute('aria-label'), 'Стример');
+    assert.ok(streamerBadge.querySelector('svg.author-role-icon path'), 'Streamer badge must contain SVG icon path');
+    assert.strictEqual(streamerCard.querySelector('.author').textContent, 'Фёдор', 'Badge must not add extra visible text to .author');
+    assert.strictEqual(streamerCard.querySelector('.message-reply .author-role'), null, 'Reply block must not contain role badge');
+
+    // 2. Moderator role badge
+    const modCard = BoostyRenderer.createMessageCard({
+      author: { name: 'Иван', avatar: null, role: 'moderator' },
+      text: 'Соблюдаем правила',
+    });
+    const modBadge = modCard.querySelector('.author-role.author-role--moderator');
+    assert.ok(modBadge, '.author-role--moderator must exist for moderator');
+    assert.strictEqual(modBadge.getAttribute('aria-label'), 'Модератор');
+    assert.ok(modBadge.querySelector('svg.author-role-icon path'), 'Moderator badge must contain SVG icon path');
+    assert.strictEqual(modCard.querySelector('.author').textContent, 'Иван');
+
+    // 3. Normal user (role = null / absent)
+    const normalCard = BoostyRenderer.createMessageCard({
+      author: { name: 'ОбычныйЗритель', avatar: null, role: null },
+      text: 'Привет',
+    });
+    assert.strictEqual(normalCard.querySelector('.author-role'), null, 'Role DOM must be absent for normal user');
+    assert.strictEqual(normalCard.querySelector('.author').textContent, 'ОбычныйЗритель');
+
+    // 4. XSS / arbitrary role string rejected
+    const xssRoleCard = BoostyRenderer.createMessageCard({
+      author: { name: 'Хакер', avatar: null, role: '<img src=x onerror=alert(1)>' },
+      text: 'Тест',
+    });
+    assert.strictEqual(xssRoleCard.querySelector('.author-role'), null, 'Arbitrary role string must not render role DOM');
+    assert.strictEqual(xssRoleCard.querySelectorAll('img').length, 1, 'Only avatar img may exist');
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+
+test('Message Model: author colon normalization preserves colons inside names and strips trailing colon only', () => {
+  const cases = [
+    { input: 'Иван:', expected: 'Иван' },
+    { input: 'Иван :', expected: 'Иван' },
+    { input: 'Иван', expected: 'Иван' },
+    { input: 'Foo:Bar', expected: 'Foo:Bar' },
+    { input: 'Foo:Bar:', expected: 'Foo:Bar' },
+    { input: '  Стример:  ', expected: 'Стример' },
+    { input: '  Стример :  ', expected: 'Стример' },
+  ];
+
+  for (const c of cases) {
+    if (typeof cleanAuthorName === 'function') {
+      const clean = cleanAuthorName(c.input);
+      assert.strictEqual(clean, c.expected, `cleanAuthorName failed for "${c.input}"`);
+    }
+
+    // String author format
+    const msgStr = normalizeIncomingMessage({ id: 'msg-str', author: c.input, text: 'Hello' });
+    assert.strictEqual(msgStr.author.name, c.expected, `normalizeIncomingMessage (string author) failed for "${c.input}"`);
+    assert.strictEqual(msgStr.author.name.endsWith(':'), false, `author.name must not end with colon for "${c.input}"`);
+
+    // Object author format
+    const msgObj = normalizeIncomingMessage({ id: 'msg-obj', author: { name: c.input }, text: 'Hello' });
+    assert.strictEqual(msgObj.author.name, c.expected, `normalizeIncomingMessage (object author) failed for "${c.input}"`);
+    assert.strictEqual(msgObj.author.name.endsWith(':'), false, `author.name must not end with colon for "${c.input}"`);
   }
 });

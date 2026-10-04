@@ -1,6 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const { WebSocketServer } = require('ws');
 const { version: appVersion } = require('./package.json');
 const { normalizeIncomingMessage, validateNormalizedMessage } = require('./core/messages/model.js');
 const { defaultConfig } = require('./core/config/defaults.js');
@@ -81,6 +82,23 @@ const server = http.createServer((request, response) => {
       historyCount: messageHistory.size(),
     });
     return sendJson(response, 200, health);
+  }
+
+  if (request.method === 'GET' && (url.pathname === '/diagnostic' || url.pathname === '/connector/diagnostic')) {
+    const health = healthTracker.getHealthState({
+      overlayClients: sseHub.clientCount(),
+      historyCount: messageHistory.size(),
+    });
+    return sendJson(response, 200, {
+      ok: true,
+      timestamp: new Date().toISOString(),
+      health,
+      trace: healthTracker.getDiagnosticTrace(),
+    });
+  }
+
+  if (request.method === 'GET' && url.pathname === '/history') {
+    return sendJson(response, 200, messageHistory.getAll());
   }
 
   if (request.method === 'GET' && url.pathname === '/config') {
@@ -225,6 +243,141 @@ const server = http.createServer((request, response) => {
   sendJson(response, 404, { error: 'Not found' });
 });
 
+let connectionIdCounter = 0;
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (request, socket, head) => {
+  const url = new URL(request.url, `http://${request.headers.host || `${host}:${port}`}`);
+  if (url.pathname === '/connector' || url.pathname === '/ws') {
+    // Validate Origin for security (Requirement 40)
+    const origin = request.headers['origin'] || '';
+    if (origin) {
+      const isAllowedOrigin = origin.startsWith('chrome-extension://') ||
+                              origin.startsWith('http://localhost') ||
+                              origin.startsWith('http://127.0.0.1') ||
+                              origin.startsWith('https://boosty.to');
+      if (!isAllowedOrigin) {
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+    }
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+wss.on('connection', (ws, request) => {
+  const connectionId = `conn-${Date.now()}-${++connectionIdCounter}`;
+  let isHandshakeComplete = false;
+
+  // Handshake timeout: client must send HANDSHAKE within 5 seconds
+  const handshakeTimer = setTimeout(() => {
+    if (!isHandshakeComplete) {
+      try {
+        ws.close(4001, 'Handshake timeout');
+      } catch {}
+    }
+  }, 5000);
+
+  // Send greeting to client
+  try {
+    ws.send(JSON.stringify({
+      type: 'GREETING',
+      connectionId,
+      serverVersion: appVersion,
+      timestamp: Date.now(),
+    }));
+  } catch {}
+
+  ws.on('message', (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (!msg || typeof msg !== 'object') return;
+
+      if (msg.type === 'HANDSHAKE') {
+        isHandshakeComplete = true;
+        clearTimeout(handshakeTimer);
+        healthTracker.registerWsConnection(connectionId, {
+          client: msg.client || 'boosty-chat-connector',
+          version: msg.version || msg.extensionVersion,
+          extensionVersion: msg.extensionVersion || msg.version,
+          tabs: msg.tabs || [],
+          clientGeneration: msg.generation,
+        });
+        ws.send(JSON.stringify({
+          type: 'HANDSHAKE_ACK',
+          connectionId,
+          ok: true,
+        }));
+        return;
+      }
+
+      if (msg.type === 'PING') {
+        ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
+        return;
+      }
+
+      if (msg.type === 'TAB_STATE') {
+        healthTracker.updateTabState(msg.payload || msg, connectionId);
+        return;
+      }
+
+      if (msg.type === 'TAB_CLOSED') {
+        healthTracker.removeTab(msg.tabId, connectionId);
+        return;
+      }
+
+      if (msg.type === 'MESSAGE' || msg.type === 'POST_MESSAGE') {
+        const input = msg.payload || msg;
+        const now = Date.now();
+        const effectiveReceivedAt = (typeof input.receivedAt === 'number' && Number.isFinite(input.receivedAt) && input.receivedAt > 0)
+          ? input.receivedAt
+          : now;
+        const message = normalizeIncomingMessage(input, { receivedAt: effectiveReceivedAt });
+        const validation = validateNormalizedMessage(message);
+        if (!validation.ok) {
+          ws.send(JSON.stringify({ type: 'MESSAGE_ACK', id: input.id, ok: false, error: validation.error }));
+          return;
+        }
+
+        const incomingVer = input.extensionVersion || input.version;
+        healthTracker.recordMessage({
+          extensionVersion: typeof incomingVer === 'string' ? incomingVer : undefined,
+          author: message.author?.name,
+          now,
+          isTest: false,
+        });
+
+        if (!messageDedup.remember(message.id)) {
+          ws.send(JSON.stringify({ type: 'MESSAGE_ACK', id: message.id, ok: true, duplicate: true }));
+          return;
+        }
+
+        broadcast(message);
+        ws.send(JSON.stringify({ type: 'MESSAGE_ACK', id: message.id, ok: true, eventId: message.eventId }));
+        return;
+      }
+    } catch (err) {
+      console.warn('[Server WS] Error processing message:', err.message);
+    }
+  });
+
+  ws.on('close', (code, reason) => {
+    clearTimeout(handshakeTimer);
+    healthTracker.unregisterWsConnection(connectionId, reason?.toString() || `code_${code}`);
+  });
+
+  ws.on('error', (err) => {
+    clearTimeout(handshakeTimer);
+    healthTracker.unregisterWsConnection(connectionId, `error: ${err.message}`);
+  });
+});
+
 server.listen(port, host, () => {
   console.log(`Boosty overlay: http://${host}:${port}/overlay/`);
   console.log(`Test message:  http://${host}:${port}/test`);
@@ -234,6 +387,9 @@ module.exports = {
   host,
   port,
   server,
+  wss,
+  sseHub,
+  healthTracker,
   defaultConfig,
   normalizeConfig,
   normalizedConfig,

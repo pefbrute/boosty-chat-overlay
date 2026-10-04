@@ -32,8 +32,8 @@
         <symbol id="icon-extension" viewBox="0 0 24 24">
           <path d="M19.5 13.5A2.5 2.5 0 0 0 17 11V6a2 2 0 0 0-2-2h-5a2.5 2.5 0 0 0-5 0H3a2 2 0 0 0-2 2v5a2.5 2.5 0 0 0 0 5v5a2 2 0 0 0 2 2h5a2.5 2.5 0 0 0 5 0h5a2 2 0 0 0 2-2v-5a2.5 2.5 0 0 0-2.5-2.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
-        <symbol id="icon-boosty" viewBox="0 0 24 24">
-          <path d="M4.5 16.5c-1.5 1.26-2 3-1.5 4.5.7 2 3.5 2.5 5 1.5 2-1.3 3.5-3.5 4-6 .5 2.5 2 4.7 4 6 1.5 1 4.3.5 5-1.5.5-1.5 0-3.24-1.5-4.5C17.5 15 15 11 15 3c-3 4-4 8.5-7 10.5-1-1.5-1.5-3-1.5-4.5-1 2.5-1.5 5.5-2 7.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <symbol id="icon-boosty" viewBox="0 0 235.6 292.2">
+          <path fill="currentColor" stroke="none" d="M44.3 164.5L76.9 51.6H127l-10.1 35c-.1.2-.2.4-.3.6L90 179.6h24.8c-10.4 25.9-18.5 46.2-24.3 60.9-45.8-.5-58.6-33.3-47.4-72.1M90.7 240.6l60.4-86.9h-25.6l22.3-55.7c38.2 4 56.2 34.1 45.6 70.5-11.3 39.1-57.1 72.1-101.7 72.1c-.6 0-.9 0-1.2 0z"/>
         </symbol>
         <symbol id="icon-obs" viewBox="0 0 24 24">
           <rect x="2" y="3" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -62,10 +62,21 @@
           <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
         </symbol>
         <symbol id="icon-rocket" viewBox="0 0 24 24">
-          <path d="M4.5 16.5c-1.5 1.26-2 3-1.5 4.5.7 2 3.5 2.5 5 1.5 2-1.3 3.5-3.5 4-6 .5 2.5 2 4.7 4 6 1.5 1 4.3.5 5-1.5.5-1.5 0-3.24-1.5-4.5C17.5 15 15 11 15 3c-3 4-4 8.5-7 10.5-1-1.5-1.5-3-1.5-4.5-1 2.5-1.5 5.5-2 7.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4.5 16.5c-1.5 1.5-2 3.5-1.5 5 1.5.5 3.5 0 5-1.5l1.5-1.5-3.5-3.5L4.5 16.5ZM14.5 3.5c-4 0-7 2.5-8.5 5.5l4.5 4.5c3-1.5 5.5-4.5 5.5-8.5 0-.5-.5-1-1-1l-.5-.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
         <symbol id="icon-chat" viewBox="0 0 24 24">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-gamepad" viewBox="0 0 24 24">
+          <rect x="2" y="6" width="20" height="12" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M6 12h4M8 10v4M15 13h.01M18 11h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="icon-play" viewBox="0 0 24 24">
+          <rect x="2" y="4" width="20" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/>
+          <polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor"/>
+        </symbol>
+        <symbol id="icon-minimize" viewBox="0 0 24 24">
+          <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
       </defs>
     </svg>
@@ -320,7 +331,9 @@
       <!-- Persistent Sidebar Navigation -->
       <aside id="app-sidebar" class="app-sidebar" aria-label="Основная навигация">
         <div class="sidebar-header">
-          <div class="logo">b</div>
+          <div class="logo">
+            <svg class="logo-icon" aria-hidden="true" viewBox="0 0 235.6 292.2"><use href="#icon-boosty"/></svg>
+          </div>
           <div class="brand-text">
             <span class="brand-title">Boosty Chat</span>
             <span class="brand-subtitle">Stream Overlay</span>
@@ -362,13 +375,24 @@
         <!-- VIEW 1: DASHBOARD -->
         <section id="view-dashboard" class="content-view active">
           <!-- Readiness Status Banner -->
-          <div id="readiness-status" class="readiness-banner ready">
+          <div id="readiness-status" class="readiness-banner connecting">
             <div class="readiness-dot-wrap">
               <span class="readiness-dot"></span>
             </div>
             <div class="readiness-text-wrap">
-              <h2 id="readiness-title" class="readiness-title">Готово к стриму</h2>
-              <p id="readiness-desc" class="readiness-desc">Boosty и OBS подключены</p>
+              <h2 id="readiness-title" class="readiness-title">Восстанавливаем подключение</h2>
+              <p id="readiness-desc" class="readiness-desc" style="display: none;">Проверяем браузер и расширение…</p>
+              <div id="readiness-milestones" class="readiness-milestones">
+                <span class="milestone done"><span class="m-icon">✓</span> Локальный сервер готов</span>
+                <span class="milestone active"><span class="m-icon">●</span> Ищем расширение…</span>
+                <span class="milestone pending"><span class="m-icon">○</span> Вкладка Boosty</span>
+                <span class="milestone pending"><span class="m-icon">○</span> Чат</span>
+              </div>
+              <div id="readiness-progress-eta" class="readiness-progress-eta">
+                <span id="readiness-elapsed">Прошло 0.0 сек</span>
+                <span class="eta-separator">·</span>
+                <span id="readiness-expected">Обычно занимает до 5 сек</span>
+              </div>
             </div>
           </div>
 
@@ -377,42 +401,42 @@
             <span class="card-subtitle">Статус компонентов</span>
           </div>
           <div id="connection-summary" class="connection-summary-grid">
-            <div id="dash-obs-pill" class="summary-pill ready">
+            <div id="dash-obs-pill" class="summary-pill pending">
               <span class="pill-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-obs"/></svg></span>
               <div class="pill-body">
                 <span class="pill-label">OBS Studio</span>
-                <span id="dash-obs-text" class="pill-status">Подключено</span>
-                <span id="dash-obs-detail" class="pill-detail">Сцена: —</span>
+                <span id="dash-obs-text" class="pill-status">Проверка…</span>
+                <span id="dash-obs-detail" class="pill-detail">Ищем подключение к OBS</span>
               </div>
               <button id="dash-obs-launch-btn" class="pill-action-btn" style="display: none;">Запустить</button>
             </div>
 
-            <div id="dash-ext-pill" class="summary-pill ready">
+            <div id="dash-ext-pill" class="summary-pill pending">
               <span class="pill-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-extension"/></svg></span>
               <div class="pill-body">
                 <span class="pill-label">Расширение</span>
-                <span id="dash-ext-text" class="pill-status">Подключено</span>
-                <span id="dash-ext-detail" class="pill-detail">v0.4.0</span>
+                <span id="dash-ext-text" class="pill-status">Проверяем…</span>
+                <span id="dash-ext-detail" class="pill-detail">Ищем связь с браузером</span>
               </div>
               <button id="dash-ext-fix-btn" class="pill-action-btn" style="display: none;">Настроить</button>
             </div>
 
-            <div id="dash-boosty-pill" class="summary-pill ready">
+            <div id="dash-boosty-pill" class="summary-pill pending">
               <span class="pill-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-boosty"/></svg></span>
               <div class="pill-body">
                 <span class="pill-label">Boosty</span>
-                <span id="dash-boosty-text" class="pill-status">Стрим открыт</span>
-                <span id="dash-boosty-detail" class="pill-detail">boosty.to/…</span>
+                <span id="dash-boosty-text" class="pill-status">Ищем вкладку…</span>
+                <span id="dash-boosty-detail" class="pill-detail">Проверяем открытые страницы</span>
               </div>
               <button id="dash-boosty-open-btn" class="pill-action-btn" style="display: none;">Открыть</button>
             </div>
 
-            <div id="dash-overlay-pill" class="summary-pill ready">
+            <div id="dash-overlay-pill" class="summary-pill pending">
               <span class="pill-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-chat"/></svg></span>
               <div class="pill-body">
                 <span class="pill-label">Оверлей в OBS</span>
-                <span id="dash-overlay-text" class="pill-status">Добавлен</span>
-                <span id="dash-overlay-detail" class="pill-detail">Сцена: —</span>
+                <span id="dash-overlay-text" class="pill-status">Проверка…</span>
+                <span id="dash-overlay-detail" class="pill-detail">Ожидаем OBS Studio</span>
               </div>
               <button id="dash-overlay-action-btn" class="pill-action-btn" style="display: none;">Добавить</button>
             </div>
@@ -469,6 +493,87 @@
           <div class="appearance-grid">
             <!-- Left Column: Controls -->
             <div id="appearance-settings-col" class="appearance-settings-col">
+              <!-- Stream Profiles Card (Built-in Stream Profiles v1) -->
+              <div class="card profiles-card">
+                <div class="profiles-header">
+                  <div>
+                    <span class="card-subtitle">Готовые наборы</span>
+                    <h3 class="card-title">Профиль стрима</h3>
+                  </div>
+                  <span id="profile-status-badge" class="profile-badge">Просмотр контента</span>
+                </div>
+                <div class="profiles-grid" role="radiogroup" aria-label="Профили стрима">
+                  <!-- Content Viewing Profile (Primary / Recommended) -->
+                  <button id="profile-btn-content" class="profile-btn" data-profile="content" type="button" aria-pressed="false">
+                    <div class="profile-btn-top">
+                      <div class="profile-icon-wrap">
+                        <svg class="icon-svg" aria-hidden="true"><use href="#icon-play"/></svg>
+                      </div>
+                      <div class="profile-title-stack">
+                        <div class="profile-name">Просмотр контента</div>
+                        <span class="profile-rec-badge">Рекомендуемый</span>
+                      </div>
+                      <div class="profile-mini-scene content" aria-hidden="true" title="Справа снизу">
+                        <div class="mini-box"></div>
+                      </div>
+                    </div>
+                    <div class="profile-desc">Минимум помех поверх видео</div>
+                    <div class="profile-meta-badge">Компактный · Справа снизу · 3 сообщ.</div>
+                  </button>
+
+                  <!-- Gaming Profile -->
+                  <button id="profile-btn-gaming" class="profile-btn" data-profile="gaming" type="button" aria-pressed="false">
+                    <div class="profile-btn-top">
+                      <div class="profile-icon-wrap">
+                        <svg class="icon-svg" aria-hidden="true"><use href="#icon-gamepad"/></svg>
+                      </div>
+                      <div class="profile-title-stack">
+                        <div class="profile-name">Игры</div>
+                      </div>
+                      <div class="profile-mini-scene gaming" aria-hidden="true" title="Слева снизу">
+                        <div class="mini-box"></div>
+                      </div>
+                    </div>
+                    <div class="profile-desc">Не закрывает интерфейс игры</div>
+                    <div class="profile-meta-badge">Компактный · Слева снизу · 4 сообщ.</div>
+                  </button>
+
+                  <!-- Talking Profile -->
+                  <button id="profile-btn-talking" class="profile-btn" data-profile="talking" type="button" aria-pressed="false">
+                    <div class="profile-btn-top">
+                      <div class="profile-icon-wrap">
+                        <svg class="icon-svg" aria-hidden="true"><use href="#icon-chat"/></svg>
+                      </div>
+                      <div class="profile-title-stack">
+                        <div class="profile-name">Разговорный</div>
+                      </div>
+                      <div class="profile-mini-scene talking" aria-hidden="true" title="Справа снизу">
+                        <div class="mini-box"></div>
+                      </div>
+                    </div>
+                    <div class="profile-desc">Заметный чат для общения</div>
+                    <div class="profile-meta-badge">Чистый · Справа снизу · 6 сообщ.</div>
+                  </button>
+
+                  <!-- Minimal Profile -->
+                  <button id="profile-btn-minimal" class="profile-btn" data-profile="minimal" type="button" aria-pressed="false">
+                    <div class="profile-btn-top">
+                      <div class="profile-icon-wrap">
+                        <svg class="icon-svg" aria-hidden="true"><use href="#icon-minimize"/></svg>
+                      </div>
+                      <div class="profile-title-stack">
+                        <div class="profile-name">Минимализм</div>
+                      </div>
+                      <div class="profile-mini-scene minimal" aria-hidden="true" title="Слева снизу">
+                        <div class="mini-box"></div>
+                      </div>
+                    </div>
+                    <div class="profile-desc">Минимум деталей на экране</div>
+                    <div class="profile-meta-badge">Компактный · Слева снизу · 2 сообщ.</div>
+                  </button>
+                </div>
+              </div>
+
               <!-- Presets Bar -->
               <div class="card preset-card">
                 <div class="preset-header">
@@ -490,7 +595,7 @@
               <div class="card settings-group-card">
                 <div class="group-header-row">
                   <h3 class="group-title">Расположение</h3>
-                  <button id="layout-reset-btn" class="inline-reset-btn" type="button" title="Сбросить только расположение к исходным значениям">Сбросить расположение</button>
+                  <button id="layout-reset-btn" class="inline-reset-btn" type="button" title="Сбросить только расположение к исходным значениям">Сбросить позицию</button>
                 </div>
 
                 <!-- 1. Corner Picker: 2x2 visual screen miniature -->
@@ -502,16 +607,16 @@
                   <div class="corner-picker-wrap">
                     <div class="corner-screen-mock" role="radiogroup" aria-labelledby="corner-picker-label">
                       <button type="button" class="corner-btn" data-corner="left-top" aria-label="Слева сверху" aria-pressed="false" title="Слева сверху">
-                        <span class="corner-dot"></span>
+                        <svg class="icon-svg corner-icon" aria-hidden="true" viewBox="0 0 16 16"><path d="M5 11V5h6M5 5l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                       </button>
                       <button type="button" class="corner-btn" data-corner="right-top" aria-label="Справа сверху" aria-pressed="false" title="Справа сверху">
-                        <span class="corner-dot"></span>
+                        <svg class="icon-svg corner-icon" aria-hidden="true" viewBox="0 0 16 16"><path d="M11 11V5H5M11 5L5 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                       </button>
                       <button type="button" class="corner-btn active" data-corner="left-bottom" aria-label="Слева снизу" aria-pressed="true" title="Слева снизу">
-                        <span class="corner-dot"></span>
+                        <svg class="icon-svg corner-icon" aria-hidden="true" viewBox="0 0 16 16"><path d="M5 5v6h6M5 11l6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                       </button>
                       <button type="button" class="corner-btn" data-corner="right-bottom" aria-label="Справа снизу" aria-pressed="false" title="Справа снизу">
-                        <span class="corner-dot"></span>
+                        <svg class="icon-svg corner-icon" aria-hidden="true" viewBox="0 0 16 16"><path d="M11 5v6H5M11 11L5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                       </button>
                     </div>
                   </div>
@@ -535,8 +640,8 @@
                     <span class="setting-val-display"><span id="offset-x-val">20</span> px</span>
                   </div>
                   <div class="slider-row">
-                    <input id="offset-x-slider" type="range" min="0" max="300" value="20">
-                    <input id="offset-x" class="num-input" type="number" min="0" max="300" value="20">
+                    <input id="offset-x-slider" type="range" min="0" max="1000" value="20">
+                    <input id="offset-x" class="num-input" type="number" min="0" max="1000" value="20">
                   </div>
                 </div>
 
@@ -547,8 +652,8 @@
                     <span class="setting-val-display"><span id="offset-y-val">20</span> px</span>
                   </div>
                   <div class="slider-row">
-                    <input id="offset-y-slider" type="range" min="0" max="300" value="20">
-                    <input id="offset-y" class="num-input" type="number" min="0" max="300" value="20">
+                    <input id="offset-y-slider" type="range" min="0" max="800" value="20">
+                    <input id="offset-y" class="num-input" type="number" min="0" max="800" value="20">
                   </div>
                 </div>
 
@@ -573,6 +678,17 @@
                     <button type="button" class="segmented-btn active" data-text-align="left" aria-pressed="true">Слева</button>
                     <button type="button" class="segmented-btn" data-text-align="center" aria-pressed="false">По центру</button>
                     <button type="button" class="segmented-btn" data-text-align="right" aria-pressed="false">Справа</button>
+                  </div>
+                </div>
+
+                <!-- 7. Canvas & Positioning UX Hint -->
+                <div class="layout-canvas-hint-wrap">
+                  <div id="layout-canvas-hint" class="layout-canvas-hint">
+                    <span id="layout-canvas-hint-icon" class="hint-icon">💡</span>
+                    <div class="hint-content">
+                      <p id="layout-canvas-hint-text">Положение чата рассчитывается относительно области Browser Source в OBS. Для предсказуемого результата источник рекомендуется подогнать под весь холст OBS.</p>
+                      <button id="layout-fit-canvas-btn" class="inline-action-btn" type="button" style="display: none;">Подогнать оверлей под холст OBS</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -618,6 +734,41 @@
                   <div class="slider-row">
                     <input id="card-width-slider" type="range" min="280" max="760" value="520">
                     <input id="card-width" class="num-input" type="number" min="280" max="760" value="520">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Group: Анимация сообщений -->
+              <div class="card settings-group-card">
+                <div class="group-header-row">
+                  <h3 class="group-title">Анимация сообщений</h3>
+                  <button id="animation-replay-btn" class="inline-reset-btn" type="button" title="Проиграть выбранную анимацию в предпросмотре">Показать</button>
+                </div>
+
+                <div class="setting-item">
+                  <div class="setting-label-row">
+                    <label id="animation-type-label">Появление новых сообщений</label>
+                  </div>
+                  <div class="animation-type-grid" role="radiogroup" aria-labelledby="animation-type-label">
+                    <button id="anim-type-none" type="button" class="segmented-btn" data-animation-type="none" aria-pressed="false">Без анимации</button>
+                    <button id="anim-type-fade" type="button" class="segmented-btn active" data-animation-type="fade" aria-pressed="true">Плавное появление</button>
+                    <button id="anim-type-slide-up" type="button" class="segmented-btn" data-animation-type="slide-up" aria-pressed="false">Снизу вверх</button>
+                    <button id="anim-type-slide-side" type="button" class="segmented-btn" data-animation-type="slide-side" aria-pressed="false">Сбоку</button>
+                  </div>
+                </div>
+
+                <div id="animation-speed-container" class="setting-item">
+                  <div class="setting-label-row">
+                    <label id="animation-speed-title" for="animation-duration-slider">Скорость</label>
+                    <span id="animation-speed-label" class="setting-val-display font-medium">Обычно · 280 мс</span>
+                  </div>
+                  <div class="segmented-group" role="radiogroup" aria-labelledby="animation-speed-title">
+                    <button id="anim-speed-fast" type="button" class="segmented-btn" data-animation-speed="180" aria-pressed="false">Быстро</button>
+                    <button id="anim-speed-normal" type="button" class="segmented-btn active" data-animation-speed="280" aria-pressed="true">Обычно</button>
+                    <button id="anim-speed-smooth" type="button" class="segmented-btn" data-animation-speed="450" aria-pressed="false">Плавно</button>
+                  </div>
+                  <div class="slider-row animation-slider-row">
+                    <input id="animation-duration-slider" type="range" min="150" max="1000" step="10" value="280" aria-label="Скорость анимации в миллисекундах">
                   </div>
                 </div>
               </div>
@@ -795,10 +946,22 @@
                 <div id="preview-backdrop" class="preview-backdrop backdrop-dark">
                   <div id="preview-scale-wrapper" class="preview-scale-wrapper">
                     <iframe id="preview-iframe" class="preview-iframe" width="1920" height="1080" title="Оверлей чата — предпросмотр"></iframe>
+                    <!-- Interactive Drag & Positioning Overlay Layer (1920x1080 logical) -->
+                    <div id="preview-drag-layer" class="preview-drag-layer">
+                      <div id="guide-center-x" class="preview-guide guide-center-x" aria-hidden="true"></div>
+                      <div id="guide-center-y" class="preview-guide guide-center-y" aria-hidden="true"></div>
+                      <div id="chat-drag-hitbox" class="chat-drag-hitbox" tabindex="0" role="region" aria-label="Положение блока чата (перетащите мышкой)">
+                        <div id="drag-badge" class="drag-badge" aria-live="polite">
+                          <span id="drag-badge-anchor" class="drag-badge-anchor">Слева · Снизу</span>
+                          <span class="drag-badge-dot">•</span>
+                          <span id="drag-badge-coords" class="drag-badge-coords">X: 20 · Y: 20</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div class="preview-hint">
-                  <span>Изменения применяются мгновенно и отображаются как в OBS.</span>
+                  <span>Перетаскивайте блок чата по холсту 16:9 или настраивайте отступы слева</span>
                 </div>
                 <button id="preview-scroll-top-btn" class="preview-scroll-top-btn" type="button" aria-label="Вернуться к предпросмотру" style="display: none;">
                   <svg class="icon-svg" aria-hidden="true"><use href="#icon-arrow-up"/></svg>
@@ -880,6 +1043,20 @@
               </div>
               <p id="dash-obs-result" class="result"></p>
               <p id="dash-obs-targets-hint" class="hint"></p>
+
+              <!-- Canvas & Source Geometry Status -->
+              <div id="obs-canvas-status-panel" class="canvas-status-panel" style="display: none;">
+                <div class="canvas-status-row">
+                  <div class="canvas-status-left">
+                    <span id="obs-canvas-status-indicator" class="canvas-status-indicator">✓</span>
+                    <div class="canvas-status-text">
+                      <strong id="obs-canvas-status-title">Размер оверлея совпадает с холстом OBS</strong>
+                      <p id="obs-canvas-status-desc">Источник отображается 1:1 без масштабирования.</p>
+                    </div>
+                  </div>
+                  <button id="obs-fit-canvas-btn" class="secondary fit-canvas-btn" type="button" style="display: none;">Подогнать оверлей под холст OBS</button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -924,6 +1101,10 @@
               <div>
                 <strong>Версия приложения:</strong>
                 <span id="tech-app-version">0.4.0</span>
+              </div>
+              <div style="grid-column: 1 / -1; margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+                <button id="export-connectivity-diagnostic-btn" class="secondary inline-btn" type="button">Экспорт диагностики подключения</button>
+                <span id="diagnostic-export-status" class="subtle-status" style="font-size: 12px; color: var(--text-muted); display: none;"></span>
               </div>
             </div>
           </div>
@@ -1000,6 +1181,9 @@
       </div>
     </div>
 
+    <script src="../core/config/presets.js"></script>
+    <script src="../core/config/profiles.js"></script>
+    <script src="../core/layout/positioning.js"></script>
     <script src="ui/status-hub.js"></script>
     <script src="app.js"></script>
   </body>

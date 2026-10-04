@@ -27,7 +27,15 @@ let config = {
   offsetY: 20,
   textAlign: 'left',
   maxStackHeight: 800,
+  animationType: 'fade',
+  animationDurationMs: 280,
 };
+
+let sseOpenBatchUntil = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + 120;
+
+function nowPerf() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
 
 function getActiveCards() {
   return Array.from(messages.children).filter(el => !el.classList.contains('disappearing'));
@@ -43,8 +51,15 @@ function reorderDomCards(position) {
   }
 }
 
-function removeMessage(card) {
-  if (!card || card.classList.contains('disappearing')) return;
+function removeMessage(card, options = {}) {
+  if (
+    !card ||
+    card.classList.contains('disappearing') ||
+    card.dataset.lifecycle === 'exiting' ||
+    card.dataset.lifecycle === 'removed'
+  ) {
+    return;
+  }
   const eventId = card.dataset.eventId;
   if (eventId) {
     cardsByEventId.delete(String(eventId));
@@ -57,11 +72,24 @@ function removeMessage(card) {
     clearTimeout(timer);
     removalTimers.delete(card);
   }
-  card.classList.add('disappearing');
-  setTimeout(() => {
-    card.remove();
-    removalTimers.delete(card);
-  }, 280);
+
+  const activeConfig = (options && options.config) ? { ...config, ...options.config } : config;
+  if (window.BoostyRenderer && typeof window.BoostyRenderer.exitMessageCard === 'function') {
+    window.BoostyRenderer.exitMessageCard(
+      card,
+      activeConfig,
+      () => {
+        removalTimers.delete(card);
+      },
+      options
+    );
+  } else {
+    card.classList.add('disappearing');
+    setTimeout(() => {
+      card.remove();
+      removalTimers.delete(card);
+    }, 280);
+  }
 }
 
 function scheduleRemoval(card, seconds) {
@@ -122,10 +150,33 @@ function handleConfig(event) {
   } catch {}
 }
 
-function handleMessage(event) {
+function isHistoricalOrReplayMessage(message, event, options) {
+  if (options && typeof options.animate === 'boolean') {
+    return !options.animate;
+  }
+  if (options && options.isReplay === true) {
+    return true;
+  }
+  if (message?._isReplay === true || event?.isReplay === true) {
+    return true;
+  }
+  if (typeof message?.receivedAt === 'number' && message.receivedAt > 1_000_000_000_000) {
+    const ageMs = Date.now() - message.receivedAt;
+    if (ageMs > 450) {
+      return true;
+    }
+    if (nowPerf() <= sseOpenBatchUntil && ageMs > 80) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function handleMessage(event, options = {}) {
   try {
-    const message = JSON.parse(event.data);
-    if (!message || !message.text) return;
+    const message = typeof event?.data === 'string' ? JSON.parse(event.data) : event?.data;
+    const hasSegments = Array.isArray(message?.segments) && message.segments.length > 0;
+    if (!message || (!message.text && !hasSegments)) return;
 
     // Deduplication check
     const dedupeKey = message.id || (message.eventId ? `evt-${message.eventId}` : null);
@@ -222,6 +273,14 @@ function handleMessage(event) {
       messages.append(card);
     }
 
+    const isReplay = isHistoricalOrReplayMessage(message, event, options);
+    if (window.BoostyRenderer && typeof window.BoostyRenderer.enterMessageCard === 'function') {
+      window.BoostyRenderer.enterMessageCard(card, config, {
+        ...options,
+        animate: !isReplay,
+      });
+    }
+
     // Chronological eviction: oldest is always activeMessages[0]
     while (activeMessages.length > config.maxMessages) {
       const oldest = activeMessages[0];
@@ -241,10 +300,28 @@ function handleMessage(event) {
   }
 }
 
+function renderHistoryBatch(items) {
+  if (!Array.isArray(items)) return;
+  for (const item of items) {
+    handleMessage({ data: JSON.stringify(item), isReplay: true }, { animate: false, isReplay: true });
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.renderHistoryBatch = renderHistoryBatch;
+}
+
+if (window.BoostyRenderer) {
+  window.BoostyRenderer.applyAppearanceConfig(document.documentElement, config);
+}
+
 fetch('/config').then(response => response.json()).then(applyConfig).catch(() => {});
 
 // Native EventSource auto-reconnects and sends Last-Event-ID
 const events = new EventSource('/events');
+events.onopen = () => {
+  sseOpenBatchUntil = nowPerf() + 120;
+};
 events.onmessage = handleMessage;
 events.addEventListener('config', handleConfig);
 events.onerror = err => {

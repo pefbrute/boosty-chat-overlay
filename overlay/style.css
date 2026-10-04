@@ -11,6 +11,14 @@
   --backdrop-blur: none;
   --card-shadow: 0 6px 24px rgb(0 0 0 / 28%);
   --card-bg-computed: rgba(18, 18, 22, 0.88);
+  --role-streamer-color: #fbbf24;
+  --role-streamer-bg: rgba(251, 191, 36, 0.16);
+  --role-streamer-border: rgba(251, 191, 36, 0.34);
+  --role-moderator-color: #7dd3fc;
+  --role-moderator-bg: rgba(125, 211, 252, 0.15);
+  --role-moderator-border: rgba(125, 211, 252, 0.32);
+  --message-animation-duration: 280ms;
+  --message-exit-duration: 280ms;
   color-scheme: dark;
   font-family: Inter, system-ui, sans-serif;
 }
@@ -27,7 +35,7 @@ html, body {
   flex-direction: column;
   gap: var(--message-gap, 10px);
   width: calc(var(--card-width, 520px) + 28px);
-  max-width: calc(100vw - var(--overlay-offset-x, 20px) * 2);
+  max-width: calc(100vw - var(--overlay-offset-x, 20px));
   max-height: min(
     var(--stack-max-height, 800px),
     max(0px, calc(100vh - var(--overlay-offset-y, 20px) - 8px))
@@ -72,7 +80,6 @@ html, body {
 
 .message {
   align-items: center;
-  animation: appear 220ms cubic-bezier(0.16, 1, 0.3, 1);
   background: var(--card-bg-computed, rgba(18, 18, 22, 0.88));
   backdrop-filter: var(--backdrop-blur, none);
   -webkit-backdrop-filter: var(--backdrop-blur, none);
@@ -81,15 +88,85 @@ html, body {
   box-shadow: var(--card-shadow, 0 6px 24px rgb(0 0 0 / 28%));
   display: grid;
   gap: 2px 10px;
-  grid-template-columns: var(--avatar-size, 42px) 1fr;
-  max-width: min(var(--card-width, 520px), calc(100vw - var(--overlay-offset-x, 20px) * 2 - 28px));
+  grid-template-columns: var(--avatar-size, 42px) minmax(0, 1fr);
+  max-width: min(var(--card-width, 520px), calc(100vw - var(--overlay-offset-x, 20px) - 28px));
   padding: var(--card-padding, 10px 14px 10px 10px);
+}
+
+.message.message-enter,
+.message.message-exit,
+.message.disappearing {
   will-change: transform, opacity;
 }
 
-.message.disappearing {
-  animation: disappear 280ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+#messages.anim-none .message.message-enter,
+#messages.anim-none .message.message-exit,
+#messages.anim-none .message.disappearing {
+  animation: none !important;
+}
+
+.message.message-enter,
+#messages.anim-fade .message.message-enter {
+  animation: message-enter-fade var(--message-animation-duration, 280ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#messages.anim-slide-up .message.message-enter {
+  animation: message-enter-slide-up var(--message-animation-duration, 280ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#messages.anim-slide-side.anchor-left .message.message-enter,
+#messages.anim-slide-side:not(.anchor-right) .message.message-enter {
+  animation: message-enter-slide-left var(--message-animation-duration, 280ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#messages.anim-slide-side.anchor-right .message.message-enter {
+  animation: message-enter-slide-right var(--message-animation-duration, 280ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.message.message-exit,
+.message.disappearing,
+#messages.anim-fade .message.message-exit,
+#messages.anim-fade .message.disappearing {
+  animation: message-exit-fade var(--message-exit-duration, 280ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
   pointer-events: none;
+}
+
+#messages.anim-slide-up .message.message-exit,
+#messages.anim-slide-up .message.disappearing {
+  animation: message-exit-slide-up var(--message-exit-duration, 280ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+#messages.anim-slide-side.anchor-left .message.message-exit,
+#messages.anim-slide-side.anchor-left .message.disappearing,
+#messages.anim-slide-side:not(.anchor-right) .message.message-exit,
+#messages.anim-slide-side:not(.anchor-right) .message.disappearing {
+  animation: message-exit-slide-left var(--message-exit-duration, 280ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+#messages.anim-slide-side.anchor-right .message.message-exit,
+#messages.anim-slide-side.anchor-right .message.disappearing {
+  animation: message-exit-slide-right var(--message-exit-duration, 280ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+html.qa-deterministic .message,
+html.qa-deterministic .message.message-enter,
+html.qa-deterministic .message.message-exit,
+html.qa-deterministic .message.disappearing {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message,
+  .message.message-enter,
+  .message.message-exit,
+  .message.disappearing {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 .avatar {
@@ -101,23 +178,86 @@ html, body {
   width: var(--avatar-size, 42px);
 }
 
-.author {
+.author,
+.author-line {
   color: var(--accent);
   font-size: var(--author-font-size, 16px);
   font-weight: 750;
+  line-height: 1.25;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   text-align: var(--text-align, left);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.author-role {
+  align-items: center;
+  border-radius: 4px;
+  box-sizing: border-box;
+  display: inline-flex;
+  height: 1.16em;
+  justify-content: center;
+  margin-right: 0.34em;
+  pointer-events: none;
+  vertical-align: -0.18em;
+  width: 1.16em;
+}
+
+.author-role-icon {
+  display: block;
+  fill: currentColor;
+  height: 0.8em;
+  width: 0.8em;
+}
+
+.author-role--streamer {
+  background: var(--role-streamer-bg, rgba(251, 191, 36, 0.16));
+  border: 1px solid var(--role-streamer-border, rgba(251, 191, 36, 0.34));
+  color: var(--role-streamer-color, #fbbf24);
+}
+
+.author-role--moderator {
+  background: var(--role-moderator-bg, rgba(125, 211, 252, 0.15));
+  border: 1px solid var(--role-moderator-border, rgba(125, 211, 252, 0.32));
+  color: var(--role-moderator-color, #7dd3fc);
 }
 
 .text {
   color: var(--text-color, #ffffff);
   font-size: var(--message-font-size, 21px);
   line-height: 1.25;
+  min-width: 0;
   overflow-wrap: anywhere;
   text-align: var(--text-align, left);
 }
 
+.message-emoji {
+  display: inline-block;
+  height: 1.22em;
+  margin: 0 0.06em;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  vertical-align: -0.22em;
+  width: auto;
+}
+
+.message-mention {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  color: var(--accent, #f15f2c);
+  display: inline;
+  font-weight: 650;
+  padding: 0.04em 0.28em;
+  pointer-events: none;
+}
+
 .hide-avatars .message {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   padding-left: 14px;
 }
 
@@ -207,34 +347,86 @@ html, body {
   word-break: break-word;
 }
 
-@keyframes appear {
+@keyframes message-enter-fade {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes disappear {
-  0% {
-    max-height: 240px;
-    margin-bottom: 0;
+@keyframes message-exit-fade {
+  from {
     opacity: 1;
-    padding-bottom: 10px;
-    padding-top: 10px;
-    transform: translateY(0) scale(1);
   }
-  100% {
-    border-bottom-width: 0;
-    border-top-width: 0;
-    max-height: 0;
-    margin-bottom: -10px;
+  to {
     opacity: 0;
-    padding-bottom: 0;
-    padding-top: 0;
-    transform: translateY(-8px) scale(0.96);
+  }
+}
+
+@keyframes message-enter-slide-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes message-exit-slide-up {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+@keyframes message-enter-slide-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-16px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes message-exit-slide-left {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(-10px, 0, 0);
+  }
+}
+
+@keyframes message-enter-slide-right {
+  from {
+    opacity: 0;
+    transform: translate3d(16px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes message-exit-slide-right {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(10px, 0, 0);
   }
 }

@@ -19,6 +19,7 @@ artifacts/
 overlay-settings.json
 obs-target.json
 *.local
+.playwright-cli/
 
 # Logs
 *.log

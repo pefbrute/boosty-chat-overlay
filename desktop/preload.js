@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   listObsScenes: password => ipcRenderer.invoke('list-obs-scenes', password),
   addObsScene: (password, sceneIdentifier) => ipcRenderer.invoke('add-obs-scene', password, sceneIdentifier),
   removeObsScene: (password, sceneIdentifier) => ipcRenderer.invoke('remove-obs-scene', password, sceneIdentifier),
+  fitObsOverlay: password => ipcRenderer.invoke('fit-obs-overlay', password),
+  refreshObsOverlay: () => ipcRenderer.invoke('refresh-obs-overlay'),
   getObsStatus: () => ipcRenderer.invoke('get-obs-status'),
   onObsStateChanged: callback => {
     const handler = (_event, state) => callback(state);
@@ -21,6 +23,7 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   hasObsExecutable: () => ipcRenderer.invoke('has-obs-executable'),
   openUrl: (url, browserId) => ipcRenderer.invoke('open-url', url, browserId),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  exportConnectivityDiagnostic: () => ipcRenderer.invoke('export-connectivity-diagnostic'),
 });
 
 if (process.env.UI_AUDIT_MODE === '1' || process.env.BOOSTY_OVERLAY_UI_TEST === '1') {

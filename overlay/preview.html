@@ -25,14 +25,31 @@
         let currentFixtures = [];
         let currentConfig = null;
 
-        function renderPreviewCards() {
+        function renderPreviewCards(options = {}) {
           container.innerHTML = '';
           if (!Array.isArray(currentFixtures)) return;
           const items = currentConfig && currentConfig.newMessagePosition === 'top'
             ? [...currentFixtures].reverse()
             : currentFixtures;
           for (const item of items) {
-            container.append(window.BoostyRenderer.createMessageCard(item));
+            const card = window.BoostyRenderer.createMessageCard(item);
+            container.append(card);
+            window.BoostyRenderer.enterMessageCard(card, currentConfig || {}, { animate: false });
+          }
+          if (options.animateNewest && container.children.length > 0) {
+            replayNewestCardAnimation();
+          }
+        }
+
+        function replayNewestCardAnimation() {
+          if (!container || container.children.length === 0) return;
+          const isTop = currentConfig && currentConfig.newMessagePosition === 'top';
+          const targetCard = isTop ? container.firstElementChild : container.lastElementChild;
+          if (targetCard && window.BoostyRenderer) {
+            window.BoostyRenderer.enterMessageCard(targetCard, currentConfig || {}, {
+              animate: true,
+              restart: true,
+            });
           }
         }
 
@@ -45,22 +62,55 @@
           if (data.type === 'preview:set-config' && data.config) {
             currentConfig = data.config;
             window.BoostyRenderer.applyAppearanceConfig(document.documentElement, data.config);
-            renderPreviewCards();
+            renderPreviewCards({ animateNewest: Boolean(data.animateNewest) });
             if (window.parent && window.parent !== window) {
-              window.parent.postMessage({ type: 'preview:ack' }, '*');
+              const rect = container.getBoundingClientRect();
+              window.parent.postMessage({
+                type: 'preview:ack',
+                box: { width: rect.width || container.offsetWidth, height: rect.height || container.offsetHeight }
+              }, '*');
+            }
+          } else if (data.type === 'preview:replay-animation') {
+            if (data.config) {
+              currentConfig = data.config;
+              window.BoostyRenderer.applyAppearanceConfig(document.documentElement, data.config);
+            }
+            replayNewestCardAnimation();
+          } else if (data.type === 'preview:update-position' && data.position) {
+            const p = data.position;
+            const root = document.documentElement;
+            if (p.offsetX !== undefined) root.style.setProperty('--overlay-offset-x', `${p.offsetX}px`);
+            if (p.offsetY !== undefined) root.style.setProperty('--overlay-offset-y', `${p.offsetY}px`);
+            if (container) {
+              if (p.horizontalAnchor) {
+                container.classList.toggle('anchor-left', p.horizontalAnchor === 'left');
+                container.classList.toggle('anchor-right', p.horizontalAnchor === 'right');
+              }
+              if (p.verticalAnchor) {
+                container.classList.toggle('anchor-top', p.verticalAnchor === 'top');
+                container.classList.toggle('anchor-bottom', p.verticalAnchor === 'bottom');
+              }
             }
           } else if (data.type === 'preview:set-fixtures') {
             currentFixtures = data.fixtures || [];
             renderPreviewCards();
             if (window.parent && window.parent !== window) {
-              window.parent.postMessage({ type: 'preview:ack' }, '*');
+              const rect = container.getBoundingClientRect();
+              window.parent.postMessage({
+                type: 'preview:ack',
+                box: { width: rect.width || container.offsetWidth, height: rect.height || container.offsetHeight }
+              }, '*');
             }
           } else if (data.type === 'preview:reset' && data.config) {
             currentConfig = data.config;
             window.BoostyRenderer.applyAppearanceConfig(document.documentElement, data.config);
             renderPreviewCards();
             if (window.parent && window.parent !== window) {
-              window.parent.postMessage({ type: 'preview:ack' }, '*');
+              const rect = container.getBoundingClientRect();
+              window.parent.postMessage({
+                type: 'preview:ack',
+                box: { width: rect.width || container.offsetWidth, height: rect.height || container.offsetHeight }
+              }, '*');
             }
           }
         });

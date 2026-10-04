@@ -24,7 +24,7 @@ function extractAuthor(root) {
   const el = root.querySelector(
     '[data-test-id="CHATMESSAGE:author"], [class*="Author"], [class*="author"], [class*="name"]'
   );
-  return el?.textContent?.trim() || '';
+  return (el?.textContent || '').trim().replace(/:$/, '').trim();
 }
 
 function extractText(root) {
@@ -52,8 +52,40 @@ queryRootElements(document).forEach(root => {
   processed.add(root);
 });
 
-// Dual transport: try background service worker first (bypasses CSP/PNA), then fallback to direct fetch
+// Port to background service worker for reliable event-driven messaging
+let bgPort = null;
+
+function getBackgroundPort() {
+  if (bgPort) return bgPort;
+  if (typeof chrome !== 'undefined' && chrome.runtime?.connect) {
+    try {
+      bgPort = chrome.runtime.connect({ name: 'boosty_tab' });
+      bgPort.onDisconnect.addListener(() => {
+        bgPort = null;
+        setTimeout(getBackgroundPort, 1500);
+      });
+    } catch {
+      bgPort = null;
+    }
+  }
+  return bgPort;
+}
+
+// Ensure initial Port connection
+getBackgroundPort();
+
+// Dual transport: try background port/service worker first, then fallback to direct fetch
 async function transportSend(type, payload, fallbackUrl) {
+  const port = getBackgroundPort();
+  if (port) {
+    try {
+      port.postMessage({ type, payload });
+      return true;
+    } catch {
+      bgPort = null;
+    }
+  }
+
   if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
     try {
       const res = await new Promise((resolve, reject) => {
@@ -100,7 +132,9 @@ async function forward(root) {
     id: messageId,
     platform: 'boosty',
     author,
+    role: parsed?.role || null,
     text,
+    segments: Array.isArray(parsed?.segments) ? parsed.segments : null,
     avatar: parsed ? parsed.avatar : avatarUrl(root),
     publishTime: parsed?.publishTime || '',
     reply: parsed?.reply || null,
@@ -109,7 +143,7 @@ async function forward(root) {
     timestamp: Date.now(),
   };
 
-  const sent = await transportSend('POST_MESSAGE', message, endpoint);
+  const sent = await transportSend('MESSAGE', message, endpoint);
   if (sent) {
     console.info('[Boosty Chat Connector] sent message:', author, '->', text);
   } else {
@@ -182,6 +216,9 @@ function attachChatObserver(container) {
     discoveryObserver.disconnect();
     discoveryObserver = null;
   }
+
+  // Immediately announce chat container detection to desktop server & background
+  immediateAnnounce();
 }
 
 function detachChatObserver() {
@@ -190,6 +227,7 @@ function detachChatObserver() {
     chatObserver = null;
   }
   currentChatContainer = null;
+  immediateAnnounce();
 }
 
 function startDiscovery() {
@@ -224,18 +262,78 @@ function startDiscovery() {
 startDiscovery();
 console.info('[Boosty Chat Connector] active');
 
-async function heartbeat() {
+// --- Adaptive Heartbeat & Immediate State Announce ---
+const tabSessionId = 'tab_' + Math.random().toString(36).slice(2, 9);
+let isConnected = false;
+let retryAttempt = 0;
+let heartbeatTimer = null;
+
+function buildPayload() {
   const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.0';
-  const payload = {
+  const hasChat = Boolean(currentChatContainer && currentChatContainer.isConnected);
+  const isStream = location.pathname.includes('/streams/') ||
+                   location.pathname.includes('/stream') ||
+                   Boolean(document.querySelector('[data-test-id*="STREAM"], [class*="Stream"]'));
+  return {
     source: 'content_tab',
+    tabSessionId,
     extensionVersion,
     version: extensionVersion,
     url: location.href,
+    title: document.title,
+    hasChat,
+    isStream,
     timestamp: Date.now(),
   };
-  await transportSend('HEARTBEAT', payload, connectorEndpoint);
 }
 
-heartbeat();
-setInterval(heartbeat, 5_000);
+async function heartbeat() {
+  if (heartbeatTimer) {
+    clearTimeout(heartbeatTimer);
+    heartbeatTimer = null;
+  }
 
+  const payload = buildPayload();
+  const ok = await transportSend('TAB_STATE', payload, connectorEndpoint);
+
+  if (ok) {
+    isConnected = true;
+    retryAttempt = 0;
+    // Gentle periodic sync: 20s (transport is WebSocket-driven)
+    heartbeatTimer = setTimeout(heartbeat, 20_000);
+  } else {
+    isConnected = false;
+    retryAttempt++;
+    // Reconnect backoff: 1s, 2s, 3s, 5s...
+    const backoffDelays = [1000, 2000, 3000, 5000];
+    const delay = backoffDelays[Math.min(retryAttempt - 1, backoffDelays.length - 1)];
+    heartbeatTimer = setTimeout(heartbeat, delay);
+  }
+}
+
+function immediateAnnounce() {
+  heartbeat();
+}
+
+// Initial announce
+heartbeat();
+
+// Announce on user focus or visibility change
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) immediateAnnounce();
+});
+window.addEventListener('focus', immediateAnnounce);
+
+// Announce on SPA client navigation
+['pushState', 'replaceState'].forEach(method => {
+  const orig = history[method];
+  if (typeof orig === 'function') {
+    history[method] = function(...args) {
+      const result = orig.apply(this, args);
+      immediateAnnounce();
+      return result;
+    };
+  }
+});
+window.addEventListener('popstate', immediateAnnounce);
+window.addEventListener('hashchange', immediateAnnounce);

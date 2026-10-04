@@ -64,6 +64,14 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
       calls.obsService.push({ method: 'removeScene', pwd, sc });
       return { ok: true, removedScene: sc };
     },
+    fitOverlayToCanvas(pwd) {
+      calls.obsService.push({ method: 'fitOverlayToCanvas', pwd });
+      return { ok: true };
+    },
+    refreshOverlay() {
+      calls.obsService.push({ method: 'refreshOverlay' });
+      return { ok: true, refreshed: true };
+    },
     getStatus() {
       calls.obsService.push({ method: 'getStatus' });
       return { ok: true, connected: true };
@@ -104,8 +112,11 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
     'list-obs-scenes',
     'add-obs-scene',
     'remove-obs-scene',
+    'fit-obs-overlay',
+    'refresh-obs-overlay',
     'get-obs-status',
     'get-app-version',
+    'export-connectivity-diagnostic',
   ];
 
   for (const ch of expectedChannels) {

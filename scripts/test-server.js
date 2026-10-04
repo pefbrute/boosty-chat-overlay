@@ -91,7 +91,7 @@ async function runTests() {
   assert.strictEqual(clampedRes.status, 200, 'POST /config with out-of-range values should return 200');
   const clampedConfig = JSON.parse(clampedRes.body);
   assert.strictEqual(clampedConfig.offsetX, 0, 'Negative offsetX should be clamped to 0');
-  assert.strictEqual(clampedConfig.offsetY, 300, 'Excessive offsetY should be clamped to 300');
+  assert.strictEqual(clampedConfig.offsetY, 800, 'Excessive offsetY should be clamped to 800');
   assert.strictEqual(clampedConfig.maxStackHeight, 160, 'Too small maxStackHeight should be clamped to 160');
   assert.strictEqual(clampedConfig.textAlign, 'right', 'Invalid textAlign should fallback to previous right');
   assert.strictEqual(clampedConfig.horizontalAnchor, 'right', 'Invalid horizontalAnchor should fallback to previous right');

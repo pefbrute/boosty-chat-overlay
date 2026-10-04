@@ -33,6 +33,60 @@ test('normalizeConfig clamping and sanitization', () => {
   assert.equal(custom.verticalAnchor, 'top');
 });
 
+test('normalizeAnimationType validation and fallback', () => {
+  const { normalizeAnimationType } = require('../core/config/schema.js');
+  assert.equal(normalizeAnimationType('none'), 'none');
+  assert.equal(normalizeAnimationType('fade'), 'fade');
+  assert.equal(normalizeAnimationType('slide-up'), 'slide-up');
+  assert.equal(normalizeAnimationType('slide-side'), 'slide-side');
+  assert.equal(normalizeAnimationType('  FADE  '), 'fade');
+  assert.equal(normalizeAnimationType('SLIDE-UP'), 'slide-up');
+  assert.equal(normalizeAnimationType('invalid-type'), 'fade');
+  assert.equal(normalizeAnimationType(null), 'fade');
+  assert.equal(normalizeAnimationType(undefined, 'slide-side'), 'slide-side');
+});
+
+test('normalizeAnimationDuration clamping and sanitization', () => {
+  const { normalizeAnimationDuration } = require('../core/config/schema.js');
+  assert.equal(normalizeAnimationDuration(280), 280);
+  assert.equal(normalizeAnimationDuration('350'), 350);
+  assert.equal(normalizeAnimationDuration(50), 150, 'Must clamp to min 150ms');
+  assert.equal(normalizeAnimationDuration(2500), 1000, 'Must clamp to max 1000ms');
+  assert.equal(normalizeAnimationDuration('invalid'), 280, 'Fallback on invalid');
+  assert.equal(normalizeAnimationDuration(null), 280, 'Fallback on null');
+  assert.equal(normalizeAnimationDuration(undefined, 420), 420);
+});
+
+test('normalizeConfig animation flat, nested and legacy compatibility', () => {
+  // 1. Flat animation fields
+  const flat = normalizeConfig({
+    animationType: 'slide-up',
+    animationDurationMs: 450,
+  });
+  assert.equal(flat.animationType, 'slide-up');
+  assert.equal(flat.animationDurationMs, 450);
+
+  // 2. Nested animation object
+  const nested = normalizeConfig({
+    animation: {
+      type: 'slide-side',
+      durationMs: 320,
+    },
+  });
+  assert.equal(nested.animationType, 'slide-side');
+  assert.equal(nested.animationDurationMs, 320);
+
+  // 3. Legacy config without animation fields gets defaults without failing
+  const legacy = normalizeConfig({
+    fontSize: 24,
+    maxMessages: 5,
+  });
+  assert.equal(legacy.animationType, 'fade');
+  assert.equal(legacy.animationDurationMs, 280);
+  assert.equal(legacy.fontSize, 24);
+  assert.equal(legacy.maxMessages, 5);
+});
+
 test('createConfigStore in-memory and disk persistence', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-test-'));
   const tempFile = path.join(tempDir, 'test-config.json');

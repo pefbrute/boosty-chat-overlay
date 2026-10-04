@@ -355,6 +355,7 @@ app.whenReady().then(async () => {
       show: false,
       width: 1280,
       height: 800,
+      useContentSize: true,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -612,6 +613,617 @@ app.whenReady().then(async () => {
     assert.strictEqual(responsiveLayout.hasCornerPicker, true, 'Corner picker must exist in 800x650');
     assert.strictEqual(responsiveLayout.hasSegmented, true, 'Segmented controls must exist in 800x650');
     console.log('✔ Responsive 800x650 check passed with zero horizontal scroll');
+
+    // 15. Drag & Drop Visual Positioning in Desktop Preview
+    console.log('15. Testing Drag & Drop Visual Positioning & Bidirectional Sync...');
+    desktopWin.setContentSize(1280, 800);
+    await new Promise(r => setTimeout(r, 100));
+
+    const dragTestResult = await desktopWin.webContents.executeJavaScript(`
+      (() => {
+        const hitbox = document.querySelector('#chat-drag-hitbox');
+        const wrapper = document.querySelector('#preview-scale-wrapper');
+        const badgeAnchor = document.querySelector('#drag-badge-anchor');
+        const badgeCoords = document.querySelector('#drag-badge-coords');
+        const guideX = document.querySelector('#guide-center-x');
+        const guideY = document.querySelector('#guide-center-y');
+
+        if (!hitbox || !wrapper) {
+          throw new Error('Hitbox or preview-scale-wrapper not found');
+        }
+
+        const initialHitboxLeft = parseFloat(hitbox.style.left);
+        const initialBadgeText = badgeAnchor?.textContent;
+
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const scale = Math.min(wrapperRect.width / 1920, wrapperRect.height / 1080) || 1;
+
+        const startLogicalX = parseFloat(hitbox.style.left) + 50;
+        const startLogicalY = parseFloat(hitbox.style.top) + 50;
+        const clientStartX = wrapperRect.left + startLogicalX * scale;
+        const clientStartY = wrapperRect.top + startLogicalY * scale;
+
+        hitbox.dispatchEvent(new PointerEvent('pointerdown', {
+          clientX: clientStartX,
+          clientY: clientStartY,
+          button: 0,
+          pointerId: 1,
+          bubbles: true
+        }));
+
+        const isDraggingAfterDown = hitbox.classList.contains('is-dragging');
+
+        const targetLogicalX = 1500;
+        const targetLogicalY = 100;
+        const clientMoveX = wrapperRect.left + targetLogicalX * scale;
+        const clientMoveY = wrapperRect.top + targetLogicalY * scale;
+
+        hitbox.dispatchEvent(new PointerEvent('pointermove', {
+          clientX: clientMoveX,
+          clientY: clientMoveY,
+          pointerId: 1,
+          bubbles: true
+        }));
+
+        const activeCornerDuringDrag = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+        const offsetXVal = Number(document.querySelector('#offset-x')?.value);
+        const offsetYVal = Number(document.querySelector('#offset-y')?.value);
+        const badgeAnchorText = badgeAnchor?.textContent;
+
+        hitbox.dispatchEvent(new PointerEvent('pointerup', {
+          clientX: clientMoveX,
+          clientY: clientMoveY,
+          pointerId: 1,
+          bubbles: true
+        }));
+
+        const isDraggingAfterUp = hitbox.classList.contains('is-dragging');
+
+        hitbox.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+        const offsetXAfterLeftArrow = Number(document.querySelector('#offset-x')?.value);
+
+        document.querySelector('#layout-reset-btn').click();
+        const cornerAfterReset = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+        const offsetXAfterReset = Number(document.querySelector('#offset-x')?.value);
+        const offsetYAfterReset = Number(document.querySelector('#offset-y')?.value);
+
+        return {
+          initialHitboxLeft,
+          initialBadgeText,
+          isDraggingAfterDown,
+          activeCornerDuringDrag,
+          offsetXVal,
+          offsetYVal,
+          badgeAnchorText,
+          isDraggingAfterUp,
+          offsetXAfterLeftArrow,
+          cornerAfterReset,
+          offsetXAfterReset,
+          offsetYAfterReset,
+        };
+      })()
+    `);
+
+    assert.strictEqual(dragTestResult.isDraggingAfterDown, true, 'Hitbox must have .is-dragging class during drag');
+    assert.strictEqual(dragTestResult.activeCornerDuringDrag, 'right-top', 'Dragging into top-right must switch corner button to right-top');
+    assert.ok(dragTestResult.offsetXVal >= 0 && dragTestResult.offsetXVal <= 1000, `offsetX must be valid, got ${dragTestResult.offsetXVal}`);
+    assert.ok(dragTestResult.offsetYVal >= 0 && dragTestResult.offsetYVal <= 800, `offsetY must be valid, got ${dragTestResult.offsetYVal}`);
+    assert.strictEqual(dragTestResult.isDraggingAfterUp, false, 'is-dragging must be removed after pointerup');
+    assert.strictEqual(dragTestResult.cornerAfterReset, 'left-bottom', 'Layout reset must restore left-bottom');
+    assert.strictEqual(dragTestResult.offsetXAfterReset, 20, 'Layout reset must restore offsetX 20');
+    assert.strictEqual(dragTestResult.offsetYAfterReset, 20, 'Layout reset must restore offsetY 20');
+    console.log('✔ Visual positioning drag & drop, corner switching, keyboard fine-tuning, and reset verified');
+
+    // 16. Stream Profiles v1 (Built-in Stream Profiles: content, gaming, talking, minimal)
+    console.log('16. Testing Stream Profiles v1 (content, gaming, talking, minimal)...');
+    const profilesTestResult = await desktopWin.webContents.executeJavaScript(`
+      (() => {
+        const buttonOrder = Array.from(document.querySelectorAll('.profiles-grid .profile-btn')).map(b => b.getAttribute('data-profile'));
+        const hasPodcastBtn = Boolean(document.querySelector('#profile-btn-podcast'));
+
+        // 16.1 Test Content Viewing Profile (Primary / Recommended)
+        document.querySelector('#profile-btn-content').click();
+        const contentBadge = document.querySelector('#profile-status-badge')?.textContent;
+        const contentActiveBtn = document.querySelector('.profile-btn.active')?.getAttribute('data-profile');
+        const contentPresetBadge = document.querySelector('#preset-status-badge')?.textContent;
+        const contentCorner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+        const contentOffsetX = Number(document.querySelector('#offset-x')?.value);
+        const contentOffsetY = Number(document.querySelector('#offset-y')?.value);
+        const contentMaxMsg = Number(document.querySelector('#max-messages')?.value);
+        const contentDuration = Number(document.querySelector('#duration')?.value);
+        const contentStackH = Number(document.querySelector('#max-stack-height')?.value);
+        const contentRecBadge = document.querySelector('#profile-btn-content .profile-rec-badge')?.textContent;
+
+        // 16.2 Test Gaming Profile
+        document.querySelector('#profile-btn-gaming').click();
+        const gamingBadge = document.querySelector('#profile-status-badge')?.textContent;
+        const gamingActiveBtn = document.querySelector('.profile-btn.active')?.getAttribute('data-profile');
+        const gamingPresetBadge = document.querySelector('#preset-status-badge')?.textContent;
+        const gamingCorner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+        const gamingOffsetX = Number(document.querySelector('#offset-x')?.value);
+        const gamingOffsetY = Number(document.querySelector('#offset-y')?.value);
+        const gamingMaxMsg = Number(document.querySelector('#max-messages')?.value);
+        const gamingDuration = Number(document.querySelector('#duration')?.value);
+
+        // 16.3 Test Talking Profile
+        document.querySelector('#profile-btn-talking').click();
+        const talkingBadge = document.querySelector('#profile-status-badge')?.textContent;
+        const talkingActiveBtn = document.querySelector('.profile-btn.active')?.getAttribute('data-profile');
+        const talkingPresetBadge = document.querySelector('#preset-status-badge')?.textContent;
+        const talkingCorner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+        const talkingTextAlign = document.querySelector('[data-text-align].active')?.getAttribute('data-text-align');
+        const talkingMaxMsg = Number(document.querySelector('#max-messages')?.value);
+
+        // 16.4 Test Minimal Profile
+        document.querySelector('#profile-btn-minimal').click();
+        const minimalBadge = document.querySelector('#profile-status-badge')?.textContent;
+        const minimalActiveBtn = document.querySelector('.profile-btn.active')?.getAttribute('data-profile');
+        const minimalPresetBadge = document.querySelector('#preset-status-badge')?.textContent;
+        const minimalMaxMsg = Number(document.querySelector('#max-messages')?.value);
+
+        // 16.5 Test Drag Independence on Content Profile: altering offset sets profile to "Пользовательский", preset remains "Компактный"
+        document.querySelector('#profile-btn-content').click();
+        const offsetXInput = document.querySelector('#offset-x');
+        offsetXInput.value = '90';
+        offsetXInput.dispatchEvent(new Event('input'));
+        const afterDragProfileBadge = document.querySelector('#profile-status-badge')?.textContent;
+        const afterDragActiveProfile = document.querySelector('.profile-btn.active');
+        const afterDragPresetBadge = document.querySelector('#preset-status-badge')?.textContent;
+
+        // 16.6 Test Preset Independence on Content Profile: changing appearance preset to glass keeps profile as "Пользовательский"
+        document.querySelector('#profile-btn-content').click();
+        document.querySelector('#preset-btn-glass').click();
+        const afterPresetProfileBadge = document.querySelector('#profile-status-badge')?.textContent;
+        const afterPresetBadge = document.querySelector('#preset-status-badge')?.textContent;
+
+        return {
+          buttonOrder, hasPodcastBtn,
+          contentBadge, contentActiveBtn, contentPresetBadge, contentCorner, contentOffsetX, contentOffsetY, contentMaxMsg, contentDuration, contentStackH, contentRecBadge,
+          gamingBadge, gamingActiveBtn, gamingPresetBadge, gamingCorner, gamingOffsetX, gamingOffsetY, gamingMaxMsg, gamingDuration,
+          talkingBadge, talkingActiveBtn, talkingPresetBadge, talkingCorner, talkingTextAlign, talkingMaxMsg,
+          minimalBadge, minimalActiveBtn, minimalPresetBadge, minimalMaxMsg,
+          afterDragProfileBadge, hasActiveProfileAfterDrag: Boolean(afterDragActiveProfile), afterDragPresetBadge,
+          afterPresetProfileBadge, afterPresetBadge
+        };
+      })()
+    `);
+
+    assert.deepStrictEqual(profilesTestResult.buttonOrder, ['content', 'gaming', 'talking', 'minimal'], 'DOM button order must be content, gaming, talking, minimal');
+    assert.strictEqual(profilesTestResult.hasPodcastBtn, false, 'Podcast button must be removed from DOM');
+
+    assert.strictEqual(profilesTestResult.contentBadge, 'Просмотр контента');
+    assert.strictEqual(profilesTestResult.contentActiveBtn, 'content');
+    assert.strictEqual(profilesTestResult.contentPresetBadge, 'Компактный');
+    assert.strictEqual(profilesTestResult.contentCorner, 'right-bottom');
+    assert.strictEqual(profilesTestResult.contentOffsetX, 20);
+    assert.strictEqual(profilesTestResult.contentOffsetY, 20);
+    assert.strictEqual(profilesTestResult.contentMaxMsg, 3);
+    assert.strictEqual(profilesTestResult.contentDuration, 12);
+    assert.strictEqual(profilesTestResult.contentStackH, 360);
+    assert.strictEqual(profilesTestResult.contentRecBadge, 'Рекомендуемый');
+
+    assert.strictEqual(profilesTestResult.gamingBadge, 'Игры');
+    assert.strictEqual(profilesTestResult.gamingActiveBtn, 'gaming');
+    assert.strictEqual(profilesTestResult.gamingPresetBadge, 'Компактный');
+    assert.strictEqual(profilesTestResult.gamingCorner, 'left-bottom');
+    assert.strictEqual(profilesTestResult.gamingOffsetX, 24);
+    assert.strictEqual(profilesTestResult.gamingOffsetY, 24);
+    assert.strictEqual(profilesTestResult.gamingMaxMsg, 4);
+    assert.strictEqual(profilesTestResult.gamingDuration, 15);
+
+    assert.strictEqual(profilesTestResult.talkingBadge, 'Разговорный');
+    assert.strictEqual(profilesTestResult.talkingActiveBtn, 'talking');
+    assert.strictEqual(profilesTestResult.talkingPresetBadge, 'Чистый');
+    assert.strictEqual(profilesTestResult.talkingCorner, 'right-bottom');
+    assert.strictEqual(profilesTestResult.talkingTextAlign, 'right');
+    assert.strictEqual(profilesTestResult.talkingMaxMsg, 6);
+
+    assert.strictEqual(profilesTestResult.minimalBadge, 'Минимализм');
+    assert.strictEqual(profilesTestResult.minimalActiveBtn, 'minimal');
+    assert.strictEqual(profilesTestResult.minimalPresetBadge, 'Компактный');
+    assert.strictEqual(profilesTestResult.minimalMaxMsg, 2);
+
+    assert.strictEqual(profilesTestResult.afterDragProfileBadge, 'Пользовательский');
+    assert.strictEqual(profilesTestResult.hasActiveProfileAfterDrag, false, 'No profile button should be active after modifying layout');
+    assert.strictEqual(profilesTestResult.afterDragPresetBadge, 'Компактный', 'Appearance preset must remain Compact after modifying layout');
+
+    assert.strictEqual(profilesTestResult.afterPresetProfileBadge, 'Пользовательский');
+    assert.strictEqual(profilesTestResult.afterPresetBadge, 'Стекло');
+    console.log('✔ All 4 stream profiles (content #1 recommended), preset independence, and drag independence verified in Electron UI');
+
+    // 17. Message Animations v1: Desktop Controls, Lifecycle, and Independence Tests
+    console.log('17. Testing Message Animations v1: Desktop UI Controls, Presets & Profiles Independence, and DOM Lifecycle...');
+    const animUiResults = await desktopWin.webContents.executeJavaScript(`
+      (() => {
+        // 17.1 Test animation type switching
+        const animTypes = ['none', 'fade', 'slide-up', 'slide-side'];
+        const typeButtonsExist = animTypes.every(t => Boolean(document.querySelector(\`[data-animation-type="\${t}"]\`)));
+
+        // Click slide-up
+        document.querySelector('[data-animation-type="slide-up"]').click();
+        const slideUpActive = document.querySelector('[data-animation-type="slide-up"]')?.classList.contains('active');
+        const slideUpAria = document.querySelector('[data-animation-type="slide-up"]')?.getAttribute('aria-pressed');
+        const fadeAfterSlideUp = document.querySelector('[data-animation-type="fade"]')?.classList.contains('active');
+        const configAfterSlideUp = gatherCurrentConfig();
+
+        // 17.2 Speed preset click: 'Быстро' (180ms)
+        document.querySelector('[data-animation-speed="180"]').click();
+        const speedFastActive = document.querySelector('[data-animation-speed="180"]')?.classList.contains('active');
+        const sliderFastVal = document.querySelector('#animation-duration-slider')?.value;
+        const speedFastLabel = document.querySelector('#animation-speed-label')?.textContent;
+        const configAfterFast = gatherCurrentConfig();
+
+        // 17.3 Speed preset click: 'Плавно' (450ms)
+        document.querySelector('[data-animation-speed="450"]').click();
+        const speedSmoothActive = document.querySelector('[data-animation-speed="450"]')?.classList.contains('active');
+        const sliderSmoothVal = document.querySelector('#animation-duration-slider')?.value;
+        const speedSmoothLabel = document.querySelector('#animation-speed-label')?.textContent;
+        const configAfterSmooth = gatherCurrentConfig();
+
+        // 17.4 Slider manual drag to 320ms -> label shows 'Обычно · 320 мс'
+        const slider = document.querySelector('#animation-duration-slider');
+        slider.value = '320';
+        slider.dispatchEvent(new Event('input'));
+        const speed320Label = document.querySelector('#animation-speed-label')?.textContent;
+        const configAfterSlider = gatherCurrentConfig();
+
+        // 17.5 Select 'none' -> speed container disabled, label shows 'Мгновенно'
+        document.querySelector('[data-animation-type="none"]').click();
+        const noneActive = document.querySelector('[data-animation-type="none"]')?.classList.contains('active');
+        const noneAria = document.querySelector('[data-animation-type="none"]')?.getAttribute('aria-pressed');
+        const speedDisabled = document.querySelector('#animation-speed-container')?.classList.contains('disabled');
+        const speedNoneLabel = document.querySelector('#animation-speed-label')?.textContent;
+        const configAfterNone = gatherCurrentConfig();
+
+        // 17.6 Independence check: changing animation does NOT alter active profile or preset
+        document.querySelector('#profile-btn-content').click();
+        const profileBeforeAnim = document.querySelector('#profile-status-badge')?.textContent;
+        const presetBeforeAnim = document.querySelector('#preset-status-badge')?.textContent;
+        document.querySelector('[data-animation-type="slide-side"]').click();
+        document.querySelector('[data-animation-speed="280"]').click();
+        const profileAfterAnim = document.querySelector('#profile-status-badge')?.textContent;
+        const presetAfterAnim = document.querySelector('#preset-status-badge')?.textContent;
+
+        // 17.7 syncInputsFromConfig restores animation settings
+        syncInputsFromConfig({
+          animationType: 'slide-up',
+          animationDurationMs: 400
+        });
+        const restoredTypeActive = document.querySelector('[data-animation-type="slide-up"]')?.classList.contains('active');
+        const restoredSliderVal = document.querySelector('#animation-duration-slider')?.value;
+        const restoredLabel = document.querySelector('#animation-speed-label')?.textContent;
+
+        return {
+          typeButtonsExist,
+          slideUpActive,
+          slideUpAria,
+          fadeAfterSlideUp,
+          configAfterSlideUp,
+          speedFastActive,
+          sliderFastVal,
+          speedFastLabel,
+          configAfterFast,
+          speedSmoothActive,
+          sliderSmoothVal,
+          speedSmoothLabel,
+          configAfterSmooth,
+          speed320Label,
+          configAfterSlider,
+          noneActive,
+          noneAria,
+          speedDisabled,
+          speedNoneLabel,
+          configAfterNone,
+          profileBeforeAnim,
+          presetBeforeAnim,
+          profileAfterAnim,
+          presetAfterAnim,
+          restoredTypeActive,
+          restoredSliderVal,
+          restoredLabel
+        };
+      })()
+    `);
+
+    assert.strictEqual(animUiResults.typeButtonsExist, true, 'All 4 animation type buttons must exist in DOM');
+    assert.strictEqual(animUiResults.slideUpActive, true, 'Slide-up button must be active');
+    assert.strictEqual(animUiResults.slideUpAria, 'true', 'Slide-up button aria-pressed must be true');
+    assert.strictEqual(animUiResults.fadeAfterSlideUp, false, 'Fade button must no longer be active');
+    assert.strictEqual(animUiResults.configAfterSlideUp.animationType, 'slide-up');
+
+    assert.strictEqual(animUiResults.speedFastActive, true, 'Fast speed button must be active');
+    assert.strictEqual(animUiResults.sliderFastVal, '180');
+    assert.strictEqual(animUiResults.speedFastLabel, 'Быстро · 180 мс');
+    assert.strictEqual(animUiResults.configAfterFast.animationDurationMs, 180);
+
+    assert.strictEqual(animUiResults.speedSmoothActive, true, 'Smooth speed button must be active');
+    assert.strictEqual(animUiResults.sliderSmoothVal, '450');
+    assert.strictEqual(animUiResults.speedSmoothLabel, 'Плавно · 450 мс');
+    assert.strictEqual(animUiResults.configAfterSmooth.animationDurationMs, 450);
+
+    assert.strictEqual(animUiResults.speed320Label, 'Обычно · 320 мс');
+    assert.strictEqual(animUiResults.configAfterSlider.animationDurationMs, 320);
+
+    assert.strictEqual(animUiResults.noneActive, true);
+    assert.strictEqual(animUiResults.noneAria, 'true');
+    assert.strictEqual(animUiResults.speedDisabled, true, 'Speed container must be disabled when animationType is none');
+    assert.strictEqual(animUiResults.speedNoneLabel, 'Мгновенно');
+    assert.strictEqual(animUiResults.configAfterNone.animationType, 'none');
+
+    assert.strictEqual(animUiResults.profileBeforeAnim, 'Просмотр контента');
+    assert.strictEqual(animUiResults.profileAfterAnim, 'Просмотр контента', 'Profile must remain content when animation changes');
+    assert.strictEqual(animUiResults.presetBeforeAnim, 'Компактный');
+    assert.strictEqual(animUiResults.presetAfterAnim, 'Компактный', 'Preset must remain compact when animation changes');
+
+    assert.strictEqual(animUiResults.restoredTypeActive, true);
+    assert.strictEqual(animUiResults.restoredSliderVal, '400');
+    assert.strictEqual(animUiResults.restoredLabel, 'Плавно · 400 мс');
+    console.log('✔ Desktop UI animation controls, speed presets, slider, and profile/preset independence verified');
+
+    // 17.8 Overlay DOM Lifecycle and Transition Invariants (Requirement #24)
+    console.log('17.8 Testing Overlay DOM Lifecycle states (entering -> visible -> exiting -> removed)...');
+    const lifecycleResult = await overlayWin.webContents.executeJavaScript(`
+      new Promise(resolve => {
+        if (typeof events !== 'undefined' && typeof handleConfig === 'function') {
+          events.removeEventListener('config', handleConfig);
+        }
+        const animCfg = { animationType: 'fade', animationDurationMs: 200, durationSeconds: 0, maxMessages: 5 };
+        applyConfig(animCfg);
+        const container = document.querySelector('#messages');
+        container.innerHTML = '';
+        window.activeMessages.length = 0;
+        window.cardsByEventId.clear();
+
+        // 1. Live SSE arrival
+        handleMessage({
+          data: JSON.stringify({
+            eventId: 'anim-live-1',
+            author: 'Тестер',
+            text: 'Проверка жизненного цикла анимации',
+            receivedAt: Date.now()
+          })
+        }, { animate: true, config: animCfg });
+
+        const card = container.querySelector('.message');
+        const stateEntering = {
+          hasEnterClass: card?.classList.contains('message-enter'),
+          lifecycle: card?.dataset.lifecycle,
+          hasDisappearing: card?.classList.contains('disappearing')
+        };
+
+        // 2. Wait for enter animation to settle (200ms duration)
+        setTimeout(() => {
+          const stateVisible = {
+            hasEnterClass: card?.classList.contains('message-enter'),
+            hasVisibleClass: card?.classList.contains('message-visible'),
+            lifecycle: card?.dataset.lifecycle,
+            hasDisappearing: card?.classList.contains('disappearing')
+          };
+
+          // 3. Trigger removal (exit animation)
+          removeMessage(card, { config: animCfg });
+          const stateExiting = {
+            hasExitClass: card?.classList.contains('message-exit'),
+            hasDisappearing: card?.classList.contains('disappearing'),
+            lifecycle: card?.dataset.lifecycle
+          };
+
+          // 4. Wait for exit animation to complete and DOM card removal
+          setTimeout(() => {
+            const stateRemoved = {
+              inDom: container.contains(card),
+              remainingCards: container.querySelectorAll('.message').length
+            };
+
+            // 5. Test animation: 'none' immediate removal
+            applyConfig({ animationType: 'none' });
+            handleMessage({
+              data: JSON.stringify({
+                eventId: 'anim-none-1',
+                author: 'Тестер2',
+                text: 'Проверка none',
+                receivedAt: Date.now()
+              })
+            }, { animate: false });
+            const cardNone = container.querySelector('.message');
+            const noneEnterState = {
+              hasEnterClass: cardNone?.classList.contains('message-enter'),
+              lifecycle: cardNone?.dataset.lifecycle
+            };
+            removeMessage(cardNone, { config: { animationType: 'none' } });
+            const noneRemovedImmediately = !container.contains(cardNone);
+
+            if (typeof events !== 'undefined' && typeof handleConfig === 'function') {
+              events.addEventListener('config', handleConfig);
+            }
+
+            resolve({
+              stateEntering,
+              stateVisible,
+              stateExiting,
+              stateRemoved,
+              noneEnterState,
+              noneRemovedImmediately
+            });
+          }, 240);
+        }, 240);
+      })
+    `);
+
+    assert.strictEqual(lifecycleResult.stateEntering.hasEnterClass, true, 'New card must get .message-enter class');
+    assert.strictEqual(lifecycleResult.stateEntering.lifecycle, 'entering', 'Card dataset.lifecycle must be entering');
+    assert.strictEqual(lifecycleResult.stateEntering.hasDisappearing, false);
+
+    assert.strictEqual(lifecycleResult.stateVisible.hasEnterClass, false, '.message-enter must be removed after duration');
+    assert.strictEqual(lifecycleResult.stateVisible.hasVisibleClass, true, '.message-visible must be added after duration');
+    assert.strictEqual(lifecycleResult.stateVisible.lifecycle, 'visible', 'Card dataset.lifecycle must be visible');
+
+    assert.strictEqual(lifecycleResult.stateExiting.hasExitClass, true, '.message-exit must be added on removal');
+    assert.strictEqual(lifecycleResult.stateExiting.hasDisappearing, true, '.disappearing must be added on removal');
+    assert.strictEqual(lifecycleResult.stateExiting.lifecycle, 'exiting', 'Card dataset.lifecycle must be exiting');
+
+    assert.strictEqual(lifecycleResult.stateRemoved.inDom, false, 'Card must be removed from DOM after exit duration');
+    assert.strictEqual(lifecycleResult.stateRemoved.remainingCards, 0);
+
+    assert.strictEqual(lifecycleResult.noneEnterState.hasEnterClass, false, 'Animation none must not add .message-enter');
+    assert.strictEqual(lifecycleResult.noneEnterState.lifecycle, 'visible', 'Animation none must immediately be visible');
+    assert.strictEqual(lifecycleResult.noneRemovedImmediately, true, 'Animation none must remove DOM card immediately');
+    console.log('✔ Full animation DOM lifecycle (entering -> visible -> exiting -> removed) verified');
+
+    // 18. Testing Canonical Boosty Asset & Sticky Live Preview Scroll UX
+    console.log('18. Testing Canonical Boosty Asset & Sticky Live Preview Scroll UX...');
+
+    // 18.1 Canonical Boosty Asset verification in Desktop DOM
+    const boostyAssetCheck = await desktopWin.webContents.executeJavaScript(`
+      (() => {
+        const symbol = document.querySelector('#icon-boosty');
+        const viewBox = symbol ? symbol.getAttribute('viewBox') : null;
+        const logo = document.querySelector('.sidebar-header .logo');
+        const logoIcon = logo ? logo.querySelector('.logo-icon') : null;
+        const dashPillIcon = document.querySelector('#dash-boosty-pill use')?.getAttribute('href');
+
+        return {
+          viewBox,
+          hasLogoIcon: Boolean(logoIcon),
+          dashPillUsesBoosty: dashPillIcon === '#icon-boosty'
+        };
+      })()
+    `);
+    assert.strictEqual(boostyAssetCheck.viewBox, '0 0 235.6 292.2', 'Canonical Boosty viewBox must be 0 0 235.6 292.2');
+    assert.strictEqual(boostyAssetCheck.hasLogoIcon, true, 'Sidebar logo must contain canonical .logo-icon SVG');
+    assert.strictEqual(boostyAssetCheck.dashPillUsesBoosty, true, 'Dashboard boosty pill must use #icon-boosty');
+    console.log('✔ Canonical Boosty asset in symbol and sidebar verified');
+
+    // 18.2 Sticky Live Preview on 1280x850
+    desktopWin.setContentSize(1280, 850);
+    await new Promise(r => setTimeout(r, 120));
+
+    // Scroll down by 800px into card/text settings
+    const scroll800Result = await desktopWin.webContents.executeJavaScript(`
+      (async () => {
+        window.scrollTo(0, 800);
+        await new Promise(r => setTimeout(r, 100));
+
+        const header = document.querySelector('.content-header').getBoundingClientRect();
+        const preview = document.querySelector('#sticky-preview-container').getBoundingClientRect();
+        const scrollY = window.scrollY;
+
+        return {
+          scrollY,
+          headerBottom: header.bottom,
+          previewTop: preview.top,
+          previewBottom: preview.bottom,
+          gap: preview.top - header.bottom,
+          fitsInViewport: preview.bottom <= window.innerHeight,
+          noHScroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth
+        };
+      })()
+    `);
+
+    assert.ok(scroll800Result.scrollY > 0, 'Page must be scrolled down');
+    assert.ok(scroll800Result.gap >= 16, 'Sticky preview top must have spacing below header bottom');
+    assert.strictEqual(scroll800Result.fitsInViewport, true, 'Sticky preview must fit within 1280x850 viewport');
+    assert.strictEqual(scroll800Result.noHScroll, true, 'Must have zero horizontal scroll');
+    console.log('✔ Sticky preview persistence at scrollY=800 verified');
+
+    // 18.3 Drag & Drop while scrolled down
+    const dragScrolledResult = await desktopWin.webContents.executeJavaScript(`
+      (async () => {
+        window.scrollTo(0, 800);
+        await new Promise(r => setTimeout(r, 60));
+
+        const hitbox = document.querySelector('#chat-drag-hitbox');
+        const wrapper = document.querySelector('#preview-scale-wrapper');
+        const initialBox = hitbox.getBoundingClientRect();
+        const wrapperBox = wrapper.getBoundingClientRect();
+
+        const startX = initialBox.left + initialBox.width / 2;
+        const startY = initialBox.top + initialBox.height / 2;
+        const targetX = wrapperBox.left + wrapperBox.width * 0.85;
+        const targetY = wrapperBox.top + wrapperBox.height * 0.15;
+
+        hitbox.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true, cancelable: true, clientX: startX, clientY: startY, button: 0, pointerId: 1
+        }));
+
+        hitbox.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, cancelable: true, clientX: targetX, clientY: targetY, button: 0, pointerId: 1
+        }));
+
+        hitbox.dispatchEvent(new PointerEvent('pointerup', {
+          bubbles: true, cancelable: true, clientX: targetX, clientY: targetY, button: 0, pointerId: 1
+        }));
+
+        await new Promise(r => setTimeout(r, 60));
+
+        const activeCorner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+        const offsetX = Number(document.querySelector('#offset-x')?.value);
+        const offsetY = Number(document.querySelector('#offset-y')?.value);
+
+        return { activeCorner, offsetX, offsetY };
+      })()
+    `);
+    assert.strictEqual(dragScrolledResult.activeCorner, 'right-top', 'Drag while scrolled must switch corner to right-top');
+    console.log('✔ Drag & Drop while scrolled down verified (switched to right-top)');
+
+    // Reset layout position
+    await desktopWin.webContents.executeJavaScript(`
+      document.querySelector('#layout-reset-btn')?.click();
+      window.scrollTo(0, 0);
+    `);
+    await new Promise(r => setTimeout(r, 80));
+
+    // 18.4 Sticky preview on 1000x750 viewport
+    desktopWin.setContentSize(1000, 750);
+    await new Promise(r => setTimeout(r, 100));
+
+    const scroll1000Result = await desktopWin.webContents.executeJavaScript(`
+      (async () => {
+        window.scrollTo(0, 600);
+        await new Promise(r => setTimeout(r, 100));
+
+        const header = document.querySelector('.content-header').getBoundingClientRect();
+        const preview = document.querySelector('#sticky-preview-container').getBoundingClientRect();
+
+        return {
+          scrollY: window.scrollY,
+          previewTop: preview.top,
+          previewBottom: preview.bottom,
+          fitsInViewport: preview.bottom <= window.innerHeight,
+          gap: preview.top - header.bottom
+        };
+      })()
+    `);
+    assert.ok(scroll1000Result.gap >= 16, '1000x750 sticky preview must stay below header');
+    assert.strictEqual(scroll1000Result.fitsInViewport, true, '1000x750 sticky preview must fit in viewport');
+    console.log('✔ Sticky preview on 1000x750 verified');
+
+    desktopWin.setContentSize(800, 650);
+    await desktopWin.webContents.executeJavaScript(`
+      new Promise(resolve => {
+        const start = Date.now();
+        const check = () => {
+          if (window.innerWidth <= 899 || Date.now() - start > 1500) {
+            return resolve();
+          }
+          requestAnimationFrame(check);
+        };
+        check();
+      })
+    `);
+
+    const compactResult = await desktopWin.webContents.executeJavaScript(`
+      (() => {
+        const preview = document.querySelector('#sticky-preview-container');
+        const style = window.getComputedStyle(preview);
+        const isRelative = style.position === 'relative';
+        const noHScroll = document.documentElement.scrollWidth <= document.documentElement.clientWidth;
+        return { isRelative, position: style.position, noHScroll, innerWidth: window.innerWidth };
+      })()
+    `);
+    assert.strictEqual(compactResult.isRelative, true, 'Sticky must be disabled (position: relative) on 800x650');
+    assert.strictEqual(compactResult.noHScroll, true, '800x650 must not have horizontal scroll');
+    console.log('✔ 800x650 compact mode verifies sticky disabled and zero horizontal overflow');
 
     console.log('\n======================================================');
     console.log(' All Overlay Layout & Positioning v1 tests PASSED! ');

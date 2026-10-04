@@ -16,6 +16,30 @@ let lastSavedConfig = null;
 let appVersion = '0.4.0';
 let hasObsExecutableCached = true;
 
+// --- Connectivity Progress & ETA Timing State ---
+const appStartTime = Date.now();
+let serverReadyAt = appStartTime;
+let extensionDetectedAt = null;
+let boostyTabDetectedAt = null;
+let chatDetectedAt = null;
+let readyAt = null;
+let reconnectStartTime = null;
+let recoveryDurationMs = null;
+let recoveryTimestamp = null;
+let simulatedStartupTiming = null;
+let progressTicker = null;
+const RECOVERY_FLASH_DURATION_MS = 2000;
+
+function getStartupElapsedMs() {
+  if (simulatedStartupTiming && typeof simulatedStartupTiming.elapsedMs === 'number') {
+    return simulatedStartupTiming.elapsedMs;
+  }
+  if (reconnectStartTime) {
+    return Date.now() - reconnectStartTime;
+  }
+  return Date.now() - appStartTime;
+}
+
 // --- Russian Time Formatting Helper ---
 function formatTimeAgo(timestamp) {
   if (!timestamp) return '';
@@ -132,6 +156,8 @@ function showView(viewName) {
   if (targetView === 'appearance') {
     initPreviewIframe();
     updatePreviewScale();
+    initDragAndDropPositioning();
+    updateHitboxGeometry();
   }
 
   if (window.boostyAudit) {
@@ -286,8 +312,9 @@ function renderStatusHubUi() {
     return;
   }
 
-  const isExtActive = Boolean(latestHealth && latestHealth.extensionConnected);
-  const isChecking = !isExtActive && Date.now() < checkGraceDeadline;
+  const isExtActive = Boolean(latestHealth && (latestHealth.extensionConnected || latestHealth.extension?.state === 'connected'));
+  const isBoostyActive = Boolean(latestHealth && (latestHealth.boostyConnected || latestHealth.boosty?.state === 'chat-detected' || latestHealth.boosty?.state === 'tab-detected'));
+  const isChecking = (!isExtActive || !isBoostyActive) && Date.now() < checkGraceDeadline;
 
   const obsState = {
     ...(latestObsStatus || {}),
@@ -296,11 +323,23 @@ function renderStatusHubUi() {
       : (latestObsScenes || []),
   };
 
+  const elapsedMs = getStartupElapsedMs();
+  const isRecoveredRecently = simulatedStartupTiming?.isRecoveredRecently !== undefined
+    ? simulatedStartupTiming.isRecoveredRecently
+    : Boolean(recoveryTimestamp && (Date.now() - recoveryTimestamp < RECOVERY_FLASH_DURATION_MS));
+
+  const effRecoveryDuration = simulatedStartupTiming?.recoveryDurationMs !== undefined
+    ? simulatedStartupTiming.recoveryDurationMs
+    : recoveryDurationMs;
+
   const derived = BoostyStatusHub.deriveSystemStatus({
     health: latestHealth || {},
     obs: obsState,
     hasObsExecutable: typeof hasObsExecutableCached === 'boolean' ? hasObsExecutableCached : true,
     isChecking,
+    elapsedMs,
+    recoveryDurationMs: effRecoveryDuration,
+    isRecoveredRecently,
   });
 
   // 1. OBS Pill
@@ -432,6 +471,7 @@ function renderObsUi(result) {
 
     updateObsActionButton('#ob-obs-scene-select', '#ob-add-obs-btn');
     updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
+    updateObsCanvasStatusUi(null);
     updateContextualActionCard();
     renderStatusHubUi();
     return;
@@ -487,8 +527,76 @@ function renderObsUi(result) {
   updateObsActionButton('#ob-obs-scene-select', '#ob-add-obs-btn');
   updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
   updateObsStep3State();
+  updateObsCanvasStatusUi(result);
   updateContextualActionCard();
   renderStatusHubUi();
+}
+
+function updateObsCanvasStatusUi(result) {
+  const canvasPanel = document.querySelector('#obs-canvas-status-panel');
+  const panelIndicator = document.querySelector('#obs-canvas-status-indicator');
+  const panelTitle = document.querySelector('#obs-canvas-status-title');
+  const panelDesc = document.querySelector('#obs-canvas-status-desc');
+  const panelBtn = document.querySelector('#obs-fit-canvas-btn');
+
+  const layoutHint = document.querySelector('#layout-canvas-hint');
+  const layoutIcon = document.querySelector('#layout-canvas-hint-icon');
+  const layoutText = document.querySelector('#layout-canvas-hint-text');
+  const layoutBtn = document.querySelector('#layout-fit-canvas-btn');
+
+  const isConnected = Boolean(result && result.ok && result.connected);
+
+  if (!isConnected) {
+    if (canvasPanel) setDomDisplay(canvasPanel, 'none');
+    if (layoutHint) setDomClass(layoutHint, 'layout-canvas-hint');
+    if (layoutIcon) setDomText(layoutIcon, '💡');
+    if (layoutText) {
+      setDomText(layoutText, 'Положение чата рассчитывается относительно области Browser Source в OBS. Для предсказуемого результата источник рекомендуется подогнать под весь холст OBS.');
+    }
+    if (layoutBtn) setDomDisplay(layoutBtn, 'none');
+    return;
+  }
+
+  const cs = result?.canvasStatus || {};
+  const isCanonical = cs.canonical !== false;
+  const baseW = cs.baseWidth || 1920;
+  const baseH = cs.baseHeight || 1080;
+  const inputW = cs.inputWidth || baseW;
+  const inputH = cs.inputHeight || baseH;
+  const scaleX = cs.scaleX;
+
+  if (canvasPanel) setDomDisplay(canvasPanel, 'flex');
+
+  if (isCanonical) {
+    if (canvasPanel) setDomClass(canvasPanel, 'canvas-status-panel canonical');
+    if (panelIndicator) setDomText(panelIndicator, '✓');
+    if (panelTitle) setDomText(panelTitle, `Размер оверлея совпадает с холстом OBS (${baseW}×${baseH})`);
+    if (panelDesc) setDomText(panelDesc, 'Источник отображается 1:1 без искажений. Настроено правильно.');
+    if (panelBtn) setDomDisplay(panelBtn, 'none');
+
+    if (layoutHint) setDomClass(layoutHint, 'layout-canvas-hint canonical');
+    if (layoutIcon) setDomText(layoutIcon, '✓');
+    if (layoutText) {
+      setDomText(layoutText, `Оверлей занимает весь холст OBS (${baseW}×${baseH}) — положение чата на стриме совпадает с предпросмотром.`);
+    }
+    if (layoutBtn) setDomDisplay(layoutBtn, 'none');
+  } else {
+    if (canvasPanel) setDomClass(canvasPanel, 'canvas-status-panel warning');
+    if (panelIndicator) setDomText(panelIndicator, '⚠');
+    if (panelTitle) setDomText(panelTitle, 'Размер источника в OBS отличается от холста');
+    const scaleInfo = (scaleX && Math.abs(scaleX - 1) > 0.01) ? `, масштаб: ${Number(scaleX).toFixed(2)}×` : '';
+    if (panelDesc) {
+      setDomText(panelDesc, `Холст: ${baseW}×${baseH}, источник: ${inputW}×${inputH}${scaleInfo}. Текст и позиция могут масштабироваться средствами OBS.`);
+    }
+    if (panelBtn) setDomDisplay(panelBtn, 'inline-flex');
+
+    if (layoutHint) setDomClass(layoutHint, 'layout-canvas-hint warning');
+    if (layoutIcon) setDomText(layoutIcon, '⚠');
+    if (layoutText) {
+      setDomText(layoutText, `Размер источника в OBS (${inputW}×${inputH}) отличается от холста (${baseW}×${baseH}). Из-за этого текст и позиция могут масштабироваться средствами OBS.`);
+    }
+    if (layoutBtn) setDomDisplay(layoutBtn, 'inline-block');
+  }
 }
 
 function updateObsStep3State() {
@@ -517,37 +625,46 @@ async function loadObsScenes() {
 
 // --- Contextual Action Card & Readiness State ---
 function getSystemReadiness() {
-  const isExtConnected = Boolean(latestHealth?.extensionConnected);
-  const isBoostyConnected = Boolean(latestHealth?.boostyConnected);
-  const isObsConnected = Boolean(latestObsStatus?.connected);
-  const isChecking = !isExtConnected && Date.now() < checkGraceDeadline;
+  const isExtActive = Boolean(latestHealth && (latestHealth.extensionConnected || latestHealth.extension?.state === 'connected'));
+  const isBoostyActive = Boolean(latestHealth && (latestHealth.boostyConnected || latestHealth.boosty?.state === 'chat-detected' || latestHealth.boosty?.state === 'tab-detected'));
+  const isChecking = (!isExtActive || !isBoostyActive) && Date.now() < checkGraceDeadline;
+
+  const obsState = {
+    ...(latestObsStatus || {}),
+    scenes: (latestObsStatus && Array.isArray(latestObsStatus.scenes) && latestObsStatus.scenes.length > 0)
+      ? latestObsStatus.scenes
+      : (latestObsScenes || []),
+  };
+
+  const elapsedMs = getStartupElapsedMs();
+  const isRecoveredRecently = simulatedStartupTiming?.isRecoveredRecently !== undefined
+    ? simulatedStartupTiming.isRecoveredRecently
+    : Boolean(recoveryTimestamp && (Date.now() - recoveryTimestamp < RECOVERY_FLASH_DURATION_MS));
+
+  const effRecoveryDuration = simulatedStartupTiming?.recoveryDurationMs !== undefined
+    ? simulatedStartupTiming.recoveryDurationMs
+    : recoveryDurationMs;
+
+  if (typeof BoostyStatusHub !== 'undefined' && typeof BoostyStatusHub.deriveSystemStatus === 'function') {
+    const derived = BoostyStatusHub.deriveSystemStatus({
+      health: latestHealth || {},
+      obs: obsState,
+      hasObsExecutable: typeof hasObsExecutableCached === 'boolean' ? hasObsExecutableCached : true,
+      isChecking,
+      elapsedMs,
+      recoveryDurationMs: effRecoveryDuration,
+      isRecoveredRecently,
+    });
+    return derived.overall;
+  }
 
   if (isChecking) {
-    return { status: 'connecting', title: 'Проверяем подключения…', desc: 'Ищем расширение браузера…' };
+    return { status: 'connecting', title: 'Восстанавливаем подключение', desc: 'Проверяем браузер и расширение…' };
   }
-  if (isExtConnected && isBoostyConnected && isObsConnected) {
+  if (isExtActive && isBoostyActive && Boolean(latestObsStatus?.connected)) {
     return { status: 'ready', title: 'Готово к стриму', desc: 'Boosty и OBS подключены' };
   }
-
-  let missingCount = 0;
-  if (!isExtConnected) missingCount++;
-  if (!isBoostyConnected) missingCount++;
-  if (!isObsConnected) missingCount++;
-
-  if (missingCount > 1) {
-    if (!isExtConnected) {
-      return { status: 'setup-required', title: 'Требуется настройка', desc: `Нужно исправить ${missingCount} пункта` };
-    }
-    return { status: 'setup-required', title: 'Требуется настройка', desc: 'Подключите Boosty и OBS' };
-  }
-
-  if (!isObsConnected) {
-    return { status: 'setup-required', title: 'Требуется настройка', desc: 'Нужно подключить OBS' };
-  }
-  if (!isBoostyConnected) {
-    return { status: 'setup-required', title: 'Требуется настройка', desc: 'Откройте вкладку со стримом Boosty' };
-  }
-  return { status: 'setup-required', title: 'Требуется настройка', desc: 'Нужно подключить расширение' };
+  return { status: 'setup-required', title: 'Требуется настройка', desc: 'Подключите компоненты для запуска чата' };
 }
 
 function updateContextualActionCard() {
@@ -555,15 +672,53 @@ function updateContextualActionCard() {
   const readinessBanner = document.querySelector('#readiness-status');
   const readinessTitle = document.querySelector('#readiness-title');
   const readinessDesc = document.querySelector('#readiness-desc');
+  const milestonesContainer = document.querySelector('#readiness-milestones');
+  const progressEtaContainer = document.querySelector('#readiness-progress-eta');
+  const elapsedEl = document.querySelector('#readiness-elapsed');
+  const expectedEl = document.querySelector('#readiness-expected');
 
   if (readinessBanner) {
-    setDomClass(readinessBanner, `readiness-banner ${readiness.status}`);
+    let bannerClasses = `readiness-banner ${readiness.status}`;
+    if (readiness.progress?.isLongerThanUsual) {
+      bannerClasses += ' longer-than-usual';
+    }
+    if (readiness.progress?.phase === 'recovered') {
+      bannerClasses += ' recovered';
+    }
+    setDomClass(readinessBanner, bannerClasses);
   }
-  if (readinessTitle) setDomText(readinessTitle, readiness.title);
-  if (readinessDesc) setDomText(readinessDesc, readiness.desc);
 
-  const isExtConnected = Boolean(latestHealth?.extensionConnected);
-  const isBoostyConnected = Boolean(latestHealth?.boostyConnected);
+  if (readinessTitle) setDomText(readinessTitle, readiness.title);
+
+  if (readiness.status === 'connecting' && readiness.progress?.milestones?.length) {
+    if (readinessDesc) setDomDisplay(readinessDesc, 'none');
+    if (milestonesContainer) {
+      setDomDisplay(milestonesContainer, 'flex');
+      milestonesContainer.innerHTML = '';
+      for (const m of readiness.progress.milestones) {
+        const item = document.createElement('span');
+        item.className = `milestone ${m.state}`;
+        const iconSymbol = m.state === 'done' ? '✓' : (m.state === 'active' ? '●' : '○');
+        item.innerHTML = `<span class="m-icon">${iconSymbol}</span> <span>${m.label}</span>`;
+        milestonesContainer.append(item);
+      }
+    }
+    if (progressEtaContainer) {
+      setDomDisplay(progressEtaContainer, 'flex');
+      if (elapsedEl) setDomText(elapsedEl, readiness.progress.elapsedText || '');
+      if (expectedEl) setDomText(expectedEl, readiness.progress.expectedText || '');
+    }
+  } else {
+    if (milestonesContainer) setDomDisplay(milestonesContainer, 'none');
+    if (progressEtaContainer) setDomDisplay(progressEtaContainer, 'none');
+    if (readinessDesc) {
+      setDomDisplay(readinessDesc, 'block');
+      setDomText(readinessDesc, readiness.desc);
+    }
+  }
+
+  const isExtConnected = Boolean(latestHealth && (latestHealth.extensionConnected || latestHealth.extension?.state === 'connected'));
+  const isBoostyConnected = Boolean(latestHealth && (latestHealth.boostyConnected || latestHealth.boosty?.state === 'chat-detected' || latestHealth.boosty?.state === 'tab-detected'));
   const isObsConnected = Boolean(latestObsStatus?.connected);
   const isChecking = readiness.status === 'connecting';
 
@@ -611,7 +766,14 @@ function updateContextualActionCard() {
 
   if (meta) setDomDisplay(meta, 'none');
 
-  if (!isExtConnected && !isChecking) {
+  if (isChecking) {
+    if (icon) icon.innerHTML = '<svg class="icon-svg icon-lg" aria-hidden="true"><use href="#icon-clock"/></svg>';
+    if (title) setDomText(title, readiness.title || 'Восстанавливаем подключение');
+    if (desc) setDomText(desc, readiness.desc || 'Проверяем браузер и расширение…');
+    return;
+  }
+
+  if (!isExtConnected) {
     if (icon) icon.innerHTML = '<svg class="icon-svg icon-lg" aria-hidden="true"><use href="#icon-extension"/></svg>';
     if (title) setDomText(title, 'Установи расширение');
     if (desc) setDomText(desc, 'Оно читает сообщения из открытого чата Boosty и передаёт их локально приложению.');
@@ -634,7 +796,7 @@ function updateContextualActionCard() {
     return;
   }
 
-  if (!isBoostyConnected && !isChecking) {
+  if (!isBoostyConnected) {
     if (icon) icon.innerHTML = '<svg class="icon-svg icon-lg" aria-hidden="true"><use href="#icon-boosty"/></svg>';
     if (title) setDomText(title, 'Открой стрим Boosty');
     if (desc) setDomText(desc, 'Расширение установлено, но вкладка со стримом сейчас не найдена.');
@@ -650,7 +812,7 @@ function updateContextualActionCard() {
     return;
   }
 
-  if (!isObsConnected && !isChecking) {
+  if (!isObsConnected) {
     if (icon) icon.innerHTML = '<svg class="icon-svg icon-lg" aria-hidden="true"><use href="#icon-obs"/></svg>';
     if (title) setDomText(title, 'Подключи OBS Studio');
     if (desc) setDomText(desc, 'Boosty уже работает. Осталось подключить OBS, чтобы вывести чат на сцену.');
@@ -672,11 +834,6 @@ function updateContextualActionCard() {
     actionsContainer.append(connectObsBtn, launchBtn);
     return;
   }
-
-  // Connecting / checking state
-  if (icon) icon.innerHTML = '<svg class="icon-svg icon-lg" aria-hidden="true"><use href="#icon-clock"/></svg>';
-  if (title) setDomText(title, 'Проверяем подключения…');
-  if (desc) setDomText(desc, 'Ищем расширение браузера и связь с OBS Studio…');
 }
 
 // --- Live Preview Controller ---
@@ -689,15 +846,21 @@ const PREVIEW_FIXTURES = [
   },
   {
     id: 'prev-2',
-    author: 'ОченьДлинноеИмяПользователя',
-    text: 'Проверяем, как выглядит более длинное сообщение в несколько строк.',
-    avatar: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="%233a86ff"/><text x="50%" y="55%" font-size="18" text-anchor="middle" fill="white" dy=".3em">О</text></svg>',
+    author: 'Мария',
+    text: 'Очень крутой момент сейчас был!',
+    avatar: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="%238b5cf6"/><text x="50%" y="55%" font-size="18" text-anchor="middle" fill="white" dy=".3em">М</text></svg>',
   },
   {
     id: 'prev-3',
     author: 'Streamer_123',
     text: '🚀🎉',
     avatar: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="%2310b981"/><text x="50%" y="55%" font-size="18" text-anchor="middle" fill="white" dy=".3em">S</text></svg>',
+  },
+  {
+    id: 'prev-4',
+    author: 'ОченьДлинноеИмяПользователя',
+    text: 'Проверяем, как выглядит более длинное сообщение в несколько строк.',
+    avatar: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="%233a86ff"/><text x="50%" y="55%" font-size="18" text-anchor="middle" fill="white" dy=".3em">О</text></svg>',
   },
 ];
 
@@ -733,21 +896,269 @@ function initPreviewIframe() {
   }
 }
 
+// --- Positioning Math Reference ---
+const Positioning = (typeof BoostyPositioning !== 'undefined')
+  ? BoostyPositioning
+  : (typeof require === 'function' ? require('../core/layout/positioning.js') : null);
+
+// --- Stream Profiles Reference ---
+const Profiles = (typeof BoostyProfiles !== 'undefined')
+  ? BoostyProfiles
+  : (typeof require === 'function' ? require('../core/config/profiles.js') : null);
+
+// --- Visual Overlay Positioning Drag & Drop State ---
+let isHitboxDragging = false;
+let dragPointerId = null;
+let dragGrabOffsetX = 0;
+let dragGrabOffsetY = 0;
+let currentHitboxBox = { left: 20, top: 800, width: 548, height: 260 };
+
+function getHitboxElements() {
+  return {
+    hitbox: document.querySelector('#chat-drag-hitbox'),
+    dragLayer: document.querySelector('#preview-drag-layer'),
+    wrapper: document.querySelector('#preview-scale-wrapper'),
+    backdrop: document.querySelector('#preview-backdrop'),
+    guideX: document.querySelector('#guide-center-x'),
+    guideY: document.querySelector('#guide-center-y'),
+    badgeAnchor: document.querySelector('#drag-badge-anchor'),
+    badgeCoords: document.querySelector('#drag-badge-coords'),
+    iframe: document.querySelector('#preview-iframe'),
+  };
+}
+
+function updateBadgeText(anchorText, offsetX, offsetY) {
+  const { badgeAnchor, badgeCoords } = getHitboxElements();
+  if (badgeAnchor) setDomText(badgeAnchor, anchorText);
+  if (badgeCoords) setDomText(badgeCoords, `X: ${offsetX} · Y: ${offsetY}`);
+}
+
+function updateHitboxGeometry(config = gatherCurrentConfig()) {
+  const { hitbox, iframe } = getHitboxElements();
+  if (!hitbox || !Positioning) return;
+
+  let boxWidth = (config.cardWidth || 520) + 28;
+  let boxHeight = 260;
+
+  try {
+    const doc = iframe?.contentDocument;
+    const container = doc?.querySelector('#messages');
+    if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
+      boxWidth = container.offsetWidth;
+      boxHeight = container.offsetHeight;
+    }
+  } catch {}
+
+  const pos = Positioning.positionFromConfig(config, { width: boxWidth, height: boxHeight });
+  hitbox.style.left = `${pos.left}px`;
+  hitbox.style.top = `${pos.top}px`;
+  hitbox.style.width = `${pos.width}px`;
+  hitbox.style.height = `${pos.height}px`;
+  hitbox.classList.toggle('badge-bottom', pos.top < 60);
+
+  currentHitboxBox = { left: pos.left, top: pos.top, width: pos.width, height: pos.height };
+  const cornerKey = `${config.horizontalAnchor || 'left'}-${config.verticalAnchor || 'bottom'}`;
+  updateBadgeText(CORNER_LABELS[cornerKey] || 'Слева снизу', config.offsetX, config.offsetY);
+}
+
+let dragDropInitialized = false;
+
+function initDragAndDropPositioning() {
+  if (dragDropInitialized) return;
+  const { hitbox, wrapper, guideX, guideY, iframe, dragLayer } = getHitboxElements();
+  if (!hitbox || !wrapper || !Positioning) return;
+  dragDropInitialized = true;
+
+  function onPointerDown(event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+
+    isHitboxDragging = true;
+    dragPointerId = event.pointerId;
+
+    if (typeof hitbox.setPointerCapture === 'function') {
+      try {
+        hitbox.setPointerCapture(event.pointerId);
+      } catch {}
+    }
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const scale = Math.min(wrapperRect.width / 1920, wrapperRect.height / 1080) || 1;
+    const logicalX = (event.clientX - wrapperRect.left) / scale;
+    const logicalY = (event.clientY - wrapperRect.top) / scale;
+
+    const currentLeft = parseFloat(hitbox.style.left) || currentHitboxBox.left || 0;
+    const currentTop = parseFloat(hitbox.style.top) || currentHitboxBox.top || 0;
+
+    dragGrabOffsetX = logicalX - currentLeft;
+    dragGrabOffsetY = logicalY - currentTop;
+
+    hitbox.classList.add('is-dragging');
+    dragLayer?.classList.add('is-dragging');
+  }
+
+  function onPointerMove(event) {
+    if (!isHitboxDragging || (dragPointerId !== null && event.pointerId !== dragPointerId)) return;
+    event.preventDefault();
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const scale = Math.min(wrapperRect.width / 1920, wrapperRect.height / 1080) || 1;
+    const logicalX = (event.clientX - wrapperRect.left) / scale;
+    const logicalY = (event.clientY - wrapperRect.top) / scale;
+
+    const rawLeft = logicalX - dragGrabOffsetX;
+    const rawTop = logicalY - dragGrabOffsetY;
+
+    // 1. Soft snapping to center lines and standard corner edge offsets
+    const { position: snappedPos, guides } = Positioning.snapPosition({
+      left: rawLeft,
+      top: rawTop,
+      width: currentHitboxBox.width,
+      height: currentHitboxBox.height,
+    });
+
+    // 2. Clamping strictly inside 1920x1080
+    const clamped = Positioning.clampPosition(snappedPos);
+
+    // 3. Derive production config { horizontalAnchor, verticalAnchor, offsetX, offsetY }
+    const derived = Positioning.configFromPosition(clamped);
+
+    // Update hitbox in DOM
+    hitbox.style.left = `${clamped.left}px`;
+    hitbox.style.top = `${clamped.top}px`;
+    hitbox.classList.toggle('badge-bottom', clamped.top < 60);
+
+    // Update center guide lines
+    if (guideX) guideX.classList.toggle('snapped', guides.snapCenterX);
+    if (guideY) guideY.classList.toggle('snapped', guides.snapCenterY);
+
+    // Update live badge text
+    const cornerKey = `${derived.horizontalAnchor}-${derived.verticalAnchor}`;
+    updateBadgeText(CORNER_LABELS[cornerKey] || 'Слева снизу', derived.offsetX, derived.offsetY);
+
+    // Live update profile UI (drag alters position -> profile becomes Custom)
+    const liveConfig = { ...gatherCurrentConfig(), ...derived };
+    const liveProfile = Profiles ? Profiles.detectProfile(liveConfig) : null;
+    updateProfileUi(liveProfile);
+
+    // 4. Update sidebar controls in real time
+    if (appearanceInputs.offsetX) appearanceInputs.offsetX.value = derived.offsetX;
+    if (appearanceInputs.offsetXSlider) appearanceInputs.offsetXSlider.value = derived.offsetX;
+    if (appearanceInputs.offsetY) appearanceInputs.offsetY.value = derived.offsetY;
+    if (appearanceInputs.offsetYSlider) appearanceInputs.offsetYSlider.value = derived.offsetY;
+    setDomText(document.querySelector('#offset-x-val'), String(derived.offsetX));
+    setDomText(document.querySelector('#offset-y-val'), String(derived.offsetY));
+
+    document.querySelectorAll('.corner-btn').forEach(btn => {
+      const isMatch = btn.getAttribute('data-corner') === cornerKey;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-pressed', String(isMatch));
+    });
+    setDomText(document.querySelector('#corner-active-label'), CORNER_LABELS[cornerKey] || 'Слева снизу');
+
+    // 5. Update iframe live preview directly for 60fps smoothness
+    try {
+      const doc = iframe?.contentDocument;
+      if (doc) {
+        const rootEl = doc.documentElement;
+        rootEl.style.setProperty('--overlay-offset-x', `${derived.offsetX}px`);
+        rootEl.style.setProperty('--overlay-offset-y', `${derived.offsetY}px`);
+        const msgContainer = doc.querySelector('#messages');
+        if (msgContainer) {
+          msgContainer.classList.toggle('anchor-left', derived.horizontalAnchor === 'left');
+          msgContainer.classList.toggle('anchor-right', derived.horizontalAnchor === 'right');
+          msgContainer.classList.toggle('anchor-top', derived.verticalAnchor === 'top');
+          msgContainer.classList.toggle('anchor-bottom', derived.verticalAnchor === 'bottom');
+        }
+      }
+    } catch {}
+  }
+
+  function onPointerUp(event) {
+    if (!isHitboxDragging) return;
+    if (dragPointerId !== null && event.pointerId !== dragPointerId) return;
+
+    if (dragPointerId !== null && typeof hitbox.releasePointerCapture === 'function') {
+      try {
+        hitbox.releasePointerCapture(dragPointerId);
+      } catch {}
+    }
+
+    isHitboxDragging = false;
+    dragPointerId = null;
+
+    hitbox.classList.remove('is-dragging');
+    dragLayer?.classList.remove('is-dragging');
+    if (guideX) guideX.classList.remove('snapped');
+    if (guideY) guideY.classList.remove('snapped');
+
+    // Commit to persistent configuration (debounced disk write and SSE broadcast)
+    triggerSave();
+    sendConfigToPreview(gatherCurrentConfig());
+  }
+
+  hitbox.addEventListener('pointerdown', onPointerDown);
+  hitbox.addEventListener('pointermove', onPointerMove);
+  hitbox.addEventListener('pointerup', onPointerUp);
+  hitbox.addEventListener('pointercancel', onPointerUp);
+
+  // Keyboard accessibility for fine-tuning positioning directly on hitbox
+  hitbox.addEventListener('keydown', e => {
+    let deltaX = 0;
+    let deltaY = 0;
+    const step = e.shiftKey ? 50 : (e.altKey ? 1 : 10);
+
+    if (e.key === 'ArrowLeft') deltaX = -step;
+    else if (e.key === 'ArrowRight') deltaX = step;
+    else if (e.key === 'ArrowUp') deltaY = -step;
+    else if (e.key === 'ArrowDown') deltaY = step;
+    else return;
+
+    e.preventDefault();
+    const currentLeft = parseFloat(hitbox.style.left) || currentHitboxBox.left || 0;
+    const currentTop = parseFloat(hitbox.style.top) || currentHitboxBox.top || 0;
+
+    const clamped = Positioning.clampPosition({
+      left: currentLeft + deltaX,
+      top: currentTop + deltaY,
+      width: currentHitboxBox.width,
+      height: currentHitboxBox.height,
+    });
+
+    const derived = Positioning.configFromPosition(clamped);
+    syncInputsFromConfig(derived);
+    sendConfigToPreview(gatherCurrentConfig());
+    triggerSave();
+  });
+}
+
+function sendFixturesToPreview(config = gatherCurrentConfig()) {
+  const iframe = document.querySelector('#preview-iframe');
+  if (!iframe || !iframe.contentWindow) return;
+  const maxMsg = Math.max(1, Number(config?.maxMessages) || 6);
+  iframe.contentWindow.postMessage({
+    type: 'preview:set-fixtures',
+    fixtures: PREVIEW_FIXTURES.slice(0, maxMsg),
+  }, '*');
+}
+
 function sendConfigToPreview(config) {
   const iframe = document.querySelector('#preview-iframe');
   if (!iframe || !iframe.contentWindow) return;
+  sendFixturesToPreview(config);
   iframe.contentWindow.postMessage({
     type: 'preview:set-config',
     config,
   }, '*');
+  updateHitboxGeometry(config);
 }
 
-function sendFixturesToPreview() {
+function replayPreviewAnimation(config = gatherCurrentConfig()) {
   const iframe = document.querySelector('#preview-iframe');
   if (!iframe || !iframe.contentWindow) return;
   iframe.contentWindow.postMessage({
-    type: 'preview:set-fixtures',
-    fixtures: PREVIEW_FIXTURES,
+    type: 'preview:replay-animation',
+    config,
   }, '*');
 }
 
@@ -773,97 +1184,23 @@ window.addEventListener('message', event => {
     previewReady = true;
     sendFixturesToPreview();
     sendConfigToPreview(gatherCurrentConfig());
+    initDragAndDropPositioning();
+    updateHitboxGeometry(gatherCurrentConfig());
   } else if (event.data && event.data.type === 'preview:ack') {
+    updateHitboxGeometry(gatherCurrentConfig());
     const resolvers = previewAckResolvers;
     previewAckResolvers = [];
     for (const r of resolvers) r();
   }
 });
 
-// --- Appearance Presets ---
-const PRESETS = {
-  compact: {
-    fontSize: 16,
-    authorFontSize: 13,
-    accentColor: '#f15f2c',
-    textColor: '#ffffff',
-    backgroundColor: '#121216',
-    cardWidth: 380,
-    borderRadius: 6,
-    cardPadding: 8,
-    messageGap: 6,
-    avatarSize: 32,
-    backgroundOpacity: 90,
-    showAvatars: true,
-    backdropBlur: 0,
-    shadow: true,
-  },
-  clean: {
-    fontSize: 21,
-    authorFontSize: 16,
-    accentColor: '#f15f2c',
-    textColor: '#ffffff',
-    backgroundColor: '#121216',
-    cardWidth: 520,
-    borderRadius: 10,
-    cardPadding: 10,
-    messageGap: 10,
-    avatarSize: 42,
-    backgroundOpacity: 88,
-    showAvatars: true,
-    backdropBlur: 0,
-    shadow: true,
-  },
-  large: {
-    fontSize: 26,
-    authorFontSize: 18,
-    accentColor: '#f15f2c',
-    textColor: '#ffffff',
-    backgroundColor: '#121216',
-    cardWidth: 640,
-    borderRadius: 14,
-    cardPadding: 14,
-    messageGap: 14,
-    avatarSize: 48,
-    backgroundOpacity: 88,
-    showAvatars: true,
-    backdropBlur: 0,
-    shadow: true,
-  },
-  glass: {
-    fontSize: 20,
-    authorFontSize: 15,
-    accentColor: '#f15f2c',
-    textColor: '#ffffff',
-    backgroundColor: '#121216',
-    cardWidth: 520,
-    borderRadius: 16,
-    cardPadding: 12,
-    messageGap: 12,
-    avatarSize: 40,
-    backgroundOpacity: 45,
-    showAvatars: true,
-    backdropBlur: 10,
-    shadow: true,
-  },
-};
+// --- Appearance Presets Reference ---
+const Presets = (typeof BoostyPresets !== 'undefined')
+  ? BoostyPresets
+  : (typeof require === 'function' ? require('../core/config/presets.js') : null);
 
-const STYLE_KEYS = [
-  'fontSize',
-  'authorFontSize',
-  'accentColor',
-  'textColor',
-  'backgroundColor',
-  'cardWidth',
-  'borderRadius',
-  'cardPadding',
-  'messageGap',
-  'avatarSize',
-  'backgroundOpacity',
-  'showAvatars',
-  'backdropBlur',
-  'shadow',
-];
+const PRESETS = Presets?.PRESETS || {};
+const STYLE_KEYS = Presets?.STYLE_KEYS || [];
 
 const LAYOUT_KEYS = [
   'horizontalAnchor',
@@ -893,6 +1230,43 @@ const CORNER_LABELS = {
   'left-bottom': 'Слева снизу',
   'right-bottom': 'Справа снизу',
 };
+
+const VALID_ANIMATION_TYPES = ['none', 'fade', 'slide-up', 'slide-side'];
+
+function normalizeUiAnimationType(val, fallback = 'fade') {
+  if (typeof val === 'string' && VALID_ANIMATION_TYPES.includes(val.trim().toLowerCase())) {
+    return val.trim().toLowerCase();
+  }
+  return fallback;
+}
+
+function normalizeUiAnimationDuration(val, fallback = 280) {
+  const num = Number(val);
+  if (!Number.isFinite(num) || val === '' || val === null || val === undefined || typeof val === 'boolean') {
+    return fallback;
+  }
+  return Math.round(Math.min(1000, Math.max(150, num)));
+}
+
+function formatAnimationSpeedLabel(durationMs, animType) {
+  if (animType === 'none') {
+    return 'Мгновенно';
+  }
+  const ms = normalizeUiAnimationDuration(durationMs, 280);
+  let tier = 'Плавно';
+  if (ms <= 220) tier = 'Быстро';
+  else if (ms <= 340) tier = 'Обычно';
+  else if (ms <= 550) tier = 'Плавно';
+  else tier = 'Медленно';
+  return `${tier} · ${ms} мс`;
+}
+
+function getActiveSpeedBucket(durationMs) {
+  const ms = normalizeUiAnimationDuration(durationMs, 280);
+  if (ms <= 220) return '180';
+  if (ms <= 340) return '280';
+  return '450';
+}
 
 const appearanceInputs = {
   maxMessages: document.querySelector('#max-messages'),
@@ -931,6 +1305,7 @@ const appearanceInputs = {
   offsetYSlider: document.querySelector('#offset-y-slider'),
   maxStackHeight: document.querySelector('#max-stack-height'),
   maxStackHeightSlider: document.querySelector('#max-stack-height-slider'),
+  animationDurationSlider: document.querySelector('#animation-duration-slider'),
 };
 
 function gatherCurrentConfig() {
@@ -946,6 +1321,16 @@ function gatherCurrentConfig() {
 
   const activeAlignBtn = document.querySelector('[data-text-align].active');
   const textAlign = activeAlignBtn ? activeAlignBtn.getAttribute('data-text-align') : 'left';
+
+  const activeAnimTypeBtn = document.querySelector('[data-animation-type].active');
+  const animationType = normalizeUiAnimationType(
+    activeAnimTypeBtn ? activeAnimTypeBtn.getAttribute('data-animation-type') : 'fade',
+    'fade'
+  );
+  const animationDurationMs = normalizeUiAnimationDuration(
+    appearanceInputs.animationDurationSlider?.value,
+    280
+  );
 
   return {
     durationSeconds: alwaysShow ? 0 : Math.max(1, durationVal),
@@ -968,10 +1353,12 @@ function gatherCurrentConfig() {
     horizontalAnchor: hAnchor === 'right' ? 'right' : 'left',
     verticalAnchor: vAnchor === 'top' ? 'top' : 'bottom',
     newMessagePosition: newMsgPos === 'top' ? 'top' : 'bottom',
-    offsetX: Math.max(0, Math.min(300, Number(appearanceInputs.offsetX?.value) ?? 20)),
-    offsetY: Math.max(0, Math.min(300, Number(appearanceInputs.offsetY?.value) ?? 20)),
+    offsetX: Math.max(0, Math.min(1000, Number(appearanceInputs.offsetX?.value) ?? 20)),
+    offsetY: Math.max(0, Math.min(800, Number(appearanceInputs.offsetY?.value) ?? 20)),
     textAlign: ['left', 'center', 'right'].includes(textAlign) ? textAlign : 'left',
     maxStackHeight: Math.max(160, Math.min(2160, Number(appearanceInputs.maxStackHeight?.value) || 800)),
+    animationType,
+    animationDurationMs,
   };
 }
 
@@ -990,6 +1377,29 @@ function updateAppearanceLabels(config) {
   setDomText(document.querySelector('#offset-x-val'), String(config.offsetX ?? 20));
   setDomText(document.querySelector('#offset-y-val'), String(config.offsetY ?? 20));
   setDomText(document.querySelector('#max-stack-height-val'), String(config.maxStackHeight ?? 800));
+
+  const animType = normalizeUiAnimationType(config.animationType ?? config.animation?.type, 'fade');
+  const animDuration = normalizeUiAnimationDuration(config.animationDurationMs ?? config.animation?.durationMs, 280);
+  setDomText(
+    document.querySelector('#animation-speed-label'),
+    formatAnimationSpeedLabel(animDuration, animType)
+  );
+
+  const activeBucket = getActiveSpeedBucket(animDuration);
+  document.querySelectorAll('[data-animation-speed]').forEach(btn => {
+    const isMatch = animType !== 'none' && btn.getAttribute('data-animation-speed') === activeBucket;
+    btn.classList.toggle('active', isMatch);
+    btn.setAttribute('aria-pressed', String(isMatch));
+    btn.disabled = animType === 'none';
+  });
+
+  const animSpeedContainer = document.querySelector('#animation-speed-container');
+  if (animSpeedContainer) {
+    animSpeedContainer.classList.toggle('disabled', animType === 'none');
+  }
+  if (appearanceInputs.animationDurationSlider) {
+    appearanceInputs.animationDurationSlider.disabled = animType === 'none';
+  }
 
   const cornerKey = `${config.horizontalAnchor || 'left'}-${config.verticalAnchor || 'bottom'}`;
   setDomText(document.querySelector('#corner-active-label'), CORNER_LABELS[cornerKey] || 'Слева снизу');
@@ -1040,6 +1450,21 @@ function syncInputsFromConfig(config) {
   if (config.offsetY !== undefined) syncNum(appearanceInputs.offsetY, appearanceInputs.offsetYSlider, config.offsetY);
   if (config.maxStackHeight !== undefined) syncNum(appearanceInputs.maxStackHeight, appearanceInputs.maxStackHeightSlider, config.maxStackHeight);
 
+  const rawAnimType = config.animationType !== undefined ? config.animationType : config.animation?.type;
+  if (rawAnimType !== undefined) {
+    const validType = normalizeUiAnimationType(rawAnimType, 'fade');
+    document.querySelectorAll('[data-animation-type]').forEach(btn => {
+      const isMatch = btn.getAttribute('data-animation-type') === validType;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-pressed', String(isMatch));
+    });
+  }
+
+  const rawAnimDuration = config.animationDurationMs !== undefined ? config.animationDurationMs : config.animation?.durationMs;
+  if (rawAnimDuration !== undefined && appearanceInputs.animationDurationSlider) {
+    appearanceInputs.animationDurationSlider.value = String(normalizeUiAnimationDuration(rawAnimDuration, 280));
+  }
+
   if (config.backgroundOpacity !== undefined && appearanceInputs.backgroundOpacity) {
     appearanceInputs.backgroundOpacity.value = config.backgroundOpacity;
   }
@@ -1089,28 +1514,25 @@ function syncInputsFromConfig(config) {
 
   const current = gatherCurrentConfig();
   updateAppearanceLabels(current);
+  updateHitboxGeometry(current);
+
+  const matchedPreset = detectActivePreset(current);
+  updatePresetUi(matchedPreset);
+
+  const matchedProfile = Profiles ? Profiles.detectProfile(current) : null;
+  updateProfileUi(matchedProfile);
 }
 
-// Russian localized preset display names (storage and logic use slugs: clean, compact, large, glass)
-const PRESET_LABELS = {
+const PRESET_LABELS = Presets?.PRESET_LABELS || {
   clean: 'Чистый',
   compact: 'Компактный',
   large: 'Крупный',
   glass: 'Стекло',
 };
 
-// Preset matching helper — strictly compares normalized appearance fields
 function detectActivePreset(config) {
-  if (!config) return null;
-  for (const [name, preset] of Object.entries(PRESETS)) {
-    let matches = true;
-    for (const key of STYLE_KEYS) {
-      if (config[key] !== preset[key]) {
-        matches = false;
-        break;
-      }
-    }
-    if (matches) return name;
+  if (Presets && typeof Presets.detectActivePreset === 'function') {
+    return Presets.detectActivePreset(config);
   }
   return null;
 }
@@ -1126,6 +1548,25 @@ function updatePresetUi(activePresetName) {
       badge.textContent = PRESET_LABELS[activePresetName];
     } else {
       badge.textContent = 'Кастомный';
+    }
+  }
+}
+
+function updateProfileUi(activeProfileId) {
+  const badge = document.querySelector('#profile-status-badge');
+  document.querySelectorAll('.profile-btn').forEach(btn => {
+    const isMatch = btn.getAttribute('data-profile') === activeProfileId;
+    btn.classList.toggle('active', isMatch);
+    btn.setAttribute('aria-pressed', String(isMatch));
+  });
+
+  if (badge) {
+    if (activeProfileId && Profiles && Profiles.PROFILE_DEFINITIONS[activeProfileId]) {
+      badge.textContent = Profiles.PROFILE_DEFINITIONS[activeProfileId].name;
+      badge.classList.remove('custom');
+    } else {
+      badge.textContent = 'Пользовательский';
+      badge.classList.add('custom');
     }
   }
 }
@@ -1163,6 +1604,9 @@ async function triggerSave(immediate = false) {
   const matchedPreset = detectActivePreset(configToSave);
   updatePresetUi(matchedPreset);
 
+  const matchedProfile = Profiles ? Profiles.detectProfile(configToSave) : null;
+  updateProfileUi(matchedProfile);
+
   showSaveStatus('saving');
 
   const executePost = async () => {
@@ -1176,7 +1620,9 @@ async function triggerSave(immediate = false) {
       if (thisRevision !== currentSaveRevision) return;
 
       if (response.ok) {
-        lastSavedConfig = await response.json();
+        const savedJson = await response.json();
+        if (thisRevision !== currentSaveRevision) return;
+        lastSavedConfig = savedJson;
         showSaveStatus('saved');
       } else {
         showSaveStatus('error');
@@ -1238,6 +1684,18 @@ function setupEventListeners() {
       if (backdrop) {
         setDomClass(backdrop, `preview-backdrop backdrop-${mode}`);
       }
+    });
+  });
+
+  // Stream Profiles (Built-in Stream Profiles v1)
+  document.querySelectorAll('.profile-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const profileId = btn.getAttribute('data-profile');
+      if (!profileId || !Profiles) return;
+      const current = gatherCurrentConfig();
+      const newConfig = Profiles.applyProfile(current, profileId);
+      syncInputsFromConfig(newConfig);
+      triggerSave(true);
     });
   });
 
@@ -1326,6 +1784,7 @@ function setupEventListeners() {
       btn.setAttribute('aria-pressed', 'true');
       const cornerKey = btn.getAttribute('data-corner') || 'left-bottom';
       setDomText(document.querySelector('#corner-active-label'), CORNER_LABELS[cornerKey] || 'Слева снизу');
+      sendConfigToPreview(gatherCurrentConfig());
       triggerSave();
     });
 
@@ -1382,12 +1841,59 @@ function setupEventListeners() {
     });
   });
 
+  // Segmented controls: Message Animation Type
+  document.querySelectorAll('[data-animation-type]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-animation-type]').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+      triggerSave();
+      replayPreviewAnimation(gatherCurrentConfig());
+    });
+  });
+
+  // Segmented controls: Message Animation Speed Presets (Быстро / Обычно / Плавно)
+  document.querySelectorAll('[data-animation-speed]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const speedVal = btn.getAttribute('data-animation-speed');
+      if (speedVal && appearanceInputs.animationDurationSlider) {
+        appearanceInputs.animationDurationSlider.value = speedVal;
+      }
+      triggerSave();
+      replayPreviewAnimation(gatherCurrentConfig());
+    });
+  });
+
+  // Slider: Message Animation Duration (150..1000 ms)
+  if (appearanceInputs.animationDurationSlider) {
+    appearanceInputs.animationDurationSlider.addEventListener('input', () => {
+      triggerSave();
+    });
+    appearanceInputs.animationDurationSlider.addEventListener('change', () => {
+      replayPreviewAnimation(gatherCurrentConfig());
+    });
+  }
+
+  // Button: Replay Animation in Preview
+  document.querySelector('#animation-replay-btn')?.addEventListener('click', () => {
+    replayPreviewAnimation(gatherCurrentConfig());
+  });
+
   // Preview container scale observer
   const previewBackdropEl = document.querySelector('#preview-backdrop');
   if (previewBackdropEl && typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(updatePreviewScale).observe(previewBackdropEl);
+    new ResizeObserver(() => {
+      updatePreviewScale();
+      updateHitboxGeometry();
+    }).observe(previewBackdropEl);
   }
-  window.addEventListener('resize', updatePreviewScale);
+  window.addEventListener('resize', () => {
+    updatePreviewScale();
+    updateHitboxGeometry();
+  });
 
   // Opacity slider
   appearanceInputs.backgroundOpacity?.addEventListener('input', () => {
@@ -1513,6 +2019,36 @@ function setupEventListeners() {
     window.boostyOverlay.launchObs();
   });
 
+  const handleFitCanvasClick = async (btn) => {
+    if (!btn || btn.disabled) return;
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Подгоняем…';
+    try {
+      const password = document.querySelector('#dash-obs-password')?.value ||
+                       document.querySelector('#ob-obs-password')?.value || '';
+      const res = await window.boostyOverlay.fitObsOverlay(password);
+      if (res && res.ok) {
+        await loadObsScenes();
+      } else {
+        alert(res?.error || 'Не удалось подогнать оверлей под холст OBS');
+      }
+    } catch (err) {
+      alert(err?.message || 'Сбой запроса к OBS');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  };
+
+  document.querySelector('#obs-fit-canvas-btn')?.addEventListener('click', e => {
+    handleFitCanvasClick(e.currentTarget);
+  });
+
+  document.querySelector('#layout-fit-canvas-btn')?.addEventListener('click', e => {
+    handleFitCanvasClick(e.currentTarget);
+  });
+
   // Status Hub Action Buttons
   document.querySelector('#dash-obs-launch-btn')?.addEventListener('click', () => {
     window.boostyOverlay.launchObs();
@@ -1543,6 +2079,49 @@ function setupEventListeners() {
     const orig = btn.textContent;
     btn.textContent = 'Скопировано!';
     setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+
+  document.querySelector('#export-connectivity-diagnostic-btn')?.addEventListener('click', async () => {
+    const btn = document.querySelector('#export-connectivity-diagnostic-btn');
+    const statusEl = document.querySelector('#diagnostic-export-status');
+    try {
+      if (btn) btn.disabled = true;
+      let data = null;
+      if (window.boostyOverlay?.exportConnectivityDiagnostic) {
+        data = await window.boostyOverlay.exportConnectivityDiagnostic();
+      } else {
+        const res = await fetch(`${getApiOrigin()}/diagnostic`);
+        data = await res.json();
+      }
+
+      const jsonStr = JSON.stringify(data, null, 2);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(jsonStr);
+      }
+
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `boosty-connectivity-diagnostic-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+      if (statusEl) {
+        statusEl.textContent = '✓ Сохранено в файл и скопировано';
+        setDomDisplay(statusEl, 'inline');
+        setTimeout(() => setDomDisplay(statusEl, 'none'), 4000);
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = `Ошибка: ${err.message}`;
+        setDomDisplay(statusEl, 'inline');
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   });
 
   document.querySelector('#dash-restart-onboarding-btn')?.addEventListener('click', () => {
@@ -1782,14 +2361,53 @@ async function refreshStatus() {
     }
     latestHealth = health;
 
-    const isExtActive = Boolean(health.extensionConnected);
-    const isBoostyActive = Boolean(health.boostyConnected);
+    const extLifecycle = health.extension?.state || (health.extensionConnected ? 'connected' : (Date.now() < checkGraceDeadline ? 'checking' : 'unavailable'));
+    const boostyLifecycle = health.boosty?.state || (health.boostyConnected ? 'tab-detected' : (Date.now() < checkGraceDeadline ? 'checking' : 'unavailable'));
+
+    const isExtActive = (extLifecycle === 'connected');
+    const isBoostyActive = (boostyLifecycle === 'chat-detected' || boostyLifecycle === 'tab-detected');
     const isOutdated = Boolean(health.isOutdated);
 
-    if (isExtActive) {
+    if (isExtActive && isBoostyActive) {
       checkGraceDeadline = 0;
     }
-    const isChecking = !isExtActive && Date.now() < checkGraceDeadline;
+    const isChecking = (extLifecycle === 'checking' || boostyLifecycle === 'checking') ||
+                       ((!isExtActive || !isBoostyActive) && Date.now() < checkGraceDeadline);
+
+    if (isExtActive && !extensionDetectedAt) {
+      extensionDetectedAt = Date.now();
+    }
+    if ((boostyLifecycle === 'tab-detected' || boostyLifecycle === 'chat-detected') && !boostyTabDetectedAt) {
+      boostyTabDetectedAt = Date.now();
+    }
+    if (boostyLifecycle === 'chat-detected' && !chatDetectedAt) {
+      chatDetectedAt = Date.now();
+    }
+
+    if (extLifecycle === 'reconnecting' && !reconnectStartTime) {
+      reconnectStartTime = Date.now();
+      readyAt = null;
+    }
+
+    const isObsConnected = Boolean(latestObsStatus?.connected);
+    const hasChatInAnyScene = Boolean(addedSceneName || (Array.isArray(latestObsScenes) && latestObsScenes.some(s => s.hasChat)));
+    const allSystemsReady = isExtActive && isBoostyActive && isObsConnected && hasChatInAnyScene;
+
+    if (allSystemsReady && !readyAt) {
+      readyAt = Date.now();
+      const startRef = reconnectStartTime || appStartTime;
+      recoveryDurationMs = Math.max(100, readyAt - startRef);
+      if (!window.__AUDIT_HEALTH_MOCK__ || simulatedStartupTiming?.isRecoveredRecently) {
+        recoveryTimestamp = Date.now();
+        setTimeout(() => {
+          recoveryTimestamp = null;
+          updateContextualActionCard();
+          renderStatusHubUi();
+          ensureProgressTicker();
+        }, RECOVERY_FLASH_DURATION_MS);
+      }
+      reconnectStartTime = null;
+    }
 
     // Dashboard Status Hub
     renderStatusHubUi();
@@ -1800,12 +2418,15 @@ async function refreshStatus() {
     const setupBoostyUrl = document.querySelector('#setup-boosty-url');
 
     if (setupExtBadge) {
-      if (isExtActive) {
+      if (extLifecycle === 'connected') {
         setDomClass(setupExtBadge, 'badge connected');
-        setDomText(setupExtBadge, health.extensionVersion ? `Установлено (v${health.extensionVersion})` : 'Установлено');
-      } else if (isChecking) {
+        setDomText(setupExtBadge, health.extension?.version || health.extensionVersion ? `Установлено (v${health.extension?.version || health.extensionVersion})` : 'Установлено');
+      } else if (extLifecycle === 'checking' || isChecking) {
         setDomClass(setupExtBadge, 'badge checking');
         setDomText(setupExtBadge, 'Проверка…');
+      } else if (extLifecycle === 'reconnecting') {
+        setDomClass(setupExtBadge, 'badge warning');
+        setDomText(setupExtBadge, 'Переподключение…');
       } else {
         setDomClass(setupExtBadge, 'badge pending');
         setDomText(setupExtBadge, 'Не установлено');
@@ -1813,9 +2434,15 @@ async function refreshStatus() {
     }
 
     if (setupBoostyBadge) {
-      if (isBoostyActive) {
+      if (boostyLifecycle === 'chat-detected') {
         setDomClass(setupBoostyBadge, 'badge connected');
-        setDomText(setupBoostyBadge, 'Стрим открыт');
+        setDomText(setupBoostyBadge, 'Чат подключён');
+      } else if (boostyLifecycle === 'tab-detected') {
+        setDomClass(setupBoostyBadge, 'badge connected');
+        setDomText(setupBoostyBadge, 'Вкладка открыта');
+      } else if (boostyLifecycle === 'checking' || isChecking) {
+        setDomClass(setupBoostyBadge, 'badge checking');
+        setDomText(setupBoostyBadge, 'Проверка…');
       } else {
         setDomClass(setupBoostyBadge, 'badge pending');
         setDomText(setupBoostyBadge, 'Не открыт');
@@ -1824,7 +2451,7 @@ async function refreshStatus() {
 
     if (setupBoostyUrl) {
       if (isBoostyActive) {
-        const cleanUrl = health.boostyTabUrl ? health.boostyTabUrl.replace(/^https?:\/\/(www\.)?boosty\.to\//, '') : 'Вкладка активна';
+        const cleanUrl = health.boosty?.tabUrl || health.boostyTabUrl ? (health.boosty?.tabUrl || health.boostyTabUrl).replace(/^https?:\/\/(www\.)?boosty\.to\//, '') : 'Вкладка активна';
         setDomText(setupBoostyUrl, cleanUrl);
       } else {
         setDomText(setupBoostyUrl, 'Не обнаружена');
@@ -1839,8 +2466,8 @@ async function refreshStatus() {
     const techPort = document.querySelector('#tech-port');
     const techUrl = document.querySelector('#tech-overlay-url');
 
-    if (techExt) setDomText(techExt, isExtActive ? `Активно (v${health.extensionVersion || '?'})` : 'Не активно');
-    if (techBoosty) setDomText(techBoosty, isBoostyActive ? 'Вкладка активна' : 'Не открыта');
+    if (techExt) setDomText(techExt, extLifecycle === 'connected' ? `Активно (v${health.extension?.version || health.extensionVersion || '?'})` : (extLifecycle === 'reconnecting' ? 'Переподключение' : (extLifecycle === 'checking' ? 'Проверка' : 'Не активно')));
+    if (techBoosty) setDomText(techBoosty, boostyLifecycle === 'chat-detected' ? 'Чат активен' : (boostyLifecycle === 'tab-detected' ? 'Вкладка активна' : (boostyLifecycle === 'checking' ? 'Проверка' : 'Не открыта')));
     if (techMsg) setDomText(techMsg, String(health.receivedMessages || 0));
     if (techObs) setDomText(techObs, latestObsStatus?.connected ? 'Подключено' : 'Отключено');
     if (techPort) setDomText(techPort, String(new URL(getApiOrigin()).port || 17369));
@@ -1858,14 +2485,14 @@ async function refreshStatus() {
     const obConnectedActions = document.querySelector('#ob-connected-actions');
 
     if (obExtBadge) {
-      if (isExtActive) {
+      if (extLifecycle === 'connected') {
         setDomClass(obExtBadge, 'badge connected');
-        setDomText(obExtText, health.extensionVersion ? `Расширение подключено (v${health.extensionVersion})` : 'Расширение подключено');
+        setDomText(obExtText, health.extension?.version || health.extensionVersion ? `Расширение подключено (v${health.extension?.version || health.extensionVersion})` : 'Расширение подключено');
         setDomDisplay(obExtSuccess, 'block');
         setDomDisplay(obNotDetectedBox, 'none');
         setDomDisplay(obGuideBox, 'none');
         setDomDisplay(obConnectedActions, isBoostyActive ? 'none' : 'flex');
-      } else if (isChecking) {
+      } else if (extLifecycle === 'checking' || isChecking) {
         setDomClass(obExtBadge, 'badge checking');
         setDomText(obExtText, 'Проверяем расширение…');
         setDomDisplay(obExtSuccess, 'none');
@@ -1897,13 +2524,19 @@ async function refreshStatus() {
     const modalStartBtn = document.querySelector('#modal-start-setup-btn');
 
     if (modalBadge) {
-      if (isExtActive) {
+      if (extLifecycle === 'connected') {
         setDomClass(modalBadge, 'badge connected');
         setDomText(modalText, 'Расширение подключено');
         setDomDisplay(modalSuccess, 'block');
         setDomDisplay(modalGuide, 'none');
         setDomDisplay(modalDoneBtn, 'inline-flex');
         setDomDisplay(modalStartBtn, 'none');
+      } else if (extLifecycle === 'checking' || isChecking) {
+        setDomClass(modalBadge, 'badge checking');
+        setDomText(modalText, 'Проверяем расширение…');
+        setDomDisplay(modalSuccess, 'none');
+        setDomDisplay(modalDoneBtn, 'none');
+        setDomDisplay(modalStartBtn, 'inline-flex');
       } else {
         setDomClass(modalBadge, 'badge pending');
         setDomText(modalText, 'Расширение не обнаружено');
@@ -1915,11 +2548,32 @@ async function refreshStatus() {
 
     updateContextualActionCard();
     renderStatusHubUi();
+    ensureProgressTicker();
     if (window.boostyAudit) {
       updateAuditDiagnosticState();
     }
   } catch (err) {
     // Network or offline
+  }
+}
+
+function ensureProgressTicker() {
+  const readiness = getSystemReadiness();
+  const needsTicker = (readiness.status === 'connecting' || recoveryTimestamp);
+  if (needsTicker && !progressTicker) {
+    progressTicker = setInterval(() => {
+      const cur = getSystemReadiness();
+      if (cur.status === 'connecting' || recoveryTimestamp) {
+        updateContextualActionCard();
+        renderStatusHubUi();
+      } else if (progressTicker) {
+        clearInterval(progressTicker);
+        progressTicker = null;
+      }
+    }, 200);
+  } else if (!needsTicker && progressTicker) {
+    clearInterval(progressTicker);
+    progressTicker = null;
   }
 }
 
@@ -1940,6 +2594,10 @@ function updateAuditDiagnosticState() {
   const bottomPosBtn = document.querySelector('[data-new-msg-pos="bottom"]');
   const rightAlignBtn = document.querySelector('[data-text-align="right"]');
   const leftAlignBtn = document.querySelector('[data-text-align="left"]');
+  const animFadeBtn = document.querySelector('[data-animation-type="fade"]');
+  const animSlideUpBtn = document.querySelector('[data-animation-type="slide-up"]');
+  const animSlideSideBtn = document.querySelector('[data-animation-type="slide-side"]');
+  const animNoneBtn = document.querySelector('[data-animation-type="none"]');
 
   window.__UI_AUDIT_RENDER_STATE__ = {
     view: activeView === 'dashboard' ? 'main' : activeView,
@@ -1957,10 +2615,16 @@ function updateAuditDiagnosticState() {
     offsetX: curCfg.offsetX,
     offsetY: curCfg.offsetY,
     maxStackHeight: curCfg.maxStackHeight,
+    animationType: curCfg.animationType,
+    animationDurationMs: curCfg.animationDurationMs,
     ariaPressedTop: topPosBtn?.getAttribute('aria-pressed') === 'true',
     ariaPressedBottom: bottomPosBtn?.getAttribute('aria-pressed') === 'true',
     ariaPressedRight: rightAlignBtn?.getAttribute('aria-pressed') === 'true',
     ariaPressedLeft: leftAlignBtn?.getAttribute('aria-pressed') === 'true',
+    ariaPressedAnimFade: animFadeBtn?.getAttribute('aria-pressed') === 'true',
+    ariaPressedAnimSlideUp: animSlideUpBtn?.getAttribute('aria-pressed') === 'true',
+    ariaPressedAnimSlideSide: animSlideSideBtn?.getAttribute('aria-pressed') === 'true',
+    ariaPressedAnimNone: animNoneBtn?.getAttribute('aria-pressed') === 'true',
   };
 }
 
@@ -2013,6 +2677,12 @@ if (window.boostyAudit) {
 
     if (typeof mock.hasObsExecutable === 'boolean') {
       hasObsExecutableCached = mock.hasObsExecutable;
+    }
+
+    if (mock.simulatedStartupTiming !== undefined) {
+      simulatedStartupTiming = mock.simulatedStartupTiming;
+    } else {
+      recoveryTimestamp = null;
     }
 
     if (mock.health) {
@@ -2084,6 +2754,37 @@ if (window.boostyAudit) {
       latestHealth,
       latestObsStatus,
       latestObsScenes,
+    }),
+    setSimulatedStartupTiming: (timing) => {
+      simulatedStartupTiming = timing;
+      updateContextualActionCard();
+      renderStatusHubUi();
+    },
+    getDiagnosticSnapshot: () => ({
+      startupElapsedMs: getStartupElapsedMs(),
+      serverReadyAt,
+      extensionDetectedAt,
+      boostyTabDetectedAt,
+      chatDetectedAt,
+      readyAt,
+      expectedReadyMs: typeof BoostyStatusHub !== 'undefined' ? BoostyStatusHub.CONNECTIVITY_EXPECTED_READY_MS : 5000,
+      normalThresholdMs: typeof BoostyStatusHub !== 'undefined' ? BoostyStatusHub.CONNECTIVITY_NORMAL_THRESHOLD_MS : 5500,
+      recoveryDurationMs,
+      extension: {
+        state: latestHealth?.extension?.state || (latestHealth?.extensionConnected ? 'connected' : 'unavailable'),
+        lastSeenAt: latestHealth?.extension?.lastSeenAt ?? latestHealth?.extensionLastSeenAt ?? null,
+        version: latestHealth?.extension?.version ?? latestHealth?.extensionVersion ?? null,
+      },
+      boosty: {
+        state: latestHealth?.boosty?.state || (latestHealth?.boostyConnected ? 'tab-detected' : 'unavailable'),
+        lastSeenAt: latestHealth?.boosty?.lastSeenAt ?? latestHealth?.boostyLastSeenAt ?? null,
+        tabUrl: latestHealth?.boosty?.tabUrl ?? latestHealth?.boostyTabUrl ?? null,
+        hasChat: Boolean(latestHealth?.boosty?.hasChat),
+      },
+      activeTabs: latestHealth?.boosty?.activeTabsCount ?? (latestHealth?.boostyTabUrl ? 1 : 0),
+      lastHeartbeat: latestHealth?.connectorLastSeenAt ?? null,
+      startupElapsed: latestHealth?.startupElapsed ?? 0,
+      isChecking: Date.now() < checkGraceDeadline,
     }),
   };
 

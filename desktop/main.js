@@ -6,11 +6,14 @@ const { registerIpcHandlers } = require('./main/ipc.js');
 
 let mainWindow;
 let localServer;
+let localSseHub;
 
 const browserManager = createBrowserManager();
 const obsService = createObsService({
   appVersion: app.isReady() ? app.getVersion() : '0.4.0',
   overlayPort: Number(process.env.BOOSTY_OVERLAY_PORT || 17369),
+  isServerReady: () => Boolean(localServer && localServer.listening),
+  getOverlayClients: () => (localSseHub ? localSseHub.clientCount() : 0),
   onStateChange: state => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('obs-state-changed', state);
@@ -39,7 +42,9 @@ function createWindow() {
 
 app.whenReady().then(() => {
   process.env.BOOSTY_OVERLAY_CONFIG = process.env.BOOSTY_OVERLAY_CONFIG || path.join(app.getPath('userData'), 'overlay-settings.json');
-  localServer = require('../server.js').server;
+  const serverModule = require('../server.js');
+  localServer = serverModule.server;
+  localSseHub = serverModule.sseHub;
   createWindow();
 
   registerIpcHandlers({
@@ -52,8 +57,11 @@ app.whenReady().then(() => {
   });
 
   if (process.env.BOOSTY_OVERLAY_UI_TEST !== '1') {
+    if (localServer && !localServer.listening) {
+      localServer.once('listening', () => obsService.scheduleRefresh(50));
+    }
     setTimeout(() => obsService.scheduleRefresh(100), 500);
-    obsService.startPeriodicSync(60000);
+    obsService.startPeriodicSync(15000);
   }
 
   app.on('activate', () => {

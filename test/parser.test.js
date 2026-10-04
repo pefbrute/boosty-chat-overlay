@@ -5,7 +5,10 @@ const path = require("node:path");
 const { parseHTML } = require("linkedom");
 const {
   parseBoostyMessage,
+  normalizeAuthorName,
   extractAuthor,
+  extractAuthorRole,
+  extractSegments,
   extractText,
   extractAvatarUrl,
   extractMessageId,
@@ -43,7 +46,11 @@ test("Boosty Parser: text message fixture", () => {
   assert.deepStrictEqual(parsed, {
     id: "msg-101",
     author: "Алексей Смирнов",
+    role: null,
     text: "Всем привет, отличный стрим!",
+    segments: [
+      { type: "text", text: "Всем привет, отличный стрим!" },
+    ],
     avatar: "",
     publishTime: "14:20",
     reply: null,
@@ -79,6 +86,9 @@ test("Boosty Parser: message with emoji & background avatar fixture", () => {
   const parsed = parseBoostyMessage(root);
   assert.strictEqual(parsed.author, "Катя Смайл");
   assert.strictEqual(parsed.text, "Привет стример! 🔥🚀🎉 Спасибо за крутой контент ❤️");
+  assert.deepStrictEqual(parsed.segments, [
+    { type: "text", text: "Привет стример! 🔥🚀🎉 Спасибо за крутой контент ❤️" },
+  ]);
   assert.strictEqual(parsed.avatar, "https://images.boosty.to/user/99/avatar.png");
   assert.strictEqual(parsed.id, "msg-104");
 });
@@ -108,6 +118,35 @@ test("Boosty Parser: reply message fixture", () => {
   assert.ok(parsed.reply, "Reply information should be extracted");
   assert.strictEqual(parsed.reply.author, "Иван Про");
   assert.strictEqual(parsed.reply.text, "Когда следующий стрим?");
+});
+
+test("Boosty Parser: realistic custom emoji + mention fixture", () => {
+  const { root } = loadFixture("custom-emoji-mention.html");
+  assert.ok(root, "Root element should be found");
+
+  const parsed = parseBoostyMessage(root, { pathname: "/streamer" });
+  assert.ok(parsed, "Message should be parsed");
+  assert.strictEqual(parsed.author, "Стример_Тест");
+  assert.strictEqual(parsed.publishTime, "18:15");
+  assert.strictEqual(parsed.avatar, "https://images.boosty.to/user/12345/avatar.png");
+  assert.strictEqual(parsed.text, "Привет :heart: @Иван!");
+  assert.ok(parsed.id.startsWith("fallback-"), "Should generate deterministic fallback ID without colliding on emoji data-id");
+  assert.deepStrictEqual(parsed.segments, [
+    { type: "text", text: "Привет " },
+    {
+      type: "emoji",
+      id: ":heart:",
+      alt: ":heart:",
+      url: "https://static.boosty.to/assets/images/small.heart123.png",
+    },
+    { type: "text", text: " " },
+    {
+      type: "mention",
+      userId: "12345",
+      displayName: "Иван",
+    },
+    { type: "text", text: "!" },
+  ]);
 });
 
 // ==========================================
@@ -161,6 +200,8 @@ test("Boosty Parser: deterministic fallback ID without explicit message ID", () 
   const msg3 = parseBoostyMessage(root, { pathname: "/live/stream1" });
 
   assert.ok(msg1.id.startsWith("fallback-"), "ID should use deterministic fallback- prefix");
+  // Verify exact FNV-1a hash stability for "/live/stream1|Иван_Стример|Привет мир|16:45"
+  assert.strictEqual(msg1.id, "fallback-eb5996f8", "Fallback ID hash for plain message must remain unchanged");
   assert.strictEqual(msg1.id, msg2.id, "ID must be strictly equal across calls");
   assert.strictEqual(msg2.id, msg3.id, "ID must be strictly equal across calls");
   assert.doesNotMatch(msg1.id, /[0-9]{13}/, "ID must not contain Date.now() timestamp");
@@ -196,12 +237,302 @@ test("Boosty Parser: deterministic fallback ID without explicit message ID", () 
 });
 
 // ==========================================
+// 3.1 Structured Segments, Tooltip Regression & Author Colon Normalization
+// ==========================================
+test("Boosty Parser: Unicode emoji stays a single text segment", () => {
+  const { document } = parseHTML(`
+    <div data-test-id="CHATMESSAGE:root">
+      <span data-test-id="CHATMESSAGE:author">Зритель</span>
+      <div data-test-id="CHATMESSAGE:message">Привет 👋</div>
+    </div>
+  `);
+  const root = document.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  const parsed = parseBoostyMessage(root);
+  assert.strictEqual(parsed.text, "Привет 👋");
+  assert.deepStrictEqual(parsed.segments, [
+    { type: "text", text: "Привет 👋" },
+  ]);
+});
+
+test("Boosty Parser: Boosty custom emoji produces [text, emoji, text] segments", () => {
+  const { document } = parseHTML(`
+    <div data-test-id="CHATMESSAGE:root">
+      <span data-test-id="CHATMESSAGE:author">Зритель</span>
+      <div data-test-id="CHATMESSAGE:message">
+        Привет
+        <img data-type="smile" data-id=":heart:" alt=":heart:" src="https://static.boosty.to/assets/images/small.heart.png">
+        мир
+      </div>
+    </div>
+  `);
+  const root = document.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  const parsed = parseBoostyMessage(root);
+  assert.deepStrictEqual(parsed.segments, [
+    { type: "text", text: "Привет" },
+    {
+      type: "emoji",
+      id: ":heart:",
+      alt: ":heart:",
+      url: "https://static.boosty.to/assets/images/small.heart.png",
+    },
+    { type: "text", text: "мир" },
+  ]);
+  assert.strictEqual(parsed.text, "Привет:heart:мир");
+});
+
+test("Boosty Parser: multiple custom emoji in a row (2-3 smile images)", () => {
+  const { document } = parseHTML(`
+    <div data-test-id="CHATMESSAGE:root">
+      <span data-test-id="CHATMESSAGE:author">Зритель:</span>
+      <div data-test-id="CHATMESSAGE:message">
+        <img data-type="smile" data-id=":heart:" alt=":heart:" src="https://static.boosty.to/assets/images/small.heart.png">
+        <img data-type="smile" data-id=":fire:" alt=":fire:" src="https://static.boosty.to/assets/images/small.fire.png">
+        <img data-type="smile" data-id=":rocket:" alt=":rocket:" src="https://static.boosty.to/assets/images/small.rocket.png">
+      </div>
+    </div>
+  `);
+  const root = document.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  const parsed = parseBoostyMessage(root);
+  assert.strictEqual(parsed.author, "Зритель");
+  assert.strictEqual(parsed.text, ":heart::fire::rocket:");
+  assert.deepStrictEqual(parsed.segments, [
+    {
+      type: "emoji",
+      id: ":heart:",
+      alt: ":heart:",
+      url: "https://static.boosty.to/assets/images/small.heart.png",
+    },
+    {
+      type: "emoji",
+      id: ":fire:",
+      alt: ":fire:",
+      url: "https://static.boosty.to/assets/images/small.fire.png",
+    },
+    {
+      type: "emoji",
+      id: ":rocket:",
+      alt: ":rocket:",
+      url: "https://static.boosty.to/assets/images/small.rocket.png",
+    },
+  ]);
+});
+
+test("Boosty Parser: mention element produces mention segment and @name in text", () => {
+  const { document } = parseHTML(`
+    <div data-test-id="CHATMESSAGE:root">
+      <span data-test-id="CHATMESSAGE:author">Алексей:</span>
+      <div data-test-id="CHATMESSAGE:message">
+        <span class="mention" data-mention-id="123" data-display-name="Иван">Иван</span>
+      </div>
+    </div>
+  `);
+  const root = document.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  const parsed = parseBoostyMessage(root);
+  assert.strictEqual(parsed.author, "Алексей");
+  assert.strictEqual(parsed.text, "@Иван");
+  assert.deepStrictEqual(parsed.segments, [
+    {
+      type: "mention",
+      userId: "123",
+      displayName: "Иван",
+    },
+  ]);
+});
+
+test("Boosty Parser: mixed text + mention + emoji + text preserves DOM order", () => {
+  const { document } = parseHTML(`
+    <div data-test-id="CHATMESSAGE:root">
+      <span data-test-id="CHATMESSAGE:author">Мария:</span>
+      <div data-test-id="CHATMESSAGE:message">Привет <span class="mention" data-mention-id="777" data-display-name="Иван">Иван</span> лови <img data-type="smile" data-id=":heart:" alt=":heart:" src="https://static.boosty.to/assets/images/small.heart.png"> за стрим!</div>
+    </div>
+  `);
+  const root = document.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  const parsed = parseBoostyMessage(root);
+  assert.strictEqual(parsed.author, "Мария");
+  assert.strictEqual(parsed.text, "Привет @Иван лови :heart: за стрим!");
+  assert.deepStrictEqual(parsed.segments, [
+    { type: "text", text: "Привет " },
+    { type: "mention", userId: "777", displayName: "Иван" },
+    { type: "text", text: " лови " },
+    {
+      type: "emoji",
+      id: ":heart:",
+      alt: ":heart:",
+      url: "https://static.boosty.to/assets/images/small.heart.png",
+    },
+    { type: "text", text: " за стрим!" },
+  ]);
+});
+
+test("Boosty Parser: tooltip regression test (tooltip inside message container must not leak into text or segments)", () => {
+  const { document } = parseHTML(`
+    <div data-test-id="CHATMESSAGE:root">
+      <span data-test-id="CHATMESSAGE:author">Зритель</span>
+      <div data-test-id="CHATMESSAGE:message">
+        Привет
+        <img data-type="smile" alt=":heart:" data-id=":heart:" src="https://static.boosty.to/assets/images/small.heart.png">
+        <div class="ChatMessage-scss--module_tooltip_Fu2uP">:heart:</div>
+      </div>
+    </div>
+  `);
+  const root = document.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  const parsed = parseBoostyMessage(root);
+
+  assert.strictEqual(parsed.text, "Привет:heart:");
+  assert.notStrictEqual(parsed.text, "Привет:heart::heart:");
+  assert.deepStrictEqual(parsed.segments, [
+    { type: "text", text: "Привет" },
+    {
+      type: "emoji",
+      id: ":heart:",
+      alt: ":heart:",
+      url: "https://static.boosty.to/assets/images/small.heart.png",
+    },
+  ]);
+});
+
+test("Boosty Parser: author colon normalization (strips trailing presentation colon only)", () => {
+  const cases = [
+    { raw: "Иван:", expected: "Иван" },
+    { raw: "Иван :", expected: "Иван" },
+    { raw: "Иван", expected: "Иван" },
+    { raw: "Foo:Bar", expected: "Foo:Bar" },
+    { raw: "Foo:Bar:", expected: "Foo:Bar" },
+    { raw: "  Никнейм:  ", expected: "Никнейм" },
+    { raw: "  Никнейм :  ", expected: "Никнейм" },
+  ];
+
+  for (const c of cases) {
+    if (typeof normalizeAuthorName === "function") {
+      assert.strictEqual(normalizeAuthorName(c.raw), c.expected, `normalizeAuthorName failed for "${c.raw}"`);
+    }
+    const { document } = parseHTML(`
+      <div data-test-id="CHATMESSAGE:root">
+        <span data-test-id="CHATMESSAGE:author">${c.raw}</span>
+        <div data-test-id="CHATMESSAGE:message">Текст</div>
+      </div>
+    `);
+    const root = document.querySelector('[data-test-id="CHATMESSAGE:root"]');
+    assert.strictEqual(extractAuthor(root), c.expected, `Failed for raw author "${c.raw}"`);
+  }
+});
+
+// ==========================================
+// 3.2 Author Role Badges (streamer / moderator / null)
+// ==========================================
+test("Boosty Parser: streamer-message.html, moderator-message.html, normal-user-message.html, and real-text-message.html fixtures", () => {
+  // 1. Streamer fixture (#icon-star-*)
+  const streamerFix = loadFixture("streamer-message.html");
+  assert.ok(streamerFix?.root, "streamer-message.html root must exist");
+  const parsedStreamer = parseBoostyMessage(streamerFix.root, { pathname: "/streamer" });
+  assert.strictEqual(parsedStreamer.author, "Фёдор_Стример");
+  assert.strictEqual(parsedStreamer.role, "streamer");
+  assert.strictEqual(parsedStreamer.avatar, "https://images.boosty.to/user/10/avatar.png");
+  assert.strictEqual(parsedStreamer.text, "Всем привет, начинаем эфир!");
+  assert.deepStrictEqual(parsedStreamer.segments, [
+    { type: "text", text: "Всем привет, начинаем эфир!" },
+  ]);
+
+  // 2. Moderator fixture (#icon-sword-*)
+  const modFix = loadFixture("moderator-message.html");
+  assert.ok(modFix?.root, "moderator-message.html root must exist");
+  const parsedMod = parseBoostyMessage(modFix.root, { pathname: "/streamer" });
+  assert.strictEqual(parsedMod.author, "Модератор_Иван");
+  assert.strictEqual(parsedMod.role, "moderator");
+  assert.strictEqual(parsedMod.avatar, "https://images.boosty.to/user/20/avatar.png");
+  assert.strictEqual(parsedMod.text, "Соблюдаем правила чата и уважаем друг друга.");
+  assert.deepStrictEqual(parsedMod.segments, [
+    { type: "text", text: "Соблюдаем правила чата и уважаем друг друга." },
+  ]);
+
+  // 3. Normal user fixture (no role icon)
+  const normalFix = loadFixture("normal-user-message.html");
+  assert.ok(normalFix?.root, "normal-user-message.html root must exist");
+  const parsedNormal = parseBoostyMessage(normalFix.root, { pathname: "/streamer" });
+  assert.strictEqual(parsedNormal.author, "Обычный_Зритель");
+  assert.strictEqual(parsedNormal.role, null);
+  assert.strictEqual(parsedNormal.avatar, "https://images.boosty.to/user/30/avatar.png");
+  assert.strictEqual(parsedNormal.text, "Звук и картинка супер!");
+
+  // 4. Real captured DOM fixture (real/real-text-message.html contains #icon-star-4f3444cf)
+  const realFix = loadFixture(path.join("real", "real-text-message.html"));
+  if (realFix?.root) {
+    const parsedReal = parseBoostyMessage(realFix.root, { pathname: "/streamer" });
+    assert.strictEqual(parsedReal.author, "Зритель_Тест");
+    assert.strictEqual(parsedReal.role, "streamer");
+    assert.strictEqual(parsedReal.text, "Тестовое сообщение из реального DOM Boosty");
+  }
+});
+
+test("Boosty Parser: role detection supports both href and xlink:href, ignores unknown icons, and preserves fallback ID", () => {
+  // 1. Standard href attribute on <use>
+  const { document: docHrefStar } = parseHTML(`
+    <div data-test-id="CHATMESSAGE:root">
+      <div class="ChatMessage-scss--module_author_3jNAZ">
+        <svg><use href="#icon-star-9999abcd"></use></svg>
+        <span data-test-id="CHATMESSAGE:author">Иван_Стример:</span>
+      </div>
+      <span class="ChatMessage_time">16:45</span>
+      <div data-test-id="CHATMESSAGE:message">Привет мир</div>
+    </div>
+  `);
+  const rootHrefStar = docHrefStar.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  const parsedHrefStar = parseBoostyMessage(rootHrefStar, { pathname: "/live/stream1" });
+  assert.strictEqual(parsedHrefStar.role, "streamer");
+  assert.strictEqual(parsedHrefStar.author, "Иван_Стример");
+  assert.strictEqual(parsedHrefStar.text, "Привет мир");
+  // Fallback ID must be identical to the message without role badge!
+  assert.strictEqual(parsedHrefStar.id, "fallback-eb5996f8");
+
+  // 2. Standard href attribute for moderator (#icon-sword)
+  const { document: docHrefSword } = parseHTML(`
+    <div data-test-id="CHATMESSAGE:root">
+      <div class="ChatMessage-scss--module_author_3jNAZ">
+        <svg><use href="#icon-sword"></use></svg>
+        <span data-test-id="CHATMESSAGE:author">Модер:</span>
+      </div>
+      <div data-test-id="CHATMESSAGE:message">Тишина в чате</div>
+    </div>
+  `);
+  const rootHrefSword = docHrefSword.querySelector('[data-test-id="CHATMESSAGE:root"]');
+  assert.strictEqual(extractAuthorRole(rootHrefSword), "moderator");
+
+  // 3. Unknown SVG icons near author must return role = null without breaking message parsing
+  const unknownIcons = [
+    "#icon-crown-12345",
+    "#icon-verified-abcd",
+    "#icon-subscriber-tier1",
+    "#icon-starting-soon",
+    "#icon-trash-rounded-bold-7f6beacc",
+  ];
+  for (const iconHref of unknownIcons) {
+    const { document: docUnknown } = parseHTML(`
+      <div data-test-id="CHATMESSAGE:root">
+        <div class="ChatMessage-scss--module_author_3jNAZ">
+          <svg><use xlink:href="${iconHref}"></use></svg>
+          <span data-test-id="CHATMESSAGE:author">Зритель:</span>
+        </div>
+        <div data-test-id="CHATMESSAGE:message">Обычный текст</div>
+      </div>
+    `);
+    const rootUnknown = docUnknown.querySelector('[data-test-id="CHATMESSAGE:root"]');
+    const parsedUnknown = parseBoostyMessage(rootUnknown);
+    assert.ok(parsedUnknown, `Message with unknown icon ${iconHref} must still be parsed`);
+    assert.strictEqual(parsedUnknown.role, null, `Unknown icon ${iconHref} must produce role = null`);
+    assert.strictEqual(parsedUnknown.author, "Зритель");
+    assert.strictEqual(parsedUnknown.text, "Обычный текст");
+  }
+});
+
+// ==========================================
 // 4. Edge Cases & Fallbacks
 // ==========================================
 test("Boosty Parser: edge cases (null root, empty text, fallback IDs)", () => {
   assert.strictEqual(parseBoostyMessage(null), null);
   assert.strictEqual(extractAuthor(null), "");
+  assert.strictEqual(extractAuthorRole(null), null);
   assert.strictEqual(extractText(null), "");
+  assert.deepStrictEqual(extractSegments(null), []);
   assert.strictEqual(extractAvatarUrl(null), "");
   assert.strictEqual(extractMessageId(null), "");
 

@@ -14,9 +14,14 @@
   'use strict';
 
   /**
+   * @typedef {'streamer' | 'moderator' | null} AuthorRole
+   */
+
+  /**
    * @typedef {Object} MessageAuthor
    * @property {string} name - Author display name
    * @property {string|null} avatar - Author avatar URL or null if absent
+   * @property {AuthorRole} role - Confirmed Boosty author role ('streamer' | 'moderator' | null)
    */
 
   /**
@@ -26,16 +31,138 @@
    */
 
   /**
+   * @typedef {Object} TextSegment
+   * @property {'text'} type
+   * @property {string} text
+   */
+
+  /**
+   * @typedef {Object} EmojiSegment
+   * @property {'emoji'} type
+   * @property {string|null} id
+   * @property {string} alt
+   * @property {string} url
+   */
+
+  /**
+   * @typedef {Object} MentionSegment
+   * @property {'mention'} type
+   * @property {string|null} userId
+   * @property {string} displayName
+   */
+
+  /**
+   * @typedef {TextSegment | EmojiSegment | MentionSegment} MessageSegment
+   */
+
+  /**
    * @typedef {Object} NormalizedMessage
    * @property {string} id - Unique message identifier
    * @property {string} platform - Source platform identifier ('boosty')
    * @property {MessageAuthor} author - Structured author information
    * @property {string} text - Cleaned message text
+   * @property {MessageSegment[]|null} segments - Structured message segments or null for legacy messages
    * @property {MessageReply|null} reply - Optional reply quote context
    * @property {string|null} publishedAt - Original message time from platform or null
    * @property {number} receivedAt - Server timestamp in ms when message was ingested
    * @property {string} [eventId] - Sequential SSE event ID assigned by server
    */
+
+  /**
+   * Normalizes an author role against the strict whitelist ('streamer' | 'moderator').
+   * Unknown or invalid values normalize to null.
+   *
+   * @param {any} rawRole
+   * @returns {AuthorRole}
+   */
+  function normalizeAuthorRole(rawRole) {
+    if (typeof rawRole !== 'string') return null;
+    const clean = rawRole.trim().toLowerCase();
+    if (clean === 'streamer' || clean === 'moderator') {
+      return clean;
+    }
+    return null;
+  }
+
+  /**
+   * Validates that an emoji image URL uses a safe allowed scheme (https:, http:, or safe data:image/).
+   *
+   * @param {any} url
+   * @returns {boolean}
+   */
+  function isSafeEmojiUrl(url) {
+    if (typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    if (/^data:image\/(png|webp|gif|jpeg|jpg|svg\+xml)[;,]/i.test(trimmed)) {
+      return true;
+    }
+    try {
+      const parsed = new URL(trimmed);
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Normalizes and filters an array of message segments.
+   * Unknown segment types or emoji segments with unsafe URLs are safely dropped.
+   *
+   * @param {any} rawSegments
+   * @returns {MessageSegment[]|null}
+   */
+  function normalizeSegments(rawSegments) {
+    if (!Array.isArray(rawSegments)) return null;
+
+    /** @type {MessageSegment[]} */
+    const normalized = [];
+
+    for (const seg of rawSegments) {
+      if (!seg || typeof seg !== 'object') continue;
+
+      if (seg.type === 'text') {
+        if (typeof seg.text === 'string' && seg.text.length > 0) {
+          normalized.push({
+            type: 'text',
+            text: seg.text,
+          });
+        }
+      } else if (seg.type === 'emoji') {
+        if (!isSafeEmojiUrl(seg.url)) continue;
+        const url = seg.url.trim();
+        const id = (typeof seg.id === 'string' && seg.id.trim()) ? seg.id.trim() : null;
+        const alt = (typeof seg.alt === 'string' && seg.alt.trim())
+          ? seg.alt.trim()
+          : (id || ':emoji:');
+        normalized.push({
+          type: 'emoji',
+          id,
+          alt,
+          url,
+        });
+      } else if (seg.type === 'mention') {
+        const rawDisplay = typeof seg.displayName === 'string'
+          ? seg.displayName.trim().replace(/^@+/, '').trim()
+          : '';
+        if (!rawDisplay) continue;
+        const userId = (typeof seg.userId === 'string' && seg.userId.trim()) ? seg.userId.trim() : null;
+        normalized.push({
+          type: 'mention',
+          userId,
+          displayName: rawDisplay,
+        });
+      }
+      // Unknown segment types are safely dropped
+    }
+
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  function cleanAuthorName(rawName) {
+    if (typeof rawName !== 'string') return '';
+    return rawName.trim().replace(/:\s*$/, '').trim();
+  }
 
   /**
    * Normalizes any incoming message payload (raw from extension, legacy format, or external source)
@@ -70,32 +197,51 @@
     // 3. Author (supports string, legacy object, or structured MessageAuthor)
     let authorName = 'Boosty';
     let authorAvatar = null;
+    let authorRole = null;
 
     if (typeof input.author === 'string') {
-      const trimmed = input.author.trim();
+      const trimmed = cleanAuthorName(input.author);
       if (trimmed) authorName = trimmed;
       if (typeof input.avatar === 'string' && input.avatar.trim()) {
         authorAvatar = input.avatar.trim();
       }
+      authorRole = normalizeAuthorRole(input.role);
     } else if (input.author && typeof input.author === 'object') {
-      const name = String(input.author.name || input.author.author || '').trim();
+      const name = cleanAuthorName(String(input.author.name || input.author.author || ''));
       if (name) authorName = name;
 
       const avatarFromAuthor = typeof input.author.avatar === 'string' ? input.author.avatar.trim() : '';
       const avatarFromRoot = typeof input.avatar === 'string' ? input.avatar.trim() : '';
       const finalAvatar = avatarFromAuthor || avatarFromRoot;
       if (finalAvatar) authorAvatar = finalAvatar;
-    } else if (typeof input.avatar === 'string' && input.avatar.trim()) {
-      authorAvatar = input.avatar.trim();
+
+      authorRole = normalizeAuthorRole(input.author.role !== undefined ? input.author.role : input.role);
+    } else {
+      if (typeof input.avatar === 'string' && input.avatar.trim()) {
+        authorAvatar = input.avatar.trim();
+      }
+      authorRole = normalizeAuthorRole(input.role);
     }
 
-    // 4. Text
-    const text = typeof input.text === 'string' ? input.text.trim() : '';
+    // 4. Structured segments & Text
+    const segments = normalizeSegments(input.segments);
+    let text = typeof input.text === 'string' ? input.text.trim() : '';
+    if (!text && segments && segments.length > 0) {
+      text = segments
+        .map(seg => {
+          if (seg.type === 'text') return seg.text;
+          if (seg.type === 'emoji') return seg.alt || seg.id || ':emoji:';
+          if (seg.type === 'mention') return `@${seg.displayName}`;
+          return '';
+        })
+        .join('')
+        .trim();
+    }
 
     // 5. Reply context (if present and meaningful)
     let reply = null;
     if (input.reply && typeof input.reply === 'object') {
-      const repAuthor = typeof input.reply.author === 'string' ? input.reply.author.trim() : '';
+      const repAuthor = typeof input.reply.author === 'string' ? cleanAuthorName(input.reply.author) : '';
       const repText = typeof input.reply.text === 'string' ? input.reply.text.trim() : '';
       if (repAuthor || repText) {
         reply = { author: repAuthor, text: repText };
@@ -133,8 +279,10 @@
       author: {
         name: authorName,
         avatar: authorAvatar,
+        role: authorRole,
       },
       text,
+      segments,
       reply,
       publishedAt,
       receivedAt,
@@ -178,8 +326,52 @@
       return { ok: false, error: 'Message author.avatar must be a string or null' };
     }
 
+    if (
+      message.author.role !== null &&
+      message.author.role !== undefined &&
+      message.author.role !== 'streamer' &&
+      message.author.role !== 'moderator'
+    ) {
+      return { ok: false, error: 'Message author.role must be "streamer", "moderator", or null' };
+    }
+
     if (typeof message.text !== 'string' || !message.text) {
       return { ok: false, error: 'Message text must be a non-empty string' };
+    }
+
+    if (message.segments !== null && message.segments !== undefined) {
+      if (!Array.isArray(message.segments)) {
+        return { ok: false, error: 'Message segments must be an array or null' };
+      }
+      for (const seg of message.segments) {
+        if (!seg || typeof seg !== 'object') {
+          return { ok: false, error: 'Each segment must be an object' };
+        }
+        if (seg.type === 'text') {
+          if (typeof seg.text !== 'string' || !seg.text) {
+            return { ok: false, error: 'Text segment must have a non-empty text string' };
+          }
+        } else if (seg.type === 'emoji') {
+          if (seg.id !== null && typeof seg.id !== 'string') {
+            return { ok: false, error: 'Emoji segment id must be a string or null' };
+          }
+          if (typeof seg.alt !== 'string' || !seg.alt) {
+            return { ok: false, error: 'Emoji segment alt must be a non-empty string' };
+          }
+          if (!isSafeEmojiUrl(seg.url)) {
+            return { ok: false, error: 'Emoji segment url must be a valid safe URL' };
+          }
+        } else if (seg.type === 'mention') {
+          if (seg.userId !== null && typeof seg.userId !== 'string') {
+            return { ok: false, error: 'Mention segment userId must be a string or null' };
+          }
+          if (typeof seg.displayName !== 'string' || !seg.displayName) {
+            return { ok: false, error: 'Mention segment displayName must be a non-empty string' };
+          }
+        } else {
+          return { ok: false, error: `Unsupported segment type: ${String(seg.type)}` };
+        }
+      }
     }
 
     if (message.reply !== null) {
@@ -207,6 +399,10 @@
   }
 
   return {
+    cleanAuthorName,
+    normalizeAuthorRole,
+    isSafeEmojiUrl,
+    normalizeSegments,
     normalizeIncomingMessage,
     validateNormalizedMessage,
   };

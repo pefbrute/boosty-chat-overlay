@@ -23,16 +23,29 @@ function compareSemver(v1, v2) {
   return 0;
 }
 
+const HEALTH_TIMINGS = {
+  CONNECTED_THRESHOLD_MS: 5_000,
+  RECONNECTING_THRESHOLD_MS: 15_000,
+  DEFAULT_STARTUP_GRACE_MS: 6_000,
+  TAB_TTL_MS: 15_000,
+};
+
 /**
  * Creates health and connector telemetry tracker.
  *
  * @param {object} [options]
  * @param {string} [options.appVersion]
  * @param {string} [options.bundledExtensionVersion]
+ * @param {number} [options.startupGraceMs]
+ * @param {number} [options.serverStartedAt]
+ * @param {boolean} [options.silent=false]
  */
 function createHealthTracker(options = {}) {
   const appVersion = options.appVersion || '0.0.0';
   const bundledExtensionVersion = options.bundledExtensionVersion || appVersion;
+  const startupGraceMs = options.startupGraceMs ?? HEALTH_TIMINGS.DEFAULT_STARTUP_GRACE_MS;
+  let serverStartedAt = options.serverStartedAt ?? null;
+  const silent = Boolean(options.silent);
 
   let extensionVersion = null;
   let receivedMessages = 0;
@@ -42,7 +55,173 @@ function createHealthTracker(options = {}) {
   let boostyLastSeenAt = null;
   let boostyTabUrl = null;
 
+  // Active WebSocket connection & Generation tracking
+  let connectionGeneration = 0;
+  let activeWsClient = null; // { connectionId, generation, connectedAt, meta }
+  let activeTransport = 'none'; // 'websocket' | 'http' | 'none'
+
+  // Diagnostic trace ring buffer
+  const MAX_TRACE_EVENTS = 200;
+  const diagnosticTrace = [];
+
+  function recordTrace(event, details = {}, connectionId = null) {
+    const now = Date.now();
+    const t_ms = serverStartedAt ? (now - serverStartedAt) : 0;
+    const entry = {
+      t: t_ms,
+      ts: new Date(now).toISOString(),
+      event,
+      connectionId: connectionId || activeWsClient?.connectionId || null,
+      generation: activeWsClient?.generation || connectionGeneration,
+      ...details,
+    };
+    diagnosticTrace.push(entry);
+    if (diagnosticTrace.length > MAX_TRACE_EVENTS) {
+      diagnosticTrace.shift();
+    }
+    return entry;
+  }
+
+  // Active tabs registry: key -> { tabId, url, hasChat, isStream, title, lastSeenAt }
+  const activeTabs = new Map();
+
+  // For transition logging
+  let lastExtensionState = 'checking';
+  let lastBoostyState = 'checking';
+
+  function logTransition(component, oldState, newState, reason) {
+    if (silent) return;
+    if (oldState !== newState) {
+      const reasonStr = reason ? ` (${reason})` : '';
+      console.info(`[Health Transition] ${component}: ${oldState} -> ${newState}${reasonStr}`);
+    }
+  }
+
   return {
+    recordTrace,
+    getDiagnosticTrace() {
+      return [...diagnosticTrace];
+    },
+
+    /**
+     * Registers a new active WebSocket connection from extension background.
+     *
+     * @param {string} connectionId
+     * @param {object} [meta]
+     * @param {number} [now]
+     */
+    registerWsConnection(connectionId, meta = {}, now = Date.now()) {
+      if (serverStartedAt === null) serverStartedAt = now;
+      connectionGeneration++;
+      activeWsClient = {
+        connectionId,
+        generation: connectionGeneration,
+        connectedAt: now,
+        meta,
+      };
+      activeTransport = 'websocket';
+      extensionLastSeenAt = now;
+      connectorLastSeenAt = now;
+
+      const incomingVer = meta.extensionVersion || meta.version;
+      if (incomingVer && typeof incomingVer === 'string') {
+        extensionVersion = incomingVer;
+      }
+
+      if (Array.isArray(meta.tabs)) {
+        for (const tab of meta.tabs) {
+          if (tab && typeof tab === 'object') {
+            const tabKey = tab.tabId ?? tab.url ?? 'tab';
+            activeTabs.set(tabKey, {
+              tabId: tab.tabId,
+              url: tab.url || '',
+              hasChat: Boolean(tab.hasChat),
+              isStream: Boolean(tab.isStream),
+              title: tab.title || '',
+              lastSeenAt: now,
+            });
+            if (tab.url) boostyTabUrl = tab.url;
+            boostyLastSeenAt = now;
+          }
+        }
+      }
+
+      recordTrace('extension_ws_connected', {
+        version: extensionVersion,
+        tabsCount: activeTabs.size,
+      }, connectionId);
+
+      logTransition('extension', lastExtensionState, 'connected', `WebSocket active (${connectionId})`);
+      lastExtensionState = 'connected';
+    },
+
+    /**
+     * Unregisters a WebSocket connection on close/error with generation guard.
+     *
+     * @param {string} connectionId
+     * @param {string} [reason='closed']
+     * @param {number} [now]
+     * @returns {boolean}
+     */
+    unregisterWsConnection(connectionId, reason = 'closed', now = Date.now()) {
+      if (!activeWsClient || activeWsClient.connectionId !== connectionId) {
+        // Stale event from old connection generation — ignore
+        return false;
+      }
+
+      recordTrace('extension_ws_disconnected', { reason }, connectionId);
+      activeWsClient = null;
+      extensionLastSeenAt = now; // Mark timestamp for reconnecting grace period
+      if (activeTransport === 'websocket') {
+        activeTransport = 'none';
+      }
+
+      logTransition('extension', lastExtensionState, 'reconnecting', `WebSocket disconnected: ${reason}`);
+      lastExtensionState = 'reconnecting';
+      return true;
+    },
+
+    /**
+     * Updates or registers an individual tab state from event-driven message.
+     *
+     * @param {object} tabData
+     * @param {string} [connectionId]
+     * @param {number} [now]
+     */
+    updateTabState(tabData, connectionId = null, now = Date.now()) {
+      if (!tabData || typeof tabData !== 'object') return;
+      const tabKey = tabData.tabId ?? tabData.tabSessionId ?? tabData.url ?? 'tab';
+      activeTabs.set(tabKey, {
+        tabId: tabData.tabId,
+        url: tabData.url || '',
+        hasChat: Boolean(tabData.hasChat),
+        isStream: Boolean(tabData.isStream),
+        title: tabData.title || '',
+        lastSeenAt: now,
+      });
+      if (tabData.url) boostyTabUrl = tabData.url;
+      boostyLastSeenAt = now;
+      recordTrace('boosty_tab_updated', {
+        tabId: tabData.tabId,
+        hasChat: Boolean(tabData.hasChat),
+        url: tabData.url,
+      }, connectionId);
+    },
+
+    /**
+     * Removes a tab from active registry on tab closed or port disconnect.
+     *
+     * @param {string|number} tabId
+     * @param {string} [connectionId]
+     */
+    removeTab(tabId, connectionId = null) {
+      if (tabId === undefined || tabId === null) return;
+      if (activeTabs.has(tabId)) {
+        activeTabs.delete(tabId);
+        recordTrace('boosty_tab_removed', { tabId }, connectionId);
+      }
+    },
+
     /**
      * Records an incoming message received via POST /message or test message.
      *
@@ -53,6 +232,7 @@ function createHealthTracker(options = {}) {
      */
     recordMessage(params = {}) {
       const now = params.now ?? Date.now();
+      if (serverStartedAt === null) serverStartedAt = now;
       receivedMessages += 1;
       lastMessageAt = now;
 
@@ -65,18 +245,36 @@ function createHealthTracker(options = {}) {
         if (incomingVer && typeof incomingVer === 'string') {
           extensionVersion = incomingVer;
         }
+
+        // A message implies active chat in Boosty
+        const tabKey = 'active_message_tab';
+        activeTabs.set(tabKey, {
+          url: boostyTabUrl || 'https://boosty.to/',
+          hasChat: true,
+          isStream: true,
+          lastSeenAt: now,
+        });
+
+        recordTrace('message_received', {
+          author: params.author,
+          extensionVersion,
+        });
       }
     },
 
     /**
-     * Updates tracker from POST /connector heartbeat.
+     * Updates tracker from POST /connector heartbeat (HTTP fallback).
      *
      * @param {object} [data]
      * @param {number} [now]
      */
     updateConnector(data = {}, now = Date.now()) {
+      if (serverStartedAt === null) serverStartedAt = now;
       connectorLastSeenAt = now;
       extensionLastSeenAt = now;
+      if (activeTransport === 'none') {
+        activeTransport = 'http';
+      }
 
       if (data && typeof data === 'object') {
         const incomingVer = data.extensionVersion || data.version;
@@ -84,10 +282,44 @@ function createHealthTracker(options = {}) {
           extensionVersion = incomingVer;
         }
 
+        // Direct content_tab heartbeat
         if (data.source === 'content_tab') {
           boostyLastSeenAt = now;
           if (typeof data.url === 'string') {
             boostyTabUrl = data.url;
+          }
+          const tabKey = data.tabSessionId || data.url || 'content_tab';
+          activeTabs.set(tabKey, {
+            tabId: data.tabId,
+            url: data.url || '',
+            hasChat: Boolean(data.hasChat),
+            isStream: Boolean(data.isStream),
+            title: data.title || '',
+            lastSeenAt: now,
+          });
+        }
+
+        // Aggregated tabs list from background service worker
+        if (Array.isArray(data.tabs)) {
+          for (const tab of data.tabs) {
+            if (tab && typeof tab === 'object') {
+              const tabKey = tab.tabId ?? tab.url ?? 'tab';
+              const tabTime = tab.lastSeenAt || now;
+              if (tabTime > (boostyLastSeenAt || 0)) {
+                boostyLastSeenAt = tabTime;
+              }
+              if (tab.url && typeof tab.url === 'string') {
+                boostyTabUrl = tab.url;
+              }
+              activeTabs.set(tabKey, {
+                tabId: tab.tabId,
+                url: tab.url || '',
+                hasChat: Boolean(tab.hasChat),
+                isStream: Boolean(tab.isStream),
+                title: tab.title || '',
+                lastSeenAt: tabTime,
+              });
+            }
           }
         }
       }
@@ -104,17 +336,98 @@ function createHealthTracker(options = {}) {
      */
     getHealthState(stats = {}) {
       const now = stats.now ?? Date.now();
+      if (serverStartedAt === null) serverStartedAt = now;
       const overlayClients = stats.overlayClients ?? 0;
       const historyCount = stats.historyCount ?? 0;
 
-      const isExtensionConnected = extensionLastSeenAt !== null && (now - extensionLastSeenAt < 60_000);
-      const isBoostyConnected = boostyLastSeenAt !== null && (now - boostyLastSeenAt < 12_000);
-      const isConnectorConnected = (connectorLastSeenAt !== null && (now - connectorLastSeenAt < 12_000)) || isBoostyConnected;
+      const startupElapsed = Math.max(0, now - serverStartedAt);
+      const isStartupGrace = startupElapsed < startupGraceMs;
+
+      // 1. Derive Extension State: checking -> connected -> reconnecting -> unavailable
+      let extState = 'checking';
+      let extReason = '';
+
+      if (activeWsClient) {
+        extState = 'connected';
+        extReason = `WebSocket active (${activeWsClient.connectionId})`;
+      } else if (extensionLastSeenAt !== null) {
+        const extAge = now - extensionLastSeenAt;
+        if (activeTransport === 'http' && extAge < HEALTH_TIMINGS.CONNECTED_THRESHOLD_MS) {
+          extState = 'connected';
+          extReason = `HTTP signal received ${extAge}ms ago`;
+        } else if (extAge < HEALTH_TIMINGS.RECONNECTING_THRESHOLD_MS) {
+          extState = 'reconnecting';
+          extReason = `transport reconnecting (${Math.floor(extAge / 1000)}s)`;
+        } else {
+          extState = isStartupGrace ? 'checking' : 'unavailable';
+          extReason = `timeout (${Math.floor(extAge / 1000)}s)`;
+        }
+      } else {
+        extState = isStartupGrace ? 'checking' : 'unavailable';
+        extReason = isStartupGrace ? 'within startup grace' : 'never seen';
+      }
+
+      logTransition('extension', lastExtensionState, extState, extReason);
+      lastExtensionState = extState;
+
+      // 2. Prune expired tabs from activeTabs only if using HTTP fallback polling
+      if (!activeWsClient) {
+        for (const [key, tab] of activeTabs.entries()) {
+          // In reconnecting phase, retain tabs for safety unless reconnecting threshold is exceeded
+          if (now - tab.lastSeenAt > HEALTH_TIMINGS.RECONNECTING_THRESHOLD_MS) {
+            activeTabs.delete(key);
+          }
+        }
+      }
+
+      // 3. Derive Boosty State: checking -> tab-detected / chat-detected -> unavailable
+      const liveTabs = Array.from(activeTabs.values());
+      let boostyState = 'checking';
+      let boostyReason = '';
+      let bestTab = null;
+
+      if (liveTabs.length > 0) {
+        const chatTab = liveTabs.find(t => t.hasChat);
+        bestTab = chatTab || liveTabs.sort((a, b) => b.lastSeenAt - a.lastSeenAt)[0];
+        if (chatTab) {
+          boostyState = 'chat-detected';
+          boostyReason = 'chat container active in DOM';
+        } else {
+          boostyState = 'tab-detected';
+          boostyReason = 'Boosty page open, waiting for chat container';
+        }
+      } else if (boostyLastSeenAt !== null && (extState === 'reconnecting' || now - boostyLastSeenAt < HEALTH_TIMINGS.RECONNECTING_THRESHOLD_MS)) {
+        // Tab retained during temporary transport reconnecting (Requirement 14)
+        boostyState = 'tab-detected';
+        boostyReason = 'tab retained during transport reconnecting';
+      } else {
+        if (extState === 'checking' || isStartupGrace) {
+          boostyState = 'checking';
+          boostyReason = 'startup grace period';
+        } else {
+          boostyState = 'unavailable';
+          boostyReason = 'no active Boosty tab detected';
+        }
+      }
+
+      logTransition('boosty', lastBoostyState, boostyState, boostyReason);
+      lastBoostyState = boostyState;
+
+      const isExtensionConnected = (extState === 'connected');
+      const isBoostyConnected = (boostyState === 'chat-detected' || boostyState === 'tab-detected');
+      const isConnectorConnected = isExtensionConnected || (extState === 'reconnecting');
+
       const isOutdated = Boolean(
         isExtensionConnected &&
         extensionVersion &&
         compareSemver(extensionVersion, bundledExtensionVersion) < 0
       );
+
+      const effectiveTabUrl = bestTab?.url || boostyTabUrl || null;
+      const extSecAgo = activeWsClient
+        ? 0
+        : (extensionLastSeenAt !== null ? Math.max(0, Math.floor((now - extensionLastSeenAt) / 1000)) : null);
+      const boostySecAgo = boostyLastSeenAt !== null ? Math.max(0, Math.floor((now - boostyLastSeenAt) / 1000)) : null;
 
       return {
         ok: true,
@@ -126,13 +439,34 @@ function createHealthTracker(options = {}) {
         receivedMessages,
         lastMessageAt,
         historyCount,
+        serverStartedAt,
+        startupElapsed,
+        transport: activeWsClient ? 'websocket' : (connectorLastSeenAt ? 'http' : 'none'),
+        connectionId: activeWsClient?.connectionId || null,
+        connectionGeneration: activeWsClient?.generation || connectionGeneration,
+        extension: {
+          state: extState,
+          version: extensionVersion,
+          lastSeenAt: extensionLastSeenAt,
+          lastSeenSecondsAgo: extSecAgo,
+        },
+        boosty: {
+          state: boostyState,
+          tabUrl: effectiveTabUrl,
+          hasChat: Boolean(bestTab?.hasChat),
+          isStream: Boolean(bestTab?.isStream),
+          lastSeenAt: boostyLastSeenAt,
+          lastSeenSecondsAgo: boostySecAgo,
+          activeTabsCount: liveTabs.length,
+        },
+        // Backward compatibility properties
         connectorConnected: isConnectorConnected,
         extensionConnected: isExtensionConnected,
         boostyConnected: isBoostyConnected,
         connectorLastSeenAt,
         extensionLastSeenAt,
         boostyLastSeenAt,
-        boostyTabUrl,
+        boostyTabUrl: effectiveTabUrl,
       };
     },
   };
@@ -141,4 +475,5 @@ function createHealthTracker(options = {}) {
 module.exports = {
   compareSemver,
   createHealthTracker,
+  HEALTH_TIMINGS,
 };

@@ -143,6 +143,18 @@ async function runVisualQa() {
           }
         });
 
+        // 4. Profile cards containment check (when on appearance tab)
+        const profilesCard = document.querySelector('.profiles-card');
+        if (profilesCard && profilesCard.offsetParent !== null) {
+          const cardRect = profilesCard.getBoundingClientRect();
+          document.querySelectorAll('.profile-btn').forEach(btn => {
+            const btnRect = btn.getBoundingClientRect();
+            if (btnRect.right > cardRect.right + 1 || btnRect.left < cardRect.left - 1) {
+              detected.push(`Profile button "${btn.id}" overflows .profiles-card horizontally: btn=[${Math.round(btnRect.left)}, ${Math.round(btnRect.right)}], card=[${Math.round(cardRect.left)}, ${Math.round(cardRect.right)}]`);
+            }
+          });
+        }
+
         return detected;
       });
 
@@ -383,6 +395,243 @@ async function runVisualQa() {
     console.log('✓ Overlay missing state verified (CTA "Добавить в сцену") -> state-overlay-missing.png');
 
     // =========================================================================
+    // 3.8 Connectivity Lifecycle Scenarios (Requirements 47 & 48)
+    // =========================================================================
+    console.log('\n--- Connectivity Lifecycle Scenarios ---');
+
+    // Scenario 1: Checking state on startup
+    await applyState({
+      view: 'dashboard',
+      mock: {
+        isChecking: true,
+        health: {
+          extension: { state: 'checking' },
+          boosty: { state: 'checking' },
+          extensionConnected: false,
+          boostyConnected: false,
+        },
+        obs: { ok: true, connected: true, scenes: [{ sceneName: 'Основная', hasChat: true }] },
+      },
+    });
+    await verifyLayout('home-connectivity-checking');
+    await captureScreenshot('home-connectivity-checking.png');
+    statesChecked.push('connectivity-checking');
+
+    const checkingCheck = await win.evaluate(() => {
+      const title = document.querySelector('#readiness-title')?.textContent || '';
+      const desc = document.querySelector('#readiness-desc')?.textContent || '';
+      const extText = document.querySelector('#dash-ext-text')?.textContent || '';
+      const boostyText = document.querySelector('#dash-boosty-text')?.textContent || '';
+      const extBtn = document.querySelector('#dash-ext-fix-btn');
+      const boostyBtn = document.querySelector('#dash-boosty-open-btn');
+      return {
+        title,
+        desc,
+        extText,
+        boostyText,
+        extBtnVisible: extBtn && window.getComputedStyle(extBtn).display !== 'none',
+        boostyBtnVisible: boostyBtn && window.getComputedStyle(boostyBtn).display !== 'none',
+      };
+    });
+
+    if (!checkingCheck.title.includes('Восстанавливаем') || !checkingCheck.extText.includes('Проверяем')) {
+      throw new Error(`home-connectivity-checking assertion failed: ${JSON.stringify(checkingCheck)}`);
+    }
+    if (checkingCheck.extBtnVisible || checkingCheck.boostyBtnVisible) {
+      throw new Error(`home-connectivity-checking premature buttons visible: ${JSON.stringify(checkingCheck)}`);
+    }
+    console.log('✓ Connectivity checking (calm startup) verified -> home-connectivity-checking.png');
+
+    // Scenario 2: Connected state
+    await applyState({
+      view: 'dashboard',
+      mock: {
+        isChecking: false,
+        health: {
+          extension: { state: 'connected', version: '0.4.0' },
+          boosty: { state: 'chat-detected', tabUrl: 'https://boosty.to/stream', hasChat: true },
+          extensionConnected: true,
+          boostyConnected: true,
+          extensionVersion: '0.4.0',
+        },
+        obs: { ok: true, connected: true, scenes: [{ sceneName: 'Основная', hasChat: true }] },
+      },
+    });
+    await verifyLayout('home-connectivity-connected');
+    await captureScreenshot('home-connectivity-connected.png');
+    statesChecked.push('connectivity-connected');
+    console.log('✓ Connectivity connected verified -> home-connectivity-connected.png');
+
+    // Scenario 3: Reconnecting state
+    await applyState({
+      view: 'dashboard',
+      mock: {
+        isChecking: false,
+        health: {
+          extension: { state: 'reconnecting', lastSeenSecondsAgo: 6 },
+          boosty: { state: 'tab-detected', tabUrl: 'https://boosty.to/stream' },
+          extensionConnected: false,
+          boostyConnected: true,
+        },
+        obs: { ok: true, connected: true, scenes: [{ sceneName: 'Основная', hasChat: true }] },
+      },
+    });
+    await verifyLayout('home-connectivity-reconnecting');
+    await captureScreenshot('home-connectivity-reconnecting.png');
+    statesChecked.push('connectivity-reconnecting');
+    console.log('✓ Connectivity reconnecting verified -> home-connectivity-reconnecting.png');
+
+    // Scenario 4: Extension missing (after timeout)
+    await applyState({
+      view: 'dashboard',
+      mock: {
+        isChecking: false,
+        health: {
+          extension: { state: 'unavailable' },
+          boosty: { state: 'unavailable' },
+          extensionConnected: false,
+          boostyConnected: false,
+        },
+        obs: { ok: true, connected: true, scenes: [{ sceneName: 'Основная', hasChat: true }] },
+      },
+    });
+    await verifyLayout('home-connectivity-extension-missing');
+    await captureScreenshot('home-connectivity-extension-missing.png');
+    statesChecked.push('connectivity-extension-missing');
+    console.log('✓ Connectivity extension missing verified -> home-connectivity-extension-missing.png');
+
+    // Scenario 5: Boosty missing (extension connected, Boosty tab unavailable)
+    await applyState({
+      view: 'dashboard',
+      mock: {
+        isChecking: false,
+        health: {
+          extension: { state: 'connected', version: '0.4.0' },
+          boosty: { state: 'unavailable' },
+          extensionConnected: true,
+          boostyConnected: false,
+        },
+        obs: { ok: true, connected: true, scenes: [{ sceneName: 'Основная', hasChat: true }] },
+      },
+    });
+    await verifyLayout('home-connectivity-boosty-missing');
+    await captureScreenshot('home-connectivity-boosty-missing.png');
+    statesChecked.push('connectivity-boosty-missing');
+    console.log('✓ Connectivity boosty missing verified -> home-connectivity-boosty-missing.png');
+
+    // Scenario 6: Connectivity Progress / ETA at 2.4s
+    await applyState({
+      view: 'dashboard',
+      mock: {
+        isChecking: true,
+        simulatedStartupTiming: { elapsedMs: 2400 },
+        health: {
+          extension: { state: 'checking' },
+          boosty: { state: 'checking' },
+          extensionConnected: false,
+          boostyConnected: false,
+        },
+        obs: { ok: true, connected: true, scenes: [{ sceneName: 'Основная', hasChat: true }] },
+      },
+    });
+    await verifyLayout('home-connectivity-progress-2s');
+    await captureScreenshot('home-connectivity-progress-2s.png');
+    statesChecked.push('connectivity-progress-2s');
+
+    const progress2sCheck = await win.evaluate(() => {
+      const elapsed = document.querySelector('#readiness-elapsed')?.textContent || '';
+      const expected = document.querySelector('#readiness-expected')?.textContent || '';
+      const milestones = Array.from(document.querySelectorAll('#readiness-milestones .milestone')).map(m => ({
+        name: m.querySelector('.milestone-label')?.textContent || '',
+        state: m.classList.contains('done') ? 'done' : m.classList.contains('active') ? 'active' : 'pending',
+      }));
+      return { elapsed, expected, milestones };
+    });
+
+    if (!progress2sCheck.elapsed.includes('2.4') || !progress2sCheck.expected.includes('5')) {
+      throw new Error(`home-connectivity-progress-2s check failed: ${JSON.stringify(progress2sCheck)}`);
+    }
+    console.log('✓ Connectivity progress at 2.4s verified -> home-connectivity-progress-2s.png');
+
+    // Scenario 7: Connectivity Progress taking longer than usual at 6.8s
+    await applyState({
+      view: 'dashboard',
+      mock: {
+        isChecking: true,
+        simulatedStartupTiming: { elapsedMs: 6800 },
+        health: {
+          extension: { state: 'checking' },
+          boosty: { state: 'checking' },
+          extensionConnected: false,
+          boostyConnected: false,
+        },
+        obs: { ok: true, connected: true, scenes: [{ sceneName: 'Основная', hasChat: true }] },
+      },
+    });
+    await verifyLayout('home-connectivity-progress-long');
+    await captureScreenshot('home-connectivity-progress-long.png');
+    statesChecked.push('connectivity-progress-long');
+
+    const progressLongCheck = await win.evaluate(() => {
+      const banner = document.querySelector('#readiness-status');
+      const title = document.querySelector('#readiness-title')?.textContent || '';
+      const elapsed = document.querySelector('#readiness-elapsed')?.textContent || '';
+      const expected = document.querySelector('#readiness-expected')?.textContent || '';
+      return {
+        title,
+        elapsed,
+        expected,
+        isLongerClass: banner?.classList.contains('longer-than-usual') || false,
+      };
+    });
+
+    if (!progressLongCheck.title.includes('дольше') || !progressLongCheck.isLongerClass) {
+      throw new Error(`home-connectivity-progress-long check failed: ${JSON.stringify(progressLongCheck)}`);
+    }
+    console.log('✓ Connectivity progress taking longer than usual verified -> home-connectivity-progress-long.png');
+
+    // Scenario 8: Connectivity Recovered banner
+    await applyState({
+      view: 'dashboard',
+      mock: {
+        isChecking: false,
+        simulatedStartupTiming: { isRecoveredRecently: true, recoveryDurationMs: 2550 },
+        health: {
+          extension: { state: 'connected', version: '0.4.0' },
+          boosty: { state: 'chat-detected', tabUrl: 'https://boosty.to/stream', hasChat: true },
+          extensionConnected: true,
+          boostyConnected: true,
+          extensionVersion: '0.4.0',
+        },
+        obs: { ok: true, connected: true, scenes: [{ sceneName: 'Основная', hasChat: true }] },
+      },
+    });
+    await verifyLayout('home-connectivity-recovered');
+    await captureScreenshot('home-connectivity-recovered.png');
+    statesChecked.push('connectivity-recovered');
+
+    const recoveredCheck = await win.evaluate(() => {
+      const banner = document.querySelector('#readiness-status');
+      const title = document.querySelector('#readiness-title')?.textContent || '';
+      const desc = document.querySelector('#readiness-desc')?.textContent || '';
+      return {
+        title,
+        desc,
+        isRecoveredClass: banner?.classList.contains('recovered') || false,
+      };
+    });
+
+    if (!recoveredCheck.title.includes('восстановлено') || !recoveredCheck.desc.includes('2.5')) {
+      throw new Error(`home-connectivity-recovered check failed: ${JSON.stringify(recoveredCheck)}`);
+    }
+    console.log('✓ Connectivity recovered banner verified -> home-connectivity-recovered.png');
+
+    // Reset simulated timing for following tests
+    await applyState({
+      mock: { simulatedStartupTiming: null },
+    });
+
+    // =========================================================================
     // 4. Long-Content Stress Scenario
     // =========================================================================
     console.log('\n--- Long-Content Stress Scenario ---');
@@ -433,6 +682,416 @@ async function runVisualQa() {
     await captureScreenshot('appearance.png');
     statesChecked.push('appearance');
     console.log('✓ Appearance view & preset click verified -> appearance.png');
+
+    // 5.1.1 Visual Overlay Positioning Drag & Drop Scenarios
+    console.log('\n--- Visual Overlay Positioning Drag & Drop Scenarios ---');
+
+    // Reset to Clean Preset & Default Layout for deterministic baseline
+    await win.evaluate(() => {
+      document.querySelector('#appearance-reset-btn')?.click();
+      document.querySelector('#layout-reset-btn')?.click();
+    });
+    await win.waitForTimeout(100);
+    await verifyLayout('appearance-position-default');
+    await captureScreenshot('appearance-position-default.png');
+    statesChecked.push('position-default');
+    console.log('✓ Position default (bottom-left) captured -> appearance-position-default.png');
+
+    // Wait for hitbox element to be present and positioned
+    await win.waitForFunction(() => {
+      const hb = document.querySelector('#chat-drag-hitbox');
+      return hb && parseFloat(hb.style.width) > 0;
+    });
+
+    const hitbox = await win.$('#chat-drag-hitbox');
+    const wrapper = await win.$('#preview-scale-wrapper');
+
+    // 5.1.2 Drag across center into Top-Right quadrant
+    const initialBox = await hitbox.boundingBox();
+    const wrapperBox = await wrapper.boundingBox();
+
+    if (!initialBox || !wrapperBox) {
+      throw new Error('Could not compute bounding boxes for hitbox or preview scale wrapper');
+    }
+
+    await win.mouse.move(initialBox.x + initialBox.width / 2, initialBox.y + initialBox.height / 2);
+    await win.mouse.down();
+
+    // Verify .is-dragging class on hitbox while pointer is active
+    const isDraggingDuringMove = await win.evaluate(() => {
+      return document.querySelector('#chat-drag-hitbox')?.classList.contains('is-dragging');
+    });
+    if (!isDraggingDuringMove) {
+      console.warn('  Notice: hitbox .is-dragging class check during pointer move');
+    }
+
+    // Move to top-right area (85% X, 15% Y)
+    const targetTRX = wrapperBox.x + wrapperBox.width * 0.82;
+    const targetTRY = wrapperBox.y + wrapperBox.height * 0.15;
+    await win.mouse.move(targetTRX, targetTRY, { steps: 8 });
+    await win.mouse.up();
+    await win.waitForTimeout(100);
+
+    // Verify that corner switched to right-top and inputs updated
+    const trCheck = await win.evaluate(() => {
+      const activeCorner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+      const offsetX = Number(document.querySelector('#offset-x')?.value);
+      const offsetY = Number(document.querySelector('#offset-y')?.value);
+      return { activeCorner, offsetX, offsetY };
+    });
+
+    if (trCheck.activeCorner !== 'right-top') {
+      throw new Error(`Expected active corner 'right-top' after drag, got '${trCheck.activeCorner}'`);
+    }
+    await verifyLayout('appearance-position-top-right');
+    await captureScreenshot('appearance-position-top-right.png');
+    statesChecked.push('position-top-right');
+    console.log(`✓ Drag to top-right verified (activeCorner: ${trCheck.activeCorner}, offsetX: ${trCheck.offsetX}, offsetY: ${trCheck.offsetY}) -> appearance-position-top-right.png`);
+
+    // 5.1.3 Drag back to Bottom-Left corner
+    const trHitboxBox = await hitbox.boundingBox();
+    await win.mouse.move(trHitboxBox.x + trHitboxBox.width / 2, trHitboxBox.y + trHitboxBox.height / 2);
+    await win.mouse.down();
+
+    const targetBLX = wrapperBox.x + wrapperBox.width * 0.18;
+    const targetBLY = wrapperBox.y + wrapperBox.height * 0.85;
+    await win.mouse.move(targetBLX, targetBLY, { steps: 8 });
+    await win.mouse.up();
+    await win.waitForTimeout(100);
+
+    const blCheck = await win.evaluate(() => {
+      const activeCorner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+      const offsetX = Number(document.querySelector('#offset-x')?.value);
+      const offsetY = Number(document.querySelector('#offset-y')?.value);
+      return { activeCorner, offsetX, offsetY };
+    });
+
+    if (blCheck.activeCorner !== 'left-bottom') {
+      throw new Error(`Expected active corner 'left-bottom' after drag, got '${blCheck.activeCorner}'`);
+    }
+    await verifyLayout('appearance-position-bottom-left');
+    await captureScreenshot('appearance-position-bottom-left.png');
+    statesChecked.push('position-bottom-left');
+    console.log(`✓ Drag to bottom-left verified (activeCorner: ${blCheck.activeCorner}, offsetX: ${blCheck.offsetX}, offsetY: ${blCheck.offsetY}) -> appearance-position-bottom-left.png`);
+
+    // 5.1.4 Drag to Custom Coordinates
+    const blHitboxBox = await hitbox.boundingBox();
+    await win.mouse.move(blHitboxBox.x + blHitboxBox.width / 2, blHitboxBox.y + blHitboxBox.height / 2);
+    await win.mouse.down();
+
+    // Move to custom area (65% X, 35% Y)
+    const targetCustX = wrapperBox.x + wrapperBox.width * 0.65;
+    const targetCustY = wrapperBox.y + wrapperBox.height * 0.35;
+    await win.mouse.move(targetCustX, targetCustY, { steps: 8 });
+    await win.mouse.up();
+    await win.waitForTimeout(150);
+
+    const customCheck = await win.evaluate(() => {
+      const activeCorner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+      const offsetX = Number(document.querySelector('#offset-x')?.value);
+      const offsetY = Number(document.querySelector('#offset-y')?.value);
+      return { activeCorner, offsetX, offsetY };
+    });
+    await verifyLayout('appearance-position-custom');
+    await captureScreenshot('appearance-position-custom.png');
+    statesChecked.push('position-custom');
+    console.log(`✓ Custom position drag verified (activeCorner: ${customCheck.activeCorner}, offsetX: ${customCheck.offsetX}, offsetY: ${customCheck.offsetY}) -> appearance-position-custom.png`);
+
+    // 5.1.5 Multi-viewport Responsive positioning check on 800x650
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 800, h: 650 });
+    await win.setViewportSize({ width: 800, height: 650 });
+    await win.waitForTimeout(100);
+    await verifyLayout('appearance-position-800x650');
+    await captureScreenshot('appearance-position-800x650.png');
+    statesChecked.push('position-800x650');
+    console.log('✓ Appearance positioning at 800x650 verified -> appearance-position-800x650.png');
+
+    // Restore standard 1280x850 viewport
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1280, h: 850 });
+    await win.setViewportSize({ width: 1280, height: 850 });
+    await win.waitForTimeout(100);
+
+    // 5.1.6 Persistence Verification: verify written config
+    await win.waitForTimeout(400); // Allow debounce save to commit
+    const savedConfigRaw = fs.readFileSync(tmpConfigFile, 'utf8');
+    const savedConfig = JSON.parse(savedConfigRaw);
+    if (!savedConfig.horizontalAnchor || !savedConfig.verticalAnchor) {
+      throw new Error(`Persisted config is missing anchor fields: ${savedConfigRaw}`);
+    }
+    console.log(`✓ Config persistence verified: saved { hAnchor: ${savedConfig.horizontalAnchor}, vAnchor: ${savedConfig.verticalAnchor}, offsetX: ${savedConfig.offsetX}, offsetY: ${savedConfig.offsetY} }`);
+
+    // =========================================================================
+    // 5.1.7 Stream Profiles v1 Scenarios & Screenshots
+    // =========================================================================
+    console.log('\n--- Stream Profiles v1 Visual Verification ---');
+
+    // Clean up obsolete profile-podcast.png if it exists from previous runs
+    try {
+      fs.unlinkSync(path.join(artifactsDir, 'profile-podcast.png'));
+    } catch {}
+
+    // Profile 1: Content Viewing (Просмотр контента - Primary / Recommended)
+    await win.evaluate(() => {
+      document.querySelector('#profile-btn-content')?.click();
+    });
+    await win.waitForTimeout(140);
+    const contentCheck = await win.evaluate(() => {
+      const badge = document.querySelector('#profile-status-badge')?.textContent;
+      const activeBtn = document.querySelector('.profile-btn.active')?.getAttribute('data-profile');
+      const presetBadge = document.querySelector('#preset-status-badge')?.textContent;
+      const corner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+      const truncatedEls = [];
+      document.querySelectorAll('.profile-btn .profile-name, .profile-btn .profile-desc, .profile-btn .profile-meta-badge').forEach(el => {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          truncatedEls.push(`${el.className}: "${el.textContent}" (${el.scrollWidth} > ${el.clientWidth})`);
+        }
+      });
+      return { badge, activeBtn, presetBadge, corner, truncatedEls };
+    });
+    if (contentCheck.badge !== 'Просмотр контента' || contentCheck.activeBtn !== 'content' || contentCheck.presetBadge !== 'Компактный' || contentCheck.corner !== 'right-bottom') {
+      throw new Error(`Profile content check failed: ${JSON.stringify(contentCheck)}`);
+    }
+    if (contentCheck.truncatedEls.length > 0) {
+      throw new Error(`Profile card text truncated in 1280x850 grid: ${contentCheck.truncatedEls.join(', ')}`);
+    }
+    await verifyLayout('profile-content');
+    await captureScreenshot('profile-content.png');
+    statesChecked.push('profile-content');
+    console.log('✓ Profile "Просмотр контента" verified -> profile-content.png');
+
+    // Profile 2: Gaming (Игры)
+    await win.evaluate(() => {
+      document.querySelector('#profile-btn-gaming')?.click();
+    });
+    await win.waitForTimeout(140);
+    const gamingCheck = await win.evaluate(() => {
+      const badge = document.querySelector('#profile-status-badge')?.textContent;
+      const activeBtn = document.querySelector('.profile-btn.active')?.getAttribute('data-profile');
+      const presetBadge = document.querySelector('#preset-status-badge')?.textContent;
+      const corner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+      return { badge, activeBtn, presetBadge, corner };
+    });
+    if (gamingCheck.badge !== 'Игры' || gamingCheck.activeBtn !== 'gaming' || gamingCheck.presetBadge !== 'Компактный') {
+      throw new Error(`Profile gaming check failed: ${JSON.stringify(gamingCheck)}`);
+    }
+    await verifyLayout('profile-gaming');
+    await captureScreenshot('profile-gaming.png');
+    statesChecked.push('profile-gaming');
+    console.log('✓ Profile "Игры" verified -> profile-gaming.png');
+
+    // Profile 3: Talking (Разговорный)
+    await win.evaluate(() => {
+      document.querySelector('#profile-btn-talking')?.click();
+    });
+    await win.waitForTimeout(140);
+    const talkingCheck = await win.evaluate(() => {
+      const badge = document.querySelector('#profile-status-badge')?.textContent;
+      const activeBtn = document.querySelector('.profile-btn.active')?.getAttribute('data-profile');
+      const presetBadge = document.querySelector('#preset-status-badge')?.textContent;
+      const corner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
+      return { badge, activeBtn, presetBadge, corner };
+    });
+    if (talkingCheck.badge !== 'Разговорный' || talkingCheck.activeBtn !== 'talking' || talkingCheck.presetBadge !== 'Чистый') {
+      throw new Error(`Profile talking check failed: ${JSON.stringify(talkingCheck)}`);
+    }
+    await verifyLayout('profile-talking');
+    await captureScreenshot('profile-talking.png');
+    statesChecked.push('profile-talking');
+    console.log('✓ Profile "Разговорный" verified -> profile-talking.png');
+
+    // Profile 4: Minimal (Минимализм)
+    await win.evaluate(() => {
+      document.querySelector('#profile-btn-minimal')?.click();
+    });
+    await win.waitForTimeout(140);
+    const minimalCheck = await win.evaluate(() => {
+      const badge = document.querySelector('#profile-status-badge')?.textContent;
+      const activeBtn = document.querySelector('.profile-btn.active')?.getAttribute('data-profile');
+      const presetBadge = document.querySelector('#preset-status-badge')?.textContent;
+      return { badge, activeBtn, presetBadge };
+    });
+    if (minimalCheck.badge !== 'Минимализм' || minimalCheck.activeBtn !== 'minimal') {
+      throw new Error(`Profile minimal check failed: ${JSON.stringify(minimalCheck)}`);
+    }
+    await verifyLayout('profile-minimal');
+    await captureScreenshot('profile-minimal.png');
+    statesChecked.push('profile-minimal');
+    console.log('✓ Profile "Минимализм" verified -> profile-minimal.png');
+
+    // Profile: Custom After Drag
+    // Activate content profile first, then drag hitbox away from right-bottom to prove activeProfile becomes Custom while preset remains Compact
+    await win.evaluate(() => {
+      document.querySelector('#profile-btn-content')?.click();
+    });
+    await win.waitForTimeout(120);
+    const contentHitbox = await win.$('#chat-drag-hitbox');
+    const contentHitboxBox = await contentHitbox?.boundingBox();
+    const currentWrapperBox = await wrapper.boundingBox();
+    if (contentHitboxBox && currentWrapperBox) {
+      await win.mouse.move(contentHitboxBox.x + contentHitboxBox.width / 2, contentHitboxBox.y + contentHitboxBox.height / 2);
+      await win.mouse.down();
+      await win.mouse.move(currentWrapperBox.x + currentWrapperBox.width * 0.25, currentWrapperBox.y + currentWrapperBox.height * 0.3, { steps: 6 });
+      await win.mouse.up();
+      await win.waitForTimeout(150);
+    }
+
+    const customAfterDragCheck = await win.evaluate(() => {
+      const profileBadge = document.querySelector('#profile-status-badge')?.textContent;
+      const hasActiveProfile = Boolean(document.querySelector('.profile-btn.active'));
+      const presetBadge = document.querySelector('#preset-status-badge')?.textContent;
+      return { profileBadge, hasActiveProfile, presetBadge };
+    });
+    if (customAfterDragCheck.profileBadge !== 'Пользовательский' || customAfterDragCheck.hasActiveProfile !== false) {
+      throw new Error(`Expected profile to become 'Пользовательский' after drag, got: ${JSON.stringify(customAfterDragCheck)}`);
+    }
+    await verifyLayout('profile-custom-after-drag');
+    await captureScreenshot('profile-custom-after-drag.png');
+    statesChecked.push('profile-custom-after-drag');
+    console.log('✓ Profile Custom after drag verified -> profile-custom-after-drag.png');
+
+    // Profile: Responsive 800x650 viewport (with Content profile selected)
+    await win.evaluate(() => {
+      document.querySelector('#profile-btn-content')?.click();
+    });
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 800, h: 650 });
+    await win.setViewportSize({ width: 800, height: 650 });
+    await win.waitForTimeout(120);
+    await verifyLayout('profile-800x650');
+    await captureScreenshot('profile-800x650.png');
+    statesChecked.push('profile-800x650');
+    console.log('✓ Profiles responsive layout at 800x650 verified -> profile-800x650.png');
+
+    // Restore standard 1280x850 viewport
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1280, h: 850 });
+    await win.setViewportSize({ width: 1280, height: 850 });
+    await win.waitForTimeout(100);
+
+    // =========================================================================
+    // 5.1.8 Message Animations Visual Verification
+    // =========================================================================
+    console.log('\n--- Message Animations Visual Verification ---');
+
+    // Ensure fade is selected and slider is at 280ms
+    await win.evaluate(() => {
+      const btn = document.querySelector('#anim-type-fade');
+      btn?.click();
+      btn?.closest('.settings-group-card')?.scrollIntoView({ block: 'center' });
+      const slider = document.querySelector('#animation-duration-slider');
+      if (slider) {
+        slider.value = '280';
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+        slider.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    await win.waitForTimeout(120);
+
+    const animFadeCheck = await win.evaluate(() => {
+      const activeType = document.querySelector('.animation-type-grid .segmented-btn.active')?.getAttribute('data-animation-type');
+      const activeSpeed = document.querySelector('[data-animation-speed].active')?.getAttribute('data-animation-speed');
+      const speedLabel = document.querySelector('#animation-speed-label')?.textContent;
+      const speedContainerDisabled = document.querySelector('#animation-speed-container')?.classList.contains('disabled');
+      return { activeType, activeSpeed, speedLabel, speedContainerDisabled };
+    });
+
+    if (animFadeCheck.activeType !== 'fade' || animFadeCheck.speedContainerDisabled) {
+      throw new Error(`Animation fade check failed: ${JSON.stringify(animFadeCheck)}`);
+    }
+    await verifyLayout('appearance-animations');
+    await captureScreenshot('appearance-animations.png');
+    statesChecked.push('appearance-animations');
+    console.log(`✓ Message animations baseline (fade, 280ms) verified -> appearance-animations.png`);
+
+    // Switch to "Без анимации" (none) and verify speed container is disabled
+    await win.evaluate(() => {
+      document.querySelector('#anim-type-none')?.click();
+    });
+    await win.waitForTimeout(100);
+
+    const animNoneCheck = await win.evaluate(() => {
+      const activeType = document.querySelector('.animation-type-grid .segmented-btn.active')?.getAttribute('data-animation-type');
+      const speedContainerDisabled = document.querySelector('#animation-speed-container')?.classList.contains('disabled');
+      return { activeType, speedContainerDisabled };
+    });
+
+    if (animNoneCheck.activeType !== 'none' || !animNoneCheck.speedContainerDisabled) {
+      throw new Error(`Animation none check failed: ${JSON.stringify(animNoneCheck)}`);
+    }
+    await verifyLayout('appearance-animations-none');
+    await captureScreenshot('appearance-animations-none.png');
+    statesChecked.push('appearance-animations-none');
+    console.log(`✓ Message animations disabled (none) verified -> appearance-animations-none.png`);
+
+    // Restore fade animation
+    await win.evaluate(() => {
+      document.querySelector('#anim-type-fade')?.click();
+    });
+    await win.waitForTimeout(100);
+
+    // =========================================================================
+    // 5.1.9 Sticky Live Preview & Scrolled View Verification
+    // =========================================================================
+    console.log('\n--- Sticky Live Preview & Scrolled View Verification ---');
+
+    // Scroll down to Text / Card settings (~800px)
+    await win.evaluate(() => window.scrollTo(0, 800));
+    await win.waitForTimeout(150);
+
+    const stickyScrollCheck = await win.evaluate(() => {
+      const header = document.querySelector('.content-header')?.getBoundingClientRect();
+      const preview = document.querySelector('#sticky-preview-container')?.getBoundingClientRect();
+      const scrollY = window.scrollY;
+      const noHScroll = document.documentElement.scrollWidth <= document.documentElement.clientWidth;
+
+      return {
+        scrollY,
+        headerBottom: header?.bottom || 0,
+        previewTop: preview?.top || 0,
+        previewBottom: preview?.bottom || 0,
+        noHScroll,
+        fitsInViewport: preview && preview.bottom <= window.innerHeight,
+        headerSpacing: preview && header ? preview.top - header.bottom : 0,
+      };
+    });
+
+    if (stickyScrollCheck.scrollY <= 0 || !stickyScrollCheck.fitsInViewport || stickyScrollCheck.headerSpacing < 16) {
+      throw new Error(`Sticky preview scroll check failed: ${JSON.stringify(stickyScrollCheck)}`);
+    }
+
+    await verifyLayout('appearance-scrolled-sticky-preview');
+    await captureScreenshot('appearance-scrolled-sticky-preview.png');
+    statesChecked.push('appearance-scrolled-sticky-preview');
+    console.log(`✓ Scrolled sticky preview verified -> appearance-scrolled-sticky-preview.png`);
+
+    // Scroll to Message Animations card, select slide-side and trigger replay
+    await win.evaluate(() => {
+      document.querySelector('#anim-type-slide-side')?.click();
+      document.querySelector('#anim-type-slide-side')?.closest('.settings-group-card')?.scrollIntoView({ block: 'center' });
+      document.querySelector('#animation-replay-btn')?.click();
+    });
+    await win.waitForTimeout(150);
+
+    const animStickyCheck = await win.evaluate(() => {
+      const activeType = document.querySelector('.animation-type-grid .segmented-btn.active')?.getAttribute('data-animation-type');
+      const preview = document.querySelector('#sticky-preview-container')?.getBoundingClientRect();
+      const header = document.querySelector('.content-header')?.getBoundingClientRect();
+      return {
+        activeType,
+        previewVisible: preview && preview.top >= (header?.bottom || 0) + 16 && preview.bottom <= window.innerHeight,
+      };
+    });
+
+    if (animStickyCheck.activeType !== 'slide-side' || !animStickyCheck.previewVisible) {
+      throw new Error(`Animation sticky preview check failed: ${JSON.stringify(animStickyCheck)}`);
+    }
+
+    await verifyLayout('appearance-animation-sticky-preview');
+    await captureScreenshot('appearance-animation-sticky-preview.png');
+    statesChecked.push('appearance-animation-sticky-preview');
+    console.log(`✓ Animation controls with sticky preview verified -> appearance-animation-sticky-preview.png`);
+
+    // Restore scroll position
+    await win.evaluate(() => window.scrollTo(0, 0));
+    await win.waitForTimeout(100);
 
     // 5.2 Onboarding View
     await applyState({ view: 'onboarding', step: 1 });
