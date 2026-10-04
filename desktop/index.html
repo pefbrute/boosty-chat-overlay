@@ -4,12 +4,20 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Boosty Chat Overlay</title>
+    <link rel="icon" type="image/svg+xml" href="assets/boosty.svg">
     <link rel="stylesheet" href="app.css">
   </head>
   <body>
     <!-- Hidden SVG sprite for unified, lightweight icon system -->
-    <svg style="display: none;" xmlns="http://www.w3.org/2000/svg">
+    <svg width="0" height="0" style="position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none;" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
       <defs>
+        <linearGradient id="boosty-brand-gradient" x1="145.0777" y1="76.148" x2="80.5868" y2="296.0785" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#EF7829"/>
+          <stop offset="0.052" stop-color="#F07529"/>
+          <stop offset="0.355" stop-color="#F0672B"/>
+          <stop offset="0.667" stop-color="#F15E2C"/>
+          <stop offset="1" stop-color="#F15A2C"/>
+        </linearGradient>
         <symbol id="icon-home" viewBox="0 0 24 24">
           <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
@@ -21,7 +29,7 @@
           <path d="M12 2C6.49 2 2 6.49 2 12c0 4.97 4.03 9 9 9 1.1 0 2-.9 2-2 0-.48-.17-.93-.46-1.28-.28-.35-.45-.79-.45-1.27 0-1.1.9-2 2-2h2.41c3.59 0 6.5-2.91 6.5-6.5C23 6.49 17.51 2 12 2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
         <symbol id="icon-setup" viewBox="0 0 24 24">
-          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.5a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.5a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22-.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
         </symbol>
         <symbol id="icon-info" viewBox="0 0 24 24">
@@ -33,7 +41,10 @@
           <path d="M19.5 13.5A2.5 2.5 0 0 0 17 11V6a2 2 0 0 0-2-2h-5a2.5 2.5 0 0 0-5 0H3a2 2 0 0 0-2 2v5a2.5 2.5 0 0 0 0 5v5a2 2 0 0 0 2 2h5a2.5 2.5 0 0 0 5 0h5a2 2 0 0 0 2-2v-5a2.5 2.5 0 0 0-2.5-2.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
         <symbol id="icon-boosty" viewBox="0 0 235.6 292.2">
-          <path fill="currentColor" stroke="none" d="M44.3 164.5L76.9 51.6H127l-10.1 35c-.1.2-.2.4-.3.6L90 179.6h24.8c-10.4 25.9-18.5 46.2-24.3 60.9-45.8-.5-58.6-33.3-47.4-72.1M90.7 240.6l60.4-86.9h-25.6l22.3-55.7c38.2 4 56.2 34.1 45.6 70.5-11.3 39.1-57.1 72.1-101.7 72.1c-.6 0-.9 0-1.2 0z"/>
+          <path fill="currentColor" stroke="none" transform="translate(-45.2, -55.8) scale(1.382)" d="M44.3 164.5L76.9 51.6H127l-10.1 35c-.1.2-.2.4-.3.6L90 179.6h24.8c-10.4 25.9-18.5 46.2-24.3 60.9-45.8-.5-58.6-33.3-47.4-72.1M90.7 240.6l60.4-86.9h-25.6l22.3-55.7c38.2 4 56.2 34.1 45.6 70.5-11.3 39.1-57.1 72.1-101.7 72.1c-.6 0-.9 0-1.2 0z"/>
+        </symbol>
+        <symbol id="icon-boosty-color" viewBox="23.6 46.6 189 199">
+          <path fill="url(#boosty-brand-gradient)" stroke="none" d="M44.3 164.5L76.9 51.6H127l-10.1 35c-.1.2-.2.4-.3.6L90 179.6h24.8c-10.4 25.9-18.5 46.2-24.3 60.9-45.8-.5-58.6-33.3-47.4-72.1M90.7 240.6l60.4-86.9h-25.6l22.3-55.7c38.2 4 56.2 34.1 45.6 70.5-11.3 39.1-57.1 72.1-101.7 72.1c-.6 0-.9 0-1.2 0z"/>
         </symbol>
         <symbol id="icon-obs" viewBox="0 0 24 24">
           <rect x="2" y="3" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -84,7 +95,9 @@
     <!-- 1. ONBOARDING WIZARD VIEW -->
     <main id="onboarding-view" class="view" style="display: none;">
       <header class="app-header">
-        <div class="logo">b</div>
+        <div class="logo">
+          <svg class="logo-icon" aria-hidden="true" viewBox="23.6 46.6 189 199"><use href="#icon-boosty-color"/></svg>
+        </div>
         <div class="header-text">
           <h1>Boosty Chat Overlay</h1>
           <p>Мастер быстрой настройки</p>
@@ -332,7 +345,7 @@
       <aside id="app-sidebar" class="app-sidebar" aria-label="Основная навигация">
         <div class="sidebar-header">
           <div class="logo">
-            <svg class="logo-icon" aria-hidden="true" viewBox="0 0 235.6 292.2"><use href="#icon-boosty"/></svg>
+            <svg class="logo-icon" aria-hidden="true" viewBox="23.6 46.6 189 199"><use href="#icon-boosty-color"/></svg>
           </div>
           <div class="brand-text">
             <span class="brand-title">Boosty Chat</span>
@@ -1013,7 +1026,10 @@
                 Статус вкладки: <strong id="setup-boosty-url">Не обнаружена</strong>
               </div>
               <div class="actions">
-                <button id="setup-open-boosty-btn" class="primary">🚀 Открыть Boosty</button>
+                <button id="setup-open-boosty-btn" class="primary">
+                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-boosty"/></svg>
+                  <span>Открыть Boosty</span>
+                </button>
               </div>
             </div>
           </div>

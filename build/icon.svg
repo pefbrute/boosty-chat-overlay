@@ -1,13 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="23.6 46.6 189 199" width="512" height="512">
   <defs>
-    <linearGradient id="bg" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ff7a45"/>
-      <stop offset="1" stop-color="#dc431c"/>
+    <linearGradient id="boosty-gradient" x1="145.0777" y1="76.148" x2="80.5868" y2="296.0785" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#EF7829"/>
+      <stop offset="0.052" stop-color="#F07529"/>
+      <stop offset="0.355" stop-color="#F0672B"/>
+      <stop offset="0.667" stop-color="#F15E2C"/>
+      <stop offset="1" stop-color="#F15A2C"/>
     </linearGradient>
   </defs>
-  <rect x="36" y="36" width="440" height="440" rx="112" fill="url(#bg)"/>
-  <path d="M116 132c0-28 23-51 51-51h178c28 0 51 23 51 51v156c0 28-23 51-51 51H238l-75 73c-15 15-40 4-40-17v-56h-7V132Z" fill="#fff"/>
-  <circle cx="190" cy="214" r="25" fill="#f15f2c"/>
-  <circle cx="256" cy="214" r="25" fill="#f15f2c"/>
-  <circle cx="322" cy="214" r="25" fill="#f15f2c"/>
+  <path fill="url(#boosty-gradient)" d="M44.3,164.5L76.9,51.6H127l-10.1,35c-0.1,0.2-0.2,0.4-0.3,0.6L90,179.6h24.8c-10.4,25.9-18.5,46.2-24.3,60.9 c-45.8-0.5-58.6-33.3-47.4-72.1 M90.7,240.6l60.4-86.9h-25.6l22.3-55.7c38.2,4,56.2,34.1,45.6,70.5 c-11.3,39.1-57.1,72.1-101.7,72.1C91.3,240.6,91,240.6,90.7,240.6z"/>
 </svg>
