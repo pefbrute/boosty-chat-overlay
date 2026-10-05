@@ -21,7 +21,7 @@ test('getObsWebSocketConfigPath resolves paths correctly across platforms', () =
     platform: 'win32',
     appDataDir: 'C:\\Users\\tester\\AppData\\Roaming',
   });
-  assert.equal(winPath, path.join('C:\\Users\\tester\\AppData\\Roaming', 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json'));
+  assert.equal(winPath, path.win32.join('C:\\Users\\tester\\AppData\\Roaming', 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json'));
 
   const macPath = getObsWebSocketConfigPath({
     platform: 'darwin',

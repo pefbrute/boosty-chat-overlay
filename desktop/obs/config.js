@@ -15,14 +15,15 @@ const { spawn } = require('node:child_process');
 function getObsWebSocketConfigPath(options = {}) {
   const platform = options.platform || process.platform;
   const home = options.homeDir || os.homedir();
+  const pathMod = platform === 'win32' ? path.win32 : path.posix;
   if (platform === 'linux') {
-    return path.join(home, '.config', 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
+    return pathMod.join(home, '.config', 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
   }
   if (platform === 'darwin') {
-    return path.join(home, 'Library', 'Application Support', 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
+    return pathMod.join(home, 'Library', 'Application Support', 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
   }
-  const appData = options.appDataDir || (process.env.APPDATA || path.join(home, 'AppData', 'Roaming'));
-  return path.join(appData, 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
+  const appData = options.appDataDir || (process.env.APPDATA || pathMod.join(home, 'AppData', 'Roaming'));
+  return pathMod.join(appData, 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
 }
 
 /**
