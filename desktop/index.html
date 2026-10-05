@@ -196,6 +196,7 @@
             <div class="actions helper-actions">
               <button id="ob-copy-url-again-btn" class="secondary">Скопировать адрес ещё раз</button>
               <button id="ob-reopen-folder-btn" class="secondary">Открыть папку расширения</button>
+              <button id="ob-copy-ext-path-btn" class="secondary">Скопировать путь к папке</button>
               <button id="ob-reopen-browser-btn" class="secondary">Открыть браузер</button>
             </div>
           </div>
@@ -381,6 +382,11 @@
         <header class="content-header">
           <h1 id="page-title" class="page-title">Главная</h1>
           <div class="header-meta">
+            <div id="update-badge" class="update-badge" style="display: none;">
+              <span class="update-badge-dot"></span>
+              <span id="update-badge-text">Доступно обновление</span>
+              <button id="update-badge-btn" class="update-badge-btn" type="button">Скачать</button>
+            </div>
             <span id="app-version-badge" class="version-badge">v0.4.0</span>
           </div>
         </header>
@@ -505,7 +511,25 @@
         <section id="view-appearance" class="content-view" style="display: none;">
           <div class="appearance-grid">
             <!-- Left Column: Controls -->
-            <div id="appearance-settings-col" class="appearance-settings-col">
+            <div id="appearance-settings-col" class="appearance-settings-col mode-basic">
+              <!-- Mode Switcher: Focus (Basic) vs Advanced -->
+              <div class="appearance-mode-bar">
+                <div class="appearance-mode-header">
+                  <div>
+                    <span class="card-subtitle">Режим</span>
+                    <h3 class="card-title">Настройки оверлея</h3>
+                  </div>
+                  <div class="appearance-mode-segmented" role="radiogroup" aria-label="Режим настроек оформления">
+                    <button id="mode-btn-basic" class="mode-switch-btn active" data-appearance-mode="basic" type="button" aria-pressed="true">
+                      <span>Основное</span>
+                    </button>
+                    <button id="mode-btn-advanced" class="mode-switch-btn" data-appearance-mode="advanced" type="button" aria-pressed="false">
+                      <span>Расширенное</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <!-- Stream Profiles Card (Built-in Stream Profiles v1) -->
               <div class="card profiles-card">
                 <div class="profiles-header">
@@ -587,8 +611,8 @@
                 </div>
               </div>
 
-              <!-- Presets Bar -->
-              <div class="card preset-card">
+              <!-- Presets Bar (Advanced only) -->
+              <div class="card preset-card advanced-only">
                 <div class="preset-header">
                   <div>
                     <span class="card-subtitle">Быстрые пресеты</span>
@@ -605,13 +629,13 @@
               </div>
 
               <!-- Group: Расположение -->
-              <div class="card settings-group-card">
+              <div id="layout-settings-card" class="card settings-group-card">
                 <div class="group-header-row">
                   <h3 class="group-title">Расположение</h3>
                   <button id="layout-reset-btn" class="inline-reset-btn" type="button" title="Сбросить только расположение к исходным значениям">Сбросить позицию</button>
                 </div>
 
-                <!-- 1. Corner Picker: 2x2 visual screen miniature -->
+                <!-- 1. Corner Picker: 2x2 visual screen miniature (Shared: Basic + Advanced) -->
                 <div class="setting-item">
                   <div class="setting-label-row">
                     <label id="corner-picker-label">Положение чата</label>
@@ -635,8 +659,8 @@
                   </div>
                 </div>
 
-                <!-- 2. New Message Position -->
-                <div class="setting-item">
+                <!-- 2. New Message Position (Advanced only) -->
+                <div class="setting-item advanced-only">
                   <div class="setting-label-row">
                     <label id="new-msg-pos-label">Новые сообщения</label>
                   </div>
@@ -646,8 +670,8 @@
                   </div>
                 </div>
 
-                <!-- 3. Offset X -->
-                <div class="setting-item">
+                <!-- 3. Offset X (Advanced only) -->
+                <div class="setting-item advanced-only">
                   <div class="setting-label-row">
                     <label for="offset-x">Отступ по горизонтали</label>
                     <span class="setting-val-display"><span id="offset-x-val">20</span> px</span>
@@ -658,8 +682,8 @@
                   </div>
                 </div>
 
-                <!-- 4. Offset Y -->
-                <div class="setting-item">
+                <!-- 4. Offset Y (Advanced only) -->
+                <div class="setting-item advanced-only">
                   <div class="setting-label-row">
                     <label for="offset-y">Отступ по вертикали</label>
                     <span class="setting-val-display"><span id="offset-y-val">20</span> px</span>
@@ -670,8 +694,8 @@
                   </div>
                 </div>
 
-                <!-- 5. Max Stack Height -->
-                <div class="setting-item">
+                <!-- 5. Max Stack Height (Advanced only) -->
+                <div class="setting-item advanced-only">
                   <div class="setting-label-row">
                     <label for="max-stack-height">Максимальная высота чата</label>
                     <span class="setting-val-display"><span id="max-stack-height-val">800</span> px</span>
@@ -682,8 +706,8 @@
                   </div>
                 </div>
 
-                <!-- 6. Text Alignment -->
-                <div class="setting-item">
+                <!-- 6. Text Alignment (Advanced only) -->
+                <div class="setting-item advanced-only">
                   <div class="setting-label-row">
                     <label id="text-align-label">Выравнивание текста</label>
                   </div>
@@ -694,8 +718,8 @@
                   </div>
                 </div>
 
-                <!-- 7. Canvas & Positioning UX Hint -->
-                <div class="layout-canvas-hint-wrap">
+                <!-- 7. Canvas & Positioning UX Hint (Advanced only) -->
+                <div class="layout-canvas-hint-wrap advanced-only">
                   <div id="layout-canvas-hint" class="layout-canvas-hint">
                     <span id="layout-canvas-hint-icon" class="hint-icon">💡</span>
                     <div class="hint-content">
@@ -706,8 +730,59 @@
                 </div>
               </div>
 
-              <!-- Group 1: Сообщения -->
-              <div class="card settings-group-card">
+              <!-- Basic: Chat Size (Focus Mode) -->
+              <div id="basic-size-card" class="card basic-only basic-size-card">
+                <div class="basic-card-header">
+                  <div>
+                    <span class="card-subtitle">Размер карточек</span>
+                    <h3 class="card-title">Размер чата</h3>
+                  </div>
+                  <span id="size-status-badge" class="profile-badge">Компактный</span>
+                </div>
+                <div class="basic-size-buttons" role="radiogroup" aria-label="Размер чата">
+                  <button id="size-btn-compact" class="size-preset-btn" data-size="compact" type="button" aria-pressed="false">Компактный</button>
+                  <button id="size-btn-normal" class="size-preset-btn" data-size="normal" type="button" aria-pressed="false">Обычный</button>
+                  <button id="size-btn-large" class="size-preset-btn" data-size="large" type="button" aria-pressed="false">Крупный</button>
+                </div>
+              </div>
+
+              <!-- Basic: Messages (Focus Mode) -->
+              <div id="basic-messages-card" class="card basic-only basic-messages-card">
+                <div class="basic-card-header">
+                  <div>
+                    <span class="card-subtitle">Параметры показа</span>
+                    <h3 class="card-title">Сообщения</h3>
+                  </div>
+                </div>
+
+                <div class="setting-item">
+                  <div class="basic-stepper-row">
+                    <label id="basic-max-messages-label" class="basic-stepper-label">Сообщений одновременно</label>
+                    <div class="basic-stepper-controls" role="group" aria-labelledby="basic-max-messages-label">
+                      <button id="basic-max-msgs-dec" class="stepper-btn" type="button" aria-label="Уменьшить количество сообщений">−</button>
+                      <span id="basic-max-messages-val" class="stepper-val" aria-live="polite">6</span>
+                      <button id="basic-max-msgs-inc" class="stepper-btn" type="button" aria-label="Увеличить количество сообщений">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="setting-item" style="margin-top: 14px;">
+                  <div class="setting-label-row">
+                    <label id="basic-duration-label">Время показа</label>
+                    <span id="basic-duration-display" class="setting-val-display font-medium">20 сек.</span>
+                  </div>
+                  <div class="duration-pills-row" role="radiogroup" aria-labelledby="basic-duration-label">
+                    <button type="button" class="duration-pill-btn" data-duration="10" aria-pressed="false">10 сек</button>
+                    <button type="button" class="duration-pill-btn" data-duration="12" aria-pressed="false">12 сек</button>
+                    <button type="button" class="duration-pill-btn" data-duration="15" aria-pressed="false">15 сек</button>
+                    <button type="button" class="duration-pill-btn" data-duration="25" aria-pressed="false">25 сек</button>
+                    <button type="button" class="duration-pill-btn" data-duration="0" aria-pressed="false">Всегда</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Group 1: Сообщения (Advanced only) -->
+              <div id="advanced-messages-card" class="card settings-group-card advanced-only">
                 <h3 class="group-title">Сообщения</h3>
                 
                 <div class="setting-item">
@@ -780,14 +855,14 @@
                     <button id="anim-speed-normal" type="button" class="segmented-btn active" data-animation-speed="280" aria-pressed="true">Обычно</button>
                     <button id="anim-speed-smooth" type="button" class="segmented-btn" data-animation-speed="450" aria-pressed="false">Плавно</button>
                   </div>
-                  <div class="slider-row animation-slider-row">
+                  <div class="slider-row animation-slider-row advanced-only">
                     <input id="animation-duration-slider" type="range" min="150" max="1000" step="10" value="280" aria-label="Скорость анимации в миллисекундах">
                   </div>
                 </div>
               </div>
 
-              <!-- Group 2: Текст -->
-              <div class="card settings-group-card">
+              <!-- Group 2: Текст (Advanced only) -->
+              <div class="card settings-group-card advanced-only">
                 <h3 class="group-title">Текст</h3>
 
                 <div class="setting-item">
@@ -830,8 +905,8 @@
                 </div>
               </div>
 
-              <!-- Group 3: Карточка -->
-              <div class="card settings-group-card">
+              <!-- Group 3: Карточка (Advanced only) -->
+              <div class="card settings-group-card advanced-only">
                 <h3 class="group-title">Карточка</h3>
 
                 <div class="setting-item">
@@ -886,8 +961,8 @@
                 </div>
               </div>
 
-              <!-- Group 4: Аватар -->
-              <div class="card settings-group-card">
+              <!-- Group 4: Аватар (Advanced only) -->
+              <div class="card settings-group-card advanced-only">
                 <h3 class="group-title">Аватар</h3>
 
                 <div class="setting-item">
@@ -909,8 +984,8 @@
                 </div>
               </div>
 
-              <!-- Group 5: Эффекты -->
-              <div class="card settings-group-card">
+              <!-- Group 5: Эффекты (Advanced only) -->
+              <div class="card settings-group-card advanced-only">
                 <h3 class="group-title">Эффекты</h3>
 
                 <div class="setting-item">
@@ -930,6 +1005,22 @@
                     <input id="backdrop-blur" class="num-input" type="number" min="0" max="20" value="0">
                   </div>
                 </div>
+              </div>
+
+              <!-- Progressive Disclosure: Basic Mode link to Advanced -->
+              <div class="basic-disclosure-wrap basic-only">
+                <button id="basic-more-settings-btn" class="more-settings-btn" type="button">
+                  <span>Больше настроек</span>
+                  <span class="disclosure-arrow" aria-hidden="true">→</span>
+                </button>
+              </div>
+
+              <!-- Progressive Disclosure: Advanced Mode link to Basic -->
+              <div class="advanced-back-wrap advanced-only">
+                <button id="advanced-back-to-basic-btn" class="back-to-basic-btn advanced-only" type="button">
+                  <span class="disclosure-arrow" aria-hidden="true">←</span>
+                  <span>Вернуться к основным</span>
+                </button>
               </div>
 
               <!-- Footer Bar with Save Feedback and Reset Button -->
@@ -1118,6 +1209,17 @@
                 <strong>Версия приложения:</strong>
                 <span id="tech-app-version">0.4.0</span>
               </div>
+              <div>
+                <strong>Обновления:</strong>
+                <span id="tech-update-status">Проверка…</span>
+                <button id="tech-check-update-btn" class="secondary inline-btn" style="margin-left: 6px;">Проверить</button>
+              </div>
+              <div id="tech-ext-path-row" style="grid-column: 1 / -1;">
+                <strong>Папка расширения:</strong>
+                <span id="tech-ext-path" style="font-family: monospace; font-size: 12px; word-break: break-all;">—</span>
+                <button id="tech-copy-ext-path-btn" class="secondary inline-btn" style="margin-left: 6px;">Скопировать путь</button>
+                <button id="tech-open-ext-folder-btn" class="secondary inline-btn" style="margin-left: 4px;">Открыть</button>
+              </div>
               <div style="grid-column: 1 / -1; margin-top: 12px; display: flex; align-items: center; gap: 8px;">
                 <button id="export-connectivity-diagnostic-btn" class="secondary inline-btn" type="button">Экспорт диагностики подключения</button>
                 <span id="diagnostic-export-status" class="subtle-status" style="font-size: 12px; color: var(--text-muted); display: none;"></span>
@@ -1184,7 +1286,54 @@
             <div class="actions helper-actions">
               <button id="modal-copy-url-btn" class="secondary">📋 Скопировать адрес ещё раз</button>
               <button id="modal-open-folder-btn" class="secondary">📁 Открыть папку расширения</button>
+              <button id="modal-copy-ext-path-btn" class="secondary">📋 Скопировать путь к папке</button>
               <button id="modal-open-browser-btn" class="secondary">🌐 Открыть браузер</button>
+            </div>
+          </div>
+
+          <div id="modal-migration-box" class="guide-box" style="display: none;">
+            <div class="guide-title">Обновление расширения до стабильной версии:</div>
+            <div class="guide-steps">
+              <div class="guide-step-item">
+                <span class="guide-num">①</span>
+                <div class="guide-text">
+                  <strong>Удалите старый Boosty Chat Connector</strong>
+                  <span class="subtext">Нажмите «Удалить» на карточке старого расширения в браузере.</span>
+                </div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-num">②</span>
+                <div class="guide-text">Включите переключатель <strong>«Режим разработчика»</strong> и нажмите <strong>«Загрузить распакованное расширение»</strong></div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-num">③</span>
+                <div class="guide-text">
+                  <strong>Выберите постоянную папку расширения</strong>
+                  <span class="subtext">Путь к постоянной папке уже скопирован в буфер обмена.</span>
+                </div>
+              </div>
+            </div>
+            <div class="actions helper-actions">
+              <button id="modal-migration-copy-path-btn" class="secondary">📋 Скопировать путь к папке</button>
+              <button id="modal-migration-open-folder-btn" class="secondary">📁 Открыть папку расширения</button>
+              <button id="modal-migration-open-browser-btn" class="secondary">🌐 Открыть браузер</button>
+            </div>
+          </div>
+
+          <div id="modal-reload-box" class="guide-box" style="display: none;">
+            <div class="guide-title">Перезагрузка расширения:</div>
+            <div class="guide-steps">
+              <div class="guide-step-item">
+                <span class="guide-num">①</span>
+                <div class="guide-text">Перейдите на страницу расширений браузера</div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-num">②</span>
+                <div class="guide-text">Найдите <strong>Boosty Chat Connector</strong> и нажмите кнопку <strong>🔄 Обновить</strong></div>
+              </div>
+            </div>
+            <div class="actions helper-actions">
+              <button id="modal-reload-open-browser-btn" class="secondary">🌐 Открыть браузер</button>
             </div>
           </div>
 
@@ -1199,6 +1348,7 @@
 
     <script src="../core/config/presets.js"></script>
     <script src="../core/config/profiles.js"></script>
+    <script src="../core/config/size-presets.js"></script>
     <script src="../core/layout/positioning.js"></script>
     <script src="ui/status-hub.js"></script>
     <script src="app.js"></script>

@@ -1,6 +1,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const {
+  deployPersistentExtension,
+  isTransientMountPath,
+  readExtensionManifest,
+} = require('./extension-deployer.js');
 
 /**
  * Creates Browser Manager managing installed browser discovery,
@@ -16,6 +21,8 @@ const { spawn } = require('node:child_process');
  * @param {object} [options.appModule]
  * @param {string} [options.resourcesPath]
  * @param {string} [options.extensionDir]
+ * @param {string} [options.userDataDir]
+ * @param {string} [options.persistentExtensionDir]
  */
 function createBrowserManager(options = {}) {
   const platform = options.platform || process.platform;
@@ -63,8 +70,6 @@ function createBrowserManager(options = {}) {
         { id: 'edge', name: 'Edge', command: pathWin.join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), extensionsUrl: 'edge://extensions/' },
         { id: 'edge', name: 'Edge', command: pathWin.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), extensionsUrl: 'edge://extensions/' },
         { id: 'yandex', name: 'Yandex', command: pathWin.join(local, 'Yandex', 'YandexBrowser', 'Application', 'browser.exe'), extensionsUrl: 'browser://extensions/' },
-        { id: 'firefox', name: 'Firefox', command: pathWin.join(programFiles, 'Mozilla Firefox', 'firefox.exe'), extensionsUrl: 'about:debugging#/runtime/this-firefox' },
-        { id: 'firefox', name: 'Firefox', command: pathWin.join(local, 'Mozilla Firefox', 'firefox.exe'), extensionsUrl: 'about:debugging#/runtime/this-firefox' },
       ];
     }
 
@@ -73,7 +78,6 @@ function createBrowserManager(options = {}) {
         { id: 'brave', name: 'Brave', command: '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser', extensionsUrl: 'brave://extensions/' },
         { id: 'chrome', name: 'Chrome', command: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', extensionsUrl: 'chrome://extensions/' },
         { id: 'chromium', name: 'Chromium', command: '/Applications/Chromium.app/Contents/MacOS/Chromium', extensionsUrl: 'chrome://extensions/' },
-        { id: 'firefox', name: 'Firefox', command: '/Applications/Firefox.app/Contents/MacOS/firefox', extensionsUrl: 'about:debugging#/runtime/this-firefox' },
       ];
     }
 
@@ -83,7 +87,6 @@ function createBrowserManager(options = {}) {
       { id: 'chrome', name: 'Chrome', command: '/usr/bin/google-chrome', extensionsUrl: 'chrome://extensions/' },
       { id: 'chromium', name: 'Chromium', command: '/usr/bin/chromium', extensionsUrl: 'chrome://extensions/' },
       { id: 'chromium', name: 'Chromium', command: '/usr/bin/chromium-browser', extensionsUrl: 'chrome://extensions/' },
-      { id: 'firefox', name: 'Firefox', command: '/usr/bin/firefox', extensionsUrl: 'about:debugging#/runtime/this-firefox' },
     ];
   }
 
@@ -96,10 +99,24 @@ function createBrowserManager(options = {}) {
     });
   }
 
-  function getExtensionDir() {
-    if (options.extensionDir) {
-      return options.extensionDir;
+  function getUserDataDir() {
+    if (options.userDataDir) return options.userDataDir;
+    if (appMod && typeof appMod.getPath === 'function') {
+      try {
+        return appMod.getPath('userData');
+      } catch {}
     }
+    const home = env.HOME || env.USERPROFILE || '';
+    if (platform === 'win32') {
+      return path.join(env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'boosty-chat-overlay');
+    }
+    if (platform === 'darwin') {
+      return path.join(home, 'Library', 'Application Support', 'boosty-chat-overlay');
+    }
+    return path.join(home, '.config', 'boosty-chat-overlay');
+  }
+
+  function getBundledExtensionDir() {
     const isPackaged = appMod ? appMod.isPackaged : false;
     if (!isPackaged) {
       return path.join(__dirname, '..', '..', 'extension');
@@ -108,6 +125,39 @@ function createBrowserManager(options = {}) {
     const resourceDir = path.join(resPath, 'extension');
     if (fsMod.existsSync(resourceDir)) return resourceDir;
     return path.join(resPath, 'app.asar.unpacked', 'extension');
+  }
+
+  function getPersistentExtensionDir() {
+    if (options.persistentExtensionDir) return options.persistentExtensionDir;
+    return path.join(getUserDataDir(), 'extension');
+  }
+
+  function deployExtension(force = false) {
+    const bundledDir = getBundledExtensionDir();
+    const persistentDir = getPersistentExtensionDir();
+    return deployPersistentExtension({
+      bundledDir,
+      persistentDir,
+      force,
+      fsModule: fsMod,
+    });
+  }
+
+  function getExtensionDir() {
+    if (options.extensionDir) {
+      return options.extensionDir;
+    }
+    const isPackaged = appMod ? appMod.isPackaged : false;
+    if (!isPackaged) {
+      return getBundledExtensionDir();
+    }
+    // In packaged mode, ensure persistent extension is deployed and return persistent path
+    try {
+      deployExtension(false);
+    } catch (err) {
+      console.error('[BrowserManager] Auto-deploy extension error:', err?.message || err);
+    }
+    return getPersistentExtensionDir();
   }
 
   function openPreferredBrowser(url, browserId) {
@@ -152,6 +202,18 @@ function createBrowserManager(options = {}) {
     },
 
     getExtensionDir,
+    getBundledExtensionDir,
+    getPersistentExtensionDir,
+    deployExtension,
+    isTransientPath: isTransientMountPath,
+
+    copyExtensionPath() {
+      const extensionDir = getExtensionDir();
+      if (clipboardMod && typeof clipboardMod.writeText === 'function') {
+        clipboardMod.writeText(extensionDir);
+      }
+      return { ok: true, extensionDir };
+    },
 
     prepareBrowserExtension(browserId) {
       const browser = getInstalledBrowsers().find(candidate => candidate.id === browserId);

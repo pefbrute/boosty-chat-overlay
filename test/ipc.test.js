@@ -41,6 +41,14 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
       calls.browserManager.push({ method: 'copyExtensionsUrl', browserId });
       return { ok: true, url: 'brave://extensions/' };
     },
+    getExtensionDir() {
+      calls.browserManager.push({ method: 'getExtensionDir' });
+      return '/home/tester/.config/boosty-chat-overlay/extension';
+    },
+    copyExtensionPath() {
+      calls.browserManager.push({ method: 'copyExtensionPath' });
+      return { ok: true, extensionDir: '/home/tester/.config/boosty-chat-overlay/extension' };
+    },
   };
 
   const mockObsService = {
@@ -107,6 +115,8 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
     'open-extension-folder',
     'open-browser-extensions-page',
     'copy-extensions-url',
+    'copy-extension-path',
+    'get-extension-info',
     'launch-obs',
     'has-obs-executable',
     'list-obs-scenes',
@@ -117,6 +127,9 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
     'get-obs-status',
     'get-app-version',
     'export-connectivity-diagnostic',
+    'get-update-status',
+    'check-for-updates',
+    'open-release-url',
   ];
 
   for (const ch of expectedChannels) {

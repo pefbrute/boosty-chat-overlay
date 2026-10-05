@@ -38,6 +38,15 @@ ipcMain.handle('open-browser-extensions-page', () => true);
 ipcMain.handle('launch-obs', () => ({ ok: true }));
 ipcMain.handle('has-obs-executable', () => true);
 ipcMain.handle('open-url', () => true);
+ipcMain.handle('get-extension-info', () => ({
+  persistentPath: '/tmp/extension',
+  bundledPath: '/tmp/extension',
+  extensionId: 'bcoadgccgjomlcadhmeognidaoocohdp',
+  isTransient: false,
+}));
+ipcMain.handle('get-update-status', () => ({ state: 'up-to-date', updateAvailable: false }));
+ipcMain.handle('check-for-updates', () => ({ state: 'up-to-date', updateAvailable: false }));
+ipcMain.handle('copy-extension-path', () => ({ ok: true, extensionDir: '/tmp/extension' }));
 
 app.whenReady().then(async () => {
   let win;

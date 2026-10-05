@@ -42,23 +42,29 @@ test('installedBrowsers filters by file existence and deduplicates', () => {
   ]);
 });
 
-test('getExtensionDir handles packaged and unpackaged modes', () => {
+test('getExtensionDir handles packaged and unpackaged modes with persistent path', () => {
   const devMgr = createBrowserManager({
     appModule: { isPackaged: false },
   });
   assert.equal(devMgr.getExtensionDir(), path.resolve(__dirname, '..', 'extension'));
+  assert.equal(devMgr.getBundledExtensionDir(), path.resolve(__dirname, '..', 'extension'));
 
   const fakeFs = {
     existsSync(p) {
       return p === '/opt/app/resources/extension';
     },
+    mkdirSync() {},
+    readdirSync() { return []; },
   };
   const prodMgr = createBrowserManager({
     appModule: { isPackaged: true },
     resourcesPath: '/opt/app/resources',
+    userDataDir: '/home/tester/.config/boosty-chat-overlay',
     fsModule: fakeFs,
   });
-  assert.equal(prodMgr.getExtensionDir(), '/opt/app/resources/extension');
+  assert.equal(prodMgr.getBundledExtensionDir(), '/opt/app/resources/extension');
+  assert.equal(prodMgr.getPersistentExtensionDir(), '/home/tester/.config/boosty-chat-overlay/extension');
+  assert.equal(prodMgr.getExtensionDir(), '/home/tester/.config/boosty-chat-overlay/extension');
 });
 
 test('prepareBrowserExtension and copyExtensionsUrl', () => {

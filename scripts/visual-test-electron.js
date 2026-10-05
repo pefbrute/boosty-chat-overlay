@@ -663,15 +663,91 @@ async function runVisualQa() {
     // =========================================================================
     console.log('\n--- Primary Views & Interactive Flows ---');
 
-    // 5.1 Appearance View & Preset interaction
+    // 5.1 Appearance Focus Mode (Basic Mode) & Multi-Viewport Verification
+    console.log('\n--- Focus Mode (Basic Appearance) Scenarios ---');
     await applyState({ view: 'appearance' });
     await win.waitForFunction(() => {
       const el = document.querySelector('#view-appearance');
       return el && window.getComputedStyle(el).display !== 'none';
     });
-    await verifyLayout('appearance-view');
 
-    // Click "Large" preset
+    // Ensure Basic mode is active
+    await win.evaluate(() => {
+      document.querySelector('#mode-btn-basic')?.click();
+    });
+    await win.waitForTimeout(50);
+    await verifyLayout('appearance-focus-1280x850');
+    await captureScreenshot('appearance-focus-1280x850.png');
+    statesChecked.push('appearance-focus-1280x850');
+    console.log('✓ Focus Mode at 1280x850 verified -> appearance-focus-1280x850.png');
+
+    // 1000x750 viewport
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1000, h: 750 });
+    await win.setViewportSize({ width: 1000, height: 750 });
+    await win.waitForTimeout(100);
+    await verifyLayout('appearance-focus-1000x750');
+    await captureScreenshot('appearance-focus-1000x750.png');
+    statesChecked.push('appearance-focus-1000x750');
+    console.log('✓ Focus Mode at 1000x750 verified -> appearance-focus-1000x750.png');
+
+    // 800x650 viewport
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 800, h: 650 });
+    await win.setViewportSize({ width: 800, height: 650 });
+    await win.waitForTimeout(100);
+    await verifyLayout('appearance-focus-800x650');
+    await captureScreenshot('appearance-focus-800x650.png');
+    statesChecked.push('appearance-focus-800x650');
+    console.log('✓ Focus Mode at 800x650 verified -> appearance-focus-800x650.png');
+
+    // Restore standard 1280x850 viewport
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1280, h: 850 });
+    await win.setViewportSize({ width: 1280, height: 850 });
+    await win.waitForTimeout(100);
+
+    // 5.1.0 Interactive Focus Mode Controls (Size, Stepper, Duration)
+    await win.evaluate(() => {
+      document.querySelector('#size-btn-compact')?.click();
+      document.querySelector('#basic-max-msgs-inc')?.click();
+      document.querySelector('button.duration-pill-btn[data-duration="15"]')?.click();
+    });
+    await win.waitForTimeout(50);
+    const basicSyncCheck = await win.evaluate(() => {
+      return {
+        cardWidth: Number(document.querySelector('#card-width')?.value),
+        maxMsgs: Number(document.querySelector('#max-messages')?.value),
+        duration: Number(document.querySelector('#duration')?.value),
+        activeSize: document.querySelector('#size-btn-compact')?.classList.contains('active'),
+        activePill: document.querySelector('button.duration-pill-btn[data-duration="15"]')?.classList.contains('active'),
+      };
+    });
+    if (basicSyncCheck.cardWidth !== 380 || basicSyncCheck.maxMsgs !== 7 || basicSyncCheck.duration !== 15) {
+      throw new Error(`Basic control sync failed: ${JSON.stringify(basicSyncCheck)}`);
+    }
+    // Scroll to basic controls and capture appearance-focus-scrolled.png
+    await win.evaluate(() => {
+      document.querySelector('#basic-messages-card')?.scrollIntoView({ block: 'center' });
+    });
+    await win.waitForTimeout(100);
+    await verifyLayout('appearance-focus-scrolled');
+    await captureScreenshot('appearance-focus-scrolled.png');
+    statesChecked.push('appearance-focus-scrolled');
+    console.log('✓ Focus Mode scrolled view verified -> appearance-focus-scrolled.png');
+
+    // Restore scroll position before switching mode
+    await win.evaluate(() => window.scrollTo(0, 0));
+    await win.waitForTimeout(50);
+
+    // Progressive Disclosure: click "Больше настроек" to enter Advanced Mode
+    await win.evaluate(() => {
+      document.querySelector('#basic-more-settings-btn')?.click();
+    });
+    await win.waitForTimeout(50);
+    await verifyLayout('appearance-advanced-1280x850');
+    await captureScreenshot('appearance-advanced-1280x850.png');
+    statesChecked.push('appearance-advanced-1280x850');
+    console.log('✓ Advanced Mode via Progressive Disclosure verified -> appearance-advanced-1280x850.png');
+
+    // Click "Large" preset in Advanced Mode
     await win.evaluate(() => {
       document.querySelector('#preset-btn-large')?.click();
     });
@@ -681,7 +757,21 @@ async function runVisualQa() {
     }
     await captureScreenshot('appearance.png');
     statesChecked.push('appearance');
-    console.log('✓ Appearance view & preset click verified -> appearance.png');
+    console.log('✓ Advanced preset click verified -> appearance.png');
+
+    // Progressive Disclosure: click "Вернуться к основным" to return to Basic Mode
+    await win.evaluate(() => {
+      document.querySelector('#advanced-back-to-basic-btn')?.click();
+    });
+    await win.waitForTimeout(50);
+    const backToBasicCheck = await win.evaluate(() => {
+      const col = document.querySelector('#appearance-settings-col');
+      return col?.classList.contains('mode-basic') && !col?.classList.contains('mode-advanced');
+    });
+    if (!backToBasicCheck) {
+      throw new Error('Returning to Basic Mode via button failed');
+    }
+    console.log('✓ Returning to Basic Mode via progressive disclosure verified');
 
     // 5.1.1 Visual Overlay Positioning Drag & Drop Scenarios
     console.log('\n--- Visual Overlay Positioning Drag & Drop Scenarios ---');

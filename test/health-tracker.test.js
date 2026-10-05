@@ -165,11 +165,14 @@ test('createHealthTracker handles WebSocket connection lifecycle and generation 
   // 5. New connection establishes generation 2
   tracker.registerWsConnection('conn-2', {
     extensionVersion: '0.4.0',
+    extensionId: 'bcoadgccgjomlcadhmeognidaoocohdp',
     tabs: [{ tabId: 101, url: 'https://boosty.to/stream', hasChat: true, isStream: true }],
   }, baseTime + 2000);
 
   const reconnectedState = tracker.getHealthState({ now: baseTime + 2100 });
   assert.equal(reconnectedState.extension.state, 'connected');
+  assert.equal(reconnectedState.extensionId, 'bcoadgccgjomlcadhmeognidaoocohdp');
+  assert.equal(reconnectedState.extension.extensionId, 'bcoadgccgjomlcadhmeognidaoocohdp');
   assert.equal(reconnectedState.connectionId, 'conn-2');
   assert.equal(reconnectedState.connectionGeneration, 2);
 

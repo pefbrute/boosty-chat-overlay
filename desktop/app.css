@@ -285,6 +285,50 @@ body {
   margin: 0;
 }
 
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.update-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 120, 41, 0.12);
+  border: 1px solid rgba(239, 120, 41, 0.35);
+  border-radius: 6px;
+  color: #ff9d54;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+}
+
+.update-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f15a2c;
+  display: inline-block;
+}
+
+.update-badge-btn {
+  background: #f15a2c;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  margin-left: 2px;
+  transition: opacity 0.15s ease;
+}
+
+.update-badge-btn:hover {
+  opacity: 0.85;
+}
+
 .version-badge {
   background: var(--bg-card-alt);
   border: 1px solid var(--border-card);
@@ -771,6 +815,308 @@ button.small-btn {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+/* ==========================================================================
+   Focus Mode / Basic vs Advanced Controls (Section 5.0)
+   ========================================================================== */
+#appearance-settings-col.mode-basic .advanced-only {
+  display: none !important;
+}
+
+#appearance-settings-col.mode-advanced .basic-only {
+  display: none !important;
+}
+
+/* Mode Bar */
+.appearance-mode-bar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.appearance-mode-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.appearance-mode-segmented {
+  display: inline-flex;
+  background: var(--bg-base);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.mode-switch-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mode-switch-btn:hover {
+  color: var(--text-main);
+}
+
+.mode-switch-btn.active {
+  background: var(--bg-card-alt);
+  border-color: var(--border-card);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.mode-switch-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(241, 95, 44, 0.35);
+}
+
+.appearance-mode-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Basic Size Card */
+.basic-size-card {
+  padding: 16px 18px;
+}
+
+.basic-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.basic-size-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.size-preset-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 8px;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.size-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+.size-preset-btn.active {
+  background: rgba(241, 95, 44, 0.2);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.size-preset-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(241, 95, 44, 0.35);
+}
+
+/* Basic Messages Card */
+.basic-messages-card {
+  padding: 16px 18px;
+}
+
+.basic-stepper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.basic-stepper-label {
+  font-size: 13px;
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.basic-stepper-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: 3px 6px;
+}
+
+.stepper-btn {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
+  color: var(--text-main);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  height: 28px;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.stepper-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.stepper-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(241, 95, 44, 0.35);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.stepper-val {
+  color: var(--text-main);
+  font-family: monospace;
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: center;
+}
+
+/* Duration Pills */
+.duration-pills-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.duration-pill-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 4px;
+  text-align: center;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.duration-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+.duration-pill-btn.active {
+  background: rgba(241, 95, 44, 0.2);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.duration-pill-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(241, 95, 44, 0.35);
+}
+
+/* Progressive Disclosure Links */
+.basic-disclosure-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+}
+
+.more-settings-btn {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--border-card);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px 16px;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.more-settings-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-main);
+}
+
+.more-settings-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(241, 95, 44, 0.35);
+}
+
+.advanced-back-wrap {
+  display: flex;
+  justify-content: flex-start;
+  padding: 2px 0;
+}
+
+.back-to-basic-btn {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 6px;
+  padding: 7px 12px;
+  transition: all 0.15s ease;
+}
+
+.back-to-basic-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+.back-to-basic-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(241, 95, 44, 0.35);
 }
 
 /* Stream Profiles Card (Built-in Stream Profiles v1) */

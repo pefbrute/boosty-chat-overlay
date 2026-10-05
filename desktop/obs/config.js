@@ -18,6 +18,9 @@ function getObsWebSocketConfigPath(options = {}) {
   if (platform === 'linux') {
     return path.join(home, '.config', 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
   }
+  if (platform === 'darwin') {
+    return path.join(home, 'Library', 'Application Support', 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
+  }
   const appData = options.appDataDir || (process.env.APPDATA || path.join(home, 'AppData', 'Roaming'));
   return path.join(appData, 'obs-studio', 'plugin_config', 'obs-websocket', 'config.json');
 }

@@ -9,6 +9,8 @@
  * @param {string} v2
  * @returns {number}
  */
+const { EXPECTED_EXTENSION_ID } = require('../constants');
+
 function compareSemver(v1, v2) {
   if (!v1 || !v2) return 0;
   const p1 = String(v1).replace(/^v/i, '').split('.').map(x => parseInt(x, 10) || 0);
@@ -36,6 +38,9 @@ const HEALTH_TIMINGS = {
  * @param {object} [options]
  * @param {string} [options.appVersion]
  * @param {string} [options.bundledExtensionVersion]
+ * @param {string} [options.persistentExtensionVersion]
+ * @param {string} [options.expectedExtensionId]
+ * @param {boolean} [options.allowAnyExtensionId=false]
  * @param {number} [options.startupGraceMs]
  * @param {number} [options.serverStartedAt]
  * @param {boolean} [options.silent=false]
@@ -43,11 +48,15 @@ const HEALTH_TIMINGS = {
 function createHealthTracker(options = {}) {
   const appVersion = options.appVersion || '0.0.0';
   const bundledExtensionVersion = options.bundledExtensionVersion || appVersion;
+  const persistentExtensionVersion = options.persistentExtensionVersion || bundledExtensionVersion;
+  const expectedExtensionId = options.expectedExtensionId || EXPECTED_EXTENSION_ID;
+  const allowAnyExtensionId = Boolean(options.allowAnyExtensionId || process.env.BOOSTY_ALLOW_ANY_EXT_ID === '1');
   const startupGraceMs = options.startupGraceMs ?? HEALTH_TIMINGS.DEFAULT_STARTUP_GRACE_MS;
   let serverStartedAt = options.serverStartedAt ?? null;
   const silent = Boolean(options.silent);
 
   let extensionVersion = null;
+  let extensionId = null;
   let receivedMessages = 0;
   let lastMessageAt = null;
   let connectorLastSeenAt = null;
@@ -55,9 +64,10 @@ function createHealthTracker(options = {}) {
   let boostyLastSeenAt = null;
   let boostyTabUrl = null;
 
-  // Active WebSocket connection & Generation tracking
+  // Active WebSocket connections map: connectionId -> { connectionId, generation, connectedAt, meta, extensionId, isCanonical, isLegacy }
+  const activeConnections = new Map();
   let connectionGeneration = 0;
-  let activeWsClient = null; // { connectionId, generation, connectedAt, meta }
+  let activeWsClient = null; // Primary { connectionId, generation, connectedAt, meta, extensionId, isCanonical }
   let activeTransport = 'none'; // 'websocket' | 'http' | 'none'
 
   // Diagnostic trace ring buffer
@@ -113,17 +123,32 @@ function createHealthTracker(options = {}) {
     registerWsConnection(connectionId, meta = {}, now = Date.now()) {
       if (serverStartedAt === null) serverStartedAt = now;
       connectionGeneration++;
-      activeWsClient = {
+
+      const connExtId = (meta.extensionId && typeof meta.extensionId === 'string') ? meta.extensionId : null;
+      const isCanonical = Boolean(allowAnyExtensionId || (connExtId && connExtId === expectedExtensionId));
+      const isLegacy = !isCanonical;
+
+      const connEntry = {
         connectionId,
         generation: connectionGeneration,
         connectedAt: now,
         meta,
+        extensionId: connExtId,
+        isCanonical,
+        isLegacy,
       };
+      activeConnections.set(connectionId, connEntry);
+
+      // Select primary active client: prefer canonical connection, otherwise newest
+      const canonicalConn = Array.from(activeConnections.values()).find(c => c.isCanonical);
+      activeWsClient = canonicalConn || connEntry;
+
       activeTransport = 'websocket';
       extensionLastSeenAt = now;
       connectorLastSeenAt = now;
 
-      const incomingVer = meta.extensionVersion || meta.version;
+      extensionId = activeWsClient.extensionId;
+      const incomingVer = activeWsClient.meta.extensionVersion || activeWsClient.meta.version;
       if (incomingVer && typeof incomingVer === 'string') {
         extensionVersion = incomingVer;
       }
@@ -148,10 +173,13 @@ function createHealthTracker(options = {}) {
 
       recordTrace('extension_ws_connected', {
         version: extensionVersion,
+        extensionId: connExtId,
+        isCanonical,
+        totalActiveConnections: activeConnections.size,
         tabsCount: activeTabs.size,
       }, connectionId);
 
-      logTransition('extension', lastExtensionState, 'connected', `WebSocket active (${connectionId})`);
+      logTransition('extension', lastExtensionState, 'connected', `WebSocket active (${connectionId}, canonical=${isCanonical})`);
       lastExtensionState = 'connected';
     },
 
@@ -164,21 +192,68 @@ function createHealthTracker(options = {}) {
      * @returns {boolean}
      */
     unregisterWsConnection(connectionId, reason = 'closed', now = Date.now()) {
-      if (!activeWsClient || activeWsClient.connectionId !== connectionId) {
+      if (!activeConnections.has(connectionId) && (!activeWsClient || activeWsClient.connectionId !== connectionId)) {
         // Stale event from old connection generation — ignore
         return false;
       }
 
       recordTrace('extension_ws_disconnected', { reason }, connectionId);
-      activeWsClient = null;
-      extensionLastSeenAt = now; // Mark timestamp for reconnecting grace period
-      if (activeTransport === 'websocket') {
-        activeTransport = 'none';
-      }
+      activeConnections.delete(connectionId);
 
-      logTransition('extension', lastExtensionState, 'reconnecting', `WebSocket disconnected: ${reason}`);
-      lastExtensionState = 'reconnecting';
+      if (activeWsClient && activeWsClient.connectionId === connectionId) {
+        // Switch primary to remaining canonical client, or another active client
+        const canonicalConn = Array.from(activeConnections.values()).find(c => c.isCanonical);
+        const remaining = Array.from(activeConnections.values());
+        activeWsClient = canonicalConn || (remaining.length > 0 ? remaining[remaining.length - 1] : null);
+
+        if (activeWsClient) {
+          extensionId = activeWsClient.extensionId;
+          const v = activeWsClient.meta.extensionVersion || activeWsClient.meta.version;
+          if (v) extensionVersion = v;
+        } else {
+          extensionId = null;
+          extensionVersion = null;
+          extensionLastSeenAt = now;
+          if (activeTransport === 'websocket') {
+            activeTransport = 'none';
+          }
+          logTransition('extension', lastExtensionState, 'reconnecting', `WebSocket disconnected: ${reason}`);
+          lastExtensionState = 'reconnecting';
+        }
+      }
       return true;
+    },
+
+    /**
+     * Decides whether a message from this WebSocket connection should be accepted.
+     * Prevents duplicate messages when both canonical and legacy connectors are connected.
+     *
+     * @param {string} connectionId
+     * @returns {boolean}
+     */
+    shouldAcceptWsMessage(connectionId) {
+      const conn = activeConnections.get(connectionId);
+      const hasCanonical = Array.from(activeConnections.values()).some(c => c.isCanonical);
+      if (!conn) {
+        // If not in activeConnections, only drop if an active canonical connection is present
+        return !hasCanonical;
+      }
+      if (conn.isCanonical) return true;
+      // If legacy connection, but there is an active canonical connection, reject to prevent duplicate messages
+      if (hasCanonical) return false;
+      return true;
+    },
+
+    isCanonicalConnection(connectionId) {
+      return Boolean(activeConnections.get(connectionId)?.isCanonical);
+    },
+
+    hasActiveCanonicalWsConnection() {
+      return Array.from(activeConnections.values()).some(c => c.isCanonical);
+    },
+
+    hasMultipleConnectors() {
+      return activeConnections.size > 1;
     },
 
     /**
@@ -429,11 +504,26 @@ function createHealthTracker(options = {}) {
         : (extensionLastSeenAt !== null ? Math.max(0, Math.floor((now - extensionLastSeenAt) / 1000)) : null);
       const boostySecAgo = boostyLastSeenAt !== null ? Math.max(0, Math.floor((now - boostyLastSeenAt) / 1000)) : null;
 
+      const liveConns = Array.from(activeConnections.values());
+      const hasCanonicalConn = liveConns.some(c => c.isCanonical) || (extensionId === expectedExtensionId);
+      const hasLegacyConn = liveConns.some(c => c.isLegacy) || Boolean(extensionId && extensionId !== expectedExtensionId);
+      const duplicateConnectors = (liveConns.length > 1 && hasCanonicalConn && liveConns.some(c => c.isLegacy));
+      const isLegacyExtension = Boolean(isExtensionConnected && !hasCanonicalConn && hasLegacyConn);
+      const extensionMigrationRequired = isLegacyExtension;
+
       return {
         ok: true,
         appVersion,
         bundledExtensionVersion,
+        persistentExtensionVersion,
         extensionVersion,
+        extensionId,
+        expectedExtensionId,
+        detectedExtensionId: extensionId,
+        detectedExtensionVersion: extensionVersion,
+        extensionMigrationRequired,
+        isLegacyExtension,
+        duplicateConnectors,
         isOutdated,
         overlayClients,
         receivedMessages,
@@ -447,8 +537,12 @@ function createHealthTracker(options = {}) {
         extension: {
           state: extState,
           version: extensionVersion,
+          extensionId,
           lastSeenAt: extensionLastSeenAt,
           lastSeenSecondsAgo: extSecAgo,
+          isCanonical: Boolean(activeWsClient?.isCanonical || (extensionId === expectedExtensionId)),
+          isLegacy: isLegacyExtension,
+          migrationRequired: Boolean(extensionMigrationRequired || isLegacyExtension),
         },
         boosty: {
           state: boostyState,

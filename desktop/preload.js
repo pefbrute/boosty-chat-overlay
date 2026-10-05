@@ -19,11 +19,21 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   openExtensionFolder: () => ipcRenderer.invoke('open-extension-folder'),
   openBrowserExtensionsPage: browserId => ipcRenderer.invoke('open-browser-extensions-page', browserId),
   copyExtensionsUrl: browserId => ipcRenderer.invoke('copy-extensions-url', browserId),
+  copyExtensionPath: () => ipcRenderer.invoke('copy-extension-path'),
+  getExtensionInfo: () => ipcRenderer.invoke('get-extension-info'),
   launchObs: () => ipcRenderer.invoke('launch-obs'),
   hasObsExecutable: () => ipcRenderer.invoke('has-obs-executable'),
   openUrl: (url, browserId) => ipcRenderer.invoke('open-url', url, browserId),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  openReleaseUrl: url => ipcRenderer.invoke('open-release-url', url),
   exportConnectivityDiagnostic: () => ipcRenderer.invoke('export-connectivity-diagnostic'),
+  onPortConflict: callback => {
+    const handler = (_event, info) => callback(info);
+    ipcRenderer.on('server-port-conflict', handler);
+    return () => ipcRenderer.removeListener('server-port-conflict', handler);
+  },
 });
 
 if (process.env.UI_AUDIT_MODE === '1' || process.env.BOOSTY_OVERLAY_UI_TEST === '1') {

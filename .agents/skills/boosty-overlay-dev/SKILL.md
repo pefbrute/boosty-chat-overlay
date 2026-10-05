@@ -143,11 +143,47 @@ desktop/ (Electron Application)
 - When the local server restarts while OBS is running, OBS's embedded CEF hits `ERR_CONNECTION_REFUSED` and lands on `chrome-error://chromewebdata/`, where `overlay.js` is not loaded and `EventSource` cannot auto-reconnect.
 - **Invariant:** Upon OBS WebSocket `Connected` in `desktop/obs/service.js`, automatically call `refreshOverlayInput` (`PressInputPropertiesButton` with `propertyName: 'refreshnocache'`) so OBS Browser Source immediately reloads `/overlay/` without manual user intervention.
 
+### 2.17. Focus Mode & Single Source of Truth Configuration
+- **Invariant (Single Source of Truth):** Focus Mode (`Основное`) and Advanced Mode (`Расширенное`) share the exact same underlying configuration state. Never create split objects such as `basicConfig` or `advancedConfig`.
+- **Progressive Disclosure:** Focus Mode exposes only 6 high-value parameters: Stream Profile, Visual Position (Corner Picker + Drag & Drop), Card Size Preset (`core/config/size-presets.js`), Max Message Limit (Numeric Stepper), Fade-out Duration (Pill Selector: 5s, 10s, 15s, 30s, Always), and Animation Type/Speed.
+- **Two-Way Sync:** Switching between Basic and Advanced modes, or changing manual sliders in Advanced mode, preserves consistency through bidirectional synchronization (`syncInputsFromConfig`, `detectActiveSizePreset`).
+
+### 2.18. Packaged Extension Deployment & Persistent Storage (AppImage FUSE Guard)
+- In packaged Linux AppImage mode, `process.resourcesPath` resolves into a temporary FUSE mount: `/tmp/.mount_XXXXXX/resources/extension`.
+- **Invariant:** The application must **never** instruct the user or browser to load unpacked extensions from `/tmp/.mount_*`. When the AppImage process exits, the mount point is deleted, causing Chromium to flag the extension as corrupted or deleted upon restart.
+- **Persistent Deployment:** On application startup, `desktop/browser/extension-deployer.js` performs atomic version-aware deployment from `process.resourcesPath/extension` into persistent storage: `app.getPath('userData')/extension` (`~/.config/boosty-chat-overlay/extension`).
+- Onboarding, settings modals, and clipboard copy buttons expose strictly the persistent directory.
+
+### 2.19. Deterministic Stable Extension ID Invariant
+- **Invariant:** `extension/manifest.json` contains a permanent 2048-bit RSA SPKI public key in the `"key"` field.
+- **Canonical ID:** In Chromium, Brave, and Chrome, this public key deterministically hashes to:
+  `EXPECTED_EXTENSION_ID = 'bcoadgccgjomlcadhmeognidaoocohdp'`
+  defined as an immutable constant in `core/constants.js`.
+- **Handshake Validation:** `extension/background.js` transmits `extensionId: chrome.runtime.id` during `HANDSHAKE`. The server records this in `core/health/tracker.js` and flags whether the connection is canonical or legacy.
+
+### 2.20. Single-Instance Lock & Port Collision Guard
+- **Invariant:** `desktop/main.js` calls `app.requestSingleInstanceLock()` prior to `app.whenReady()`.
+- If a second instance is launched (e.g. accidental double-click of desktop shortcut), the secondary process exits immediately with code 0 without attempting to re-bind port 17369 or spawn duplicate windows.
+- The primary instance listens for `second-instance` and restores/focuses its existing main window.
+- If port 17369 is occupied by an external process, `server.on('error')` intercepts `EADDRINUSE` and displays a user-friendly error dialog rather than crashing with an unhandled exception.
+
+### 2.21. Dual-Connector Coexistence & Legacy Migration Guard
+- When an existing user upgrades, their browser may temporarily run the older legacy extension (without `"key"`) alongside or prior to the updated canonical extension.
+- **Invariant:** When both canonical and legacy connections are open simultaneously, the canonical connection is elected as primary.
+- **Duplicate Suppression (`shouldAcceptWsMessage`):** All `MESSAGE` frames originating from legacy connections are rejected/dropped with `duplicate: true, ignored: true` while a canonical connector is active, ensuring strictly 0 duplicated messages in history and SSE.
+- **Status Hub Guidance:** The UI detects `healthState.extensionMigrationRequired` and presents a non-intrusive warning badge (`Требуется обновление`) with a 3-step migration helper modal.
+
 ---
 
 ## 3. Where to Change What (Quick Index)
 
 | Task | Target Files |
+| :--- | :--- |
+| Canonical constants & Extension ID | [`core/constants.js`](file:///home/fedor/projects/boosty-chat-overlay/core/constants.js) |
+| Card size presets (Focus Mode) | [`core/config/size-presets.js`](file:///home/fedor/projects/boosty-chat-overlay/core/config/size-presets.js) |
+| Persistent extension deployer | [`desktop/browser/extension-deployer.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/browser/extension-deployer.js) |
+| GitHub Releases update checker | [`desktop/main/update-checker.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/main/update-checker.js) |
+| Release readiness E2E verification | [`scripts/verify-release-scenarios.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/verify-release-scenarios.js) |
 | :--- | :--- |
 | Boosty chat DOM selectors or layout parsing | [`extension/parser.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/parser.js) |
 | Message schema or validation | [`core/messages/model.js`](file:///home/fedor/projects/boosty-chat-overlay/core/messages/model.js), [`types/message.d.ts`](file:///home/fedor/projects/boosty-chat-overlay/types/message.d.ts) |

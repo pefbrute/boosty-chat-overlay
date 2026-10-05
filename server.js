@@ -306,6 +306,7 @@ wss.on('connection', (ws, request) => {
           client: msg.client || 'boosty-chat-connector',
           version: msg.version || msg.extensionVersion,
           extensionVersion: msg.extensionVersion || msg.version,
+          extensionId: msg.extensionId || null,
           tabs: msg.tabs || [],
           clientGeneration: msg.generation,
         });
@@ -333,6 +334,12 @@ wss.on('connection', (ws, request) => {
       }
 
       if (msg.type === 'MESSAGE' || msg.type === 'POST_MESSAGE') {
+        if (typeof healthTracker.shouldAcceptWsMessage === 'function' && !healthTracker.shouldAcceptWsMessage(connectionId)) {
+          console.warn(`[Server WS] Dropping message from connection ${connectionId} (active canonical connector takes precedence)`);
+          ws.send(JSON.stringify({ type: 'MESSAGE_ACK', id: (msg.payload?.id || msg.id), ok: true, duplicate: true, ignored: true }));
+          return;
+        }
+
         const input = msg.payload || msg;
         const now = Date.now();
         const effectiveReceivedAt = (typeof input.receivedAt === 'number' && Number.isFinite(input.receivedAt) && input.receivedAt > 0)

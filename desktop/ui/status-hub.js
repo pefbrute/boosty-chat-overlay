@@ -12,6 +12,20 @@ function formatElapsedSeconds(ms) {
   return sec < 10 ? sec.toFixed(1) : Math.round(sec).toString();
 }
 
+function compareSemver(v1, v2) {
+  if (!v1 || !v2) return 0;
+  const p1 = String(v1).replace(/^v/i, '').split('.').map(x => parseInt(x, 10) || 0);
+  const p2 = String(v2).replace(/^v/i, '').split('.').map(x => parseInt(x, 10) || 0);
+  const len = Math.max(p1.length, p2.length);
+  for (let i = 0; i < len; i++) {
+    const num1 = p1[i] ?? 0;
+    const num2 = p2[i] ?? 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+  return 0;
+}
+
 /**
  * Derives user-facing system status from backend telemetry and OBS state.
  *
@@ -127,7 +141,43 @@ function deriveSystemStatus(state = {}) {
       action: null,
     };
   } else if (extLifecycle === 'connected') {
-    if (isOutdated) {
+    const isMigrationRequired = Boolean(health.extensionMigrationRequired || health.isLegacyExtension);
+    const runningVersion = health.extension?.version || health.extensionVersion;
+    const isReloadRequired = Boolean(
+      health.persistentExtensionVersion &&
+      runningVersion &&
+      compareSemver(health.persistentExtensionVersion, runningVersion) > 0
+    );
+
+    if (isMigrationRequired) {
+      extItem = {
+        key: 'extension',
+        status: 'migration-required',
+        badgeClass: 'warning',
+        title: 'Расширение',
+        text: 'Требуется обновление',
+        detail: 'Установлена старая версия расширения. Обновите её, чтобы дальнейшие обновления работали корректно.',
+        action: {
+          id: 'migrate-ext',
+          label: 'Обновить расширение',
+          primary: true,
+        },
+      };
+    } else if (isReloadRequired) {
+      extItem = {
+        key: 'extension',
+        status: 'reload-required',
+        badgeClass: 'warning',
+        title: 'Расширение',
+        text: 'Перезагрузите расширение',
+        detail: 'Расширение обновлено на диске — перезагрузите его в браузере',
+        action: {
+          id: 'reload-ext',
+          label: 'Перезагрузить',
+          primary: true,
+        },
+      };
+    } else if (isOutdated) {
       extItem = {
         key: 'extension',
         status: 'outdated',
@@ -142,7 +192,7 @@ function deriveSystemStatus(state = {}) {
         },
       };
     } else {
-      const ver = health.extension?.version || health.extensionVersion;
+      const ver = runningVersion;
       extItem = {
         key: 'extension',
         status: 'connected',

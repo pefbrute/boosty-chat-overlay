@@ -73,6 +73,12 @@ const extensionFlow = {
   async copyUrl(browserId) {
     return await window.boostyOverlay.copyExtensionsUrl(browserId);
   },
+  async copyPath() {
+    return await window.boostyOverlay?.copyExtensionPath?.();
+  },
+  async getInfo() {
+    return await window.boostyOverlay?.getExtensionInfo?.();
+  },
   async openFolder() {
     return await window.boostyOverlay.openExtensionFolder();
   },
@@ -1199,6 +1205,80 @@ const Presets = (typeof BoostyPresets !== 'undefined')
   ? BoostyPresets
   : (typeof require === 'function' ? require('../core/config/presets.js') : null);
 
+// --- Size Presets Reference (Focus Mode) ---
+const SizePresets = (typeof BoostySizePresets !== 'undefined')
+  ? BoostySizePresets
+  : (typeof require === 'function' ? require('../core/config/size-presets.js') : null);
+
+// --- Focus Mode vs Advanced Mode State ---
+let appearanceUiMode = 'basic';
+const UI_MODE_STORAGE_KEY = 'boosty_appearance_ui_mode';
+
+function initAppearanceUiMode() {
+  try {
+    const saved = localStorage.getItem(UI_MODE_STORAGE_KEY);
+    if (saved === 'advanced' || saved === 'basic') {
+      appearanceUiMode = saved;
+    } else {
+      appearanceUiMode = 'basic';
+    }
+  } catch {
+    appearanceUiMode = 'basic';
+  }
+  setAppearanceUiMode(appearanceUiMode, false);
+}
+
+function setAppearanceUiMode(mode, persist = true) {
+  appearanceUiMode = mode === 'advanced' ? 'advanced' : 'basic';
+  if (persist) {
+    try {
+      localStorage.setItem(UI_MODE_STORAGE_KEY, appearanceUiMode);
+    } catch {}
+  }
+
+  const col = document.querySelector('#appearance-settings-col');
+  if (col) {
+    col.classList.toggle('mode-basic', appearanceUiMode === 'basic');
+    col.classList.toggle('mode-advanced', appearanceUiMode === 'advanced');
+  }
+
+  const basicBtn = document.querySelector('#mode-btn-basic');
+  const advancedBtn = document.querySelector('#mode-btn-advanced');
+  if (basicBtn && advancedBtn) {
+    const isBasic = appearanceUiMode === 'basic';
+    basicBtn.classList.toggle('active', isBasic);
+    basicBtn.setAttribute('aria-pressed', String(isBasic));
+    advancedBtn.classList.toggle('active', !isBasic);
+    advancedBtn.setAttribute('aria-pressed', String(!isBasic));
+  }
+
+  const hint = document.querySelector('#appearance-mode-hint');
+  if (hint) {
+    hint.textContent = appearanceUiMode === 'basic' ? 'Быстрая настройка' : 'Полный редактор';
+  }
+}
+
+function updateSizePresetUi(config) {
+  const activeSize = SizePresets ? SizePresets.detectSizePreset(config) : null;
+  const badge = document.querySelector('#size-status-badge');
+
+  document.querySelectorAll('.size-preset-btn').forEach(btn => {
+    const isMatch = btn.getAttribute('data-size') === activeSize;
+    btn.classList.toggle('active', isMatch);
+    btn.setAttribute('aria-pressed', String(isMatch));
+  });
+
+  if (badge) {
+    if (activeSize && SizePresets && SizePresets.SIZE_LABELS[activeSize]) {
+      badge.textContent = SizePresets.SIZE_LABELS[activeSize];
+      badge.classList.remove('custom');
+    } else {
+      badge.textContent = 'Пользовательский';
+      badge.classList.add('custom');
+    }
+  }
+}
+
 const PRESETS = Presets?.PRESETS || {};
 const STYLE_KEYS = Presets?.STYLE_KEYS || [];
 
@@ -1415,6 +1495,29 @@ function updateAppearanceLabels(config) {
     if (appearanceInputs.avatarSize) appearanceInputs.avatarSize.disabled = !config.showAvatars;
     if (appearanceInputs.avatarSizeSlider) appearanceInputs.avatarSizeSlider.disabled = !config.showAvatars;
   }
+
+  // Sync Focus Mode Stepper
+  setDomText(document.querySelector('#basic-max-messages-val'), String(config.maxMessages));
+  const decBtn = document.querySelector('#basic-max-msgs-dec');
+  const incBtn = document.querySelector('#basic-max-msgs-inc');
+  if (decBtn) decBtn.disabled = Number(config.maxMessages) <= 1;
+  if (incBtn) incBtn.disabled = Number(config.maxMessages) >= 20;
+
+  // Sync Focus Mode Duration display & pills
+  const isAlways = config.durationSeconds === 0;
+  const durSec = isAlways ? 0 : (config.durationSeconds || lastNonZeroDuration);
+  const durText = isAlways ? 'Всегда' : `${durSec} сек.`;
+  setDomText(document.querySelector('#basic-duration-display'), durText);
+
+  document.querySelectorAll('.duration-pill-btn').forEach(btn => {
+    const targetDuration = Number(btn.getAttribute('data-duration'));
+    const isMatch = isAlways ? targetDuration === 0 : targetDuration === config.durationSeconds;
+    btn.classList.toggle('active', isMatch);
+    btn.setAttribute('aria-pressed', String(isMatch));
+  });
+
+  // Sync Focus Mode Size presets
+  updateSizePresetUi(config);
 }
 
 function syncInputsFromConfig(config) {
@@ -1684,6 +1787,69 @@ function setupEventListeners() {
       if (backdrop) {
         setDomClass(backdrop, `preview-backdrop backdrop-${mode}`);
       }
+    });
+  });
+
+  // Mode Switcher: Focus (Basic) vs Advanced
+  document.querySelector('#mode-btn-basic')?.addEventListener('click', () => {
+    setAppearanceUiMode('basic');
+  });
+
+  document.querySelector('#mode-btn-advanced')?.addEventListener('click', () => {
+    setAppearanceUiMode('advanced');
+  });
+
+  document.querySelector('#basic-more-settings-btn')?.addEventListener('click', () => {
+    setAppearanceUiMode('advanced');
+  });
+
+  document.querySelector('#advanced-back-to-basic-btn')?.addEventListener('click', () => {
+    setAppearanceUiMode('basic');
+  });
+
+  // Focus Mode: Size Presets
+  document.querySelectorAll('.size-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sizeId = btn.getAttribute('data-size');
+      if (!sizeId || !SizePresets) return;
+      const current = gatherCurrentConfig();
+      const updated = SizePresets.applySizePreset(current, sizeId);
+      syncInputsFromConfig(updated);
+      triggerSave(true);
+    });
+  });
+
+  // Focus Mode: Messages Stepper
+  document.querySelector('#basic-max-msgs-dec')?.addEventListener('click', () => {
+    const currentVal = Number(appearanceInputs.maxMessages?.value) || 6;
+    const nextVal = Math.max(1, currentVal - 1);
+    if (appearanceInputs.maxMessages) appearanceInputs.maxMessages.value = nextVal;
+    if (appearanceInputs.maxMessagesSlider) appearanceInputs.maxMessagesSlider.value = nextVal;
+    triggerSave(true);
+  });
+
+  document.querySelector('#basic-max-msgs-inc')?.addEventListener('click', () => {
+    const currentVal = Number(appearanceInputs.maxMessages?.value) || 6;
+    const nextVal = Math.min(20, currentVal + 1);
+    if (appearanceInputs.maxMessages) appearanceInputs.maxMessages.value = nextVal;
+    if (appearanceInputs.maxMessagesSlider) appearanceInputs.maxMessagesSlider.value = nextVal;
+    triggerSave(true);
+  });
+
+  // Focus Mode: Duration Pills
+  document.querySelectorAll('.duration-pill-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const dVal = Number(btn.getAttribute('data-duration'));
+      if (isNaN(dVal)) return;
+      if (dVal === 0) {
+        if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = true;
+      } else {
+        if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = false;
+        if (appearanceInputs.duration) appearanceInputs.duration.value = dVal;
+        if (appearanceInputs.durationSlider) appearanceInputs.durationSlider.value = dVal;
+        lastNonZeroDuration = dVal;
+      }
+      triggerSave(true);
     });
   });
 
@@ -2056,7 +2222,15 @@ function setupEventListeners() {
 
   document.querySelector('#dash-ext-fix-btn')?.addEventListener('click', (e) => {
     const actionId = e.currentTarget?.getAttribute('data-action-id');
-    openExtensionModal(actionId === 'update-ext' ? 'update' : 'setup');
+    if (actionId === 'migrate-ext') {
+      openExtensionModal('migration');
+    } else if (actionId === 'reload-ext') {
+      openExtensionModal('reload');
+    } else if (actionId === 'update-ext') {
+      openExtensionModal('update');
+    } else {
+      openExtensionModal('setup');
+    }
   });
 
   document.querySelector('#dash-boosty-open-btn')?.addEventListener('click', () => {
@@ -2124,6 +2298,27 @@ function setupEventListeners() {
     }
   });
 
+  document.querySelector('#tech-check-update-btn')?.addEventListener('click', async () => {
+    const btn = document.querySelector('#tech-check-update-btn');
+    if (btn) btn.disabled = true;
+    await refreshUpdateStatus(true);
+    if (btn) btn.disabled = false;
+  });
+
+  document.querySelector('#tech-copy-ext-path-btn')?.addEventListener('click', async () => {
+    await extensionFlow.copyPath();
+    const btn = document.querySelector('#tech-copy-ext-path-btn');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Скопировано!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  });
+
+  document.querySelector('#tech-open-ext-folder-btn')?.addEventListener('click', async () => {
+    await extensionFlow.openFolder();
+  });
+
   document.querySelector('#dash-restart-onboarding-btn')?.addEventListener('click', () => {
     showView('onboarding');
     setWizardStep(1);
@@ -2159,6 +2354,16 @@ function setupEventListeners() {
 
   document.querySelector('#ob-reopen-folder-btn')?.addEventListener('click', async () => {
     await extensionFlow.openFolder();
+  });
+
+  document.querySelector('#ob-copy-ext-path-btn')?.addEventListener('click', async () => {
+    await extensionFlow.copyPath();
+    const btn = document.querySelector('#ob-copy-ext-path-btn');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Путь скопирован!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
   });
 
   document.querySelector('#ob-reopen-browser-btn')?.addEventListener('click', async () => {
@@ -2302,6 +2507,16 @@ function setupEventListeners() {
     await extensionFlow.openFolder();
   });
 
+  document.querySelector('#modal-copy-ext-path-btn')?.addEventListener('click', async () => {
+    await extensionFlow.copyPath();
+    const btn = document.querySelector('#modal-copy-ext-path-btn');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Путь скопирован!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  });
+
   document.querySelector('#modal-open-browser-btn')?.addEventListener('click', async () => {
     await extensionFlow.openExtensionsPage(selectedBrowser);
   });
@@ -2327,18 +2542,42 @@ function updateSummaryScreen() {
 function openExtensionModal(mode = 'setup') {
   const modal = document.querySelector('#dash-ext-modal');
   const modalGuide = document.querySelector('#modal-guide-box');
+  const modalMigration = document.querySelector('#modal-migration-box');
+  const modalReload = document.querySelector('#modal-reload-box');
   const modalDoneBtn = document.querySelector('#modal-done-btn');
   const modalStartBtn = document.querySelector('#modal-start-setup-btn');
 
   if (!modal) return;
   modal.style.display = 'flex';
 
-  if (mode === 'update') {
+  if (mode === 'migration') {
+    setDomDisplay(modalGuide, 'none');
+    setDomDisplay(modalMigration, 'block');
+    setDomDisplay(modalReload, 'none');
+    setDomDisplay(modalDoneBtn, 'inline-flex');
+    setDomDisplay(modalStartBtn, 'none');
+    if (window.boostyOverlay?.prepareBrowserExtension) {
+      window.boostyOverlay.prepareBrowserExtension(selectedBrowser);
+    }
+    if (window.boostyOverlay?.copyExtensionPath) {
+      window.boostyOverlay.copyExtensionPath().catch(() => {});
+    }
+  } else if (mode === 'reload') {
+    setDomDisplay(modalGuide, 'none');
+    setDomDisplay(modalMigration, 'none');
+    setDomDisplay(modalReload, 'block');
+    setDomDisplay(modalDoneBtn, 'inline-flex');
+    setDomDisplay(modalStartBtn, 'none');
+  } else if (mode === 'update') {
     setDomDisplay(modalGuide, 'block');
+    setDomDisplay(modalMigration, 'none');
+    setDomDisplay(modalReload, 'none');
     setDomDisplay(modalDoneBtn, 'inline-flex');
     setDomDisplay(modalStartBtn, 'none');
   } else {
     setDomDisplay(modalGuide, 'none');
+    setDomDisplay(modalMigration, 'none');
+    setDomDisplay(modalReload, 'none');
     setDomDisplay(modalDoneBtn, 'none');
     setDomDisplay(modalStartBtn, 'inline-flex');
   }
@@ -2348,6 +2587,28 @@ function closeExtensionModal() {
   const modal = document.querySelector('#dash-ext-modal');
   if (modal) modal.style.display = 'none';
 }
+
+document.querySelector('#modal-migration-copy-path-btn')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const orig = btn.textContent;
+  if (window.boostyOverlay?.copyExtensionPath) {
+    await window.boostyOverlay.copyExtensionPath();
+  }
+  btn.textContent = 'Скопировано!';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+});
+
+document.querySelector('#modal-migration-open-folder-btn')?.addEventListener('click', () => {
+  window.boostyOverlay?.openExtensionFolder();
+});
+
+document.querySelector('#modal-migration-open-browser-btn')?.addEventListener('click', () => {
+  window.boostyOverlay?.prepareBrowserExtension(selectedBrowser);
+});
+
+document.querySelector('#modal-reload-open-browser-btn')?.addEventListener('click', () => {
+  window.boostyOverlay?.prepareBrowserExtension(selectedBrowser);
+});
 
 // --- Health Status Refresh ---
 async function refreshStatus() {
@@ -2628,10 +2889,64 @@ function updateAuditDiagnosticState() {
   };
 }
 
+// --- Update Status Rendering & Checking ---
+function renderUpdateStatus(status) {
+  if (!status) return;
+  const updateBadge = document.querySelector('#update-badge');
+  const updateBadgeText = document.querySelector('#update-badge-text');
+  const updateBadgeBtn = document.querySelector('#update-badge-btn');
+  const techUpdateStatus = document.querySelector('#tech-update-status');
+
+  if (status.updateAvailable) {
+    if (updateBadge) {
+      setDomDisplay(updateBadge, 'inline-flex');
+    }
+    if (updateBadgeText) updateBadgeText.textContent = `Доступна v${status.latestVersion}`;
+    if (updateBadgeBtn) {
+      updateBadgeBtn.onclick = () => {
+        window.boostyOverlay?.openReleaseUrl?.(status.releaseUrl);
+      };
+    }
+    if (techUpdateStatus) {
+      techUpdateStatus.textContent = `Доступна v${status.latestVersion}`;
+      techUpdateStatus.style.color = 'var(--color-primary, #EF7829)';
+    }
+  } else if (status.state === 'checking') {
+    if (techUpdateStatus) {
+      techUpdateStatus.textContent = 'Проверка…';
+      techUpdateStatus.style.color = 'var(--text-muted)';
+    }
+  } else if (status.state === 'error') {
+    if (updateBadge) setDomDisplay(updateBadge, 'none');
+    if (techUpdateStatus) {
+      techUpdateStatus.textContent = 'Не удалось проверить';
+      techUpdateStatus.style.color = 'var(--text-muted)';
+    }
+  } else {
+    // up-to-date
+    if (updateBadge) setDomDisplay(updateBadge, 'none');
+    if (techUpdateStatus) {
+      techUpdateStatus.textContent = 'Версия актуальна';
+      techUpdateStatus.style.color = 'var(--color-success, #22c55e)';
+    }
+  }
+}
+
+async function refreshUpdateStatus(force = false) {
+  if (!window.boostyOverlay?.getUpdateStatus) return;
+  try {
+    const status = force && window.boostyOverlay.checkForUpdates
+      ? await window.boostyOverlay.checkForUpdates()
+      : await window.boostyOverlay.getUpdateStatus();
+    renderUpdateStatus(status);
+  } catch {}
+}
+
 // --- App Initialization ---
 async function init() {
   try {
     setupEventListeners();
+    initAppearanceUiMode();
     await renderBrowserSelection();
 
     try {
@@ -2641,12 +2956,31 @@ async function init() {
       if (window.boostyOverlay?.hasObsExecutable) {
         hasObsExecutableCached = await window.boostyOverlay.hasObsExecutable();
       }
+      if (window.boostyOverlay?.getExtensionInfo) {
+        const extInfo = await window.boostyOverlay.getExtensionInfo();
+        const techExtPath = document.querySelector('#tech-ext-path');
+        if (techExtPath && extInfo?.persistentPath) {
+          techExtPath.textContent = extInfo.persistentPath;
+        }
+      }
     } catch {}
 
     const versionBadge = document.querySelector('#app-version-badge');
     const techAppVersion = document.querySelector('#tech-app-version');
     if (versionBadge) versionBadge.textContent = `v${appVersion}`;
     if (techAppVersion) techAppVersion.textContent = appVersion;
+
+    // Listen for port conflict
+    if (window.boostyOverlay?.onPortConflict) {
+      window.boostyOverlay.onPortConflict(({ port }) => {
+        const banner = document.querySelector('#system-readiness-banner');
+        if (banner) {
+          banner.className = 'status-banner banner-warning';
+          banner.style.display = 'flex';
+          banner.textContent = `Конфликт портов: порт ${port} уже занят другим приложением.`;
+        }
+      });
+    }
 
     await loadSettings();
 
@@ -2660,6 +2994,10 @@ async function init() {
     await refreshStatus();
     setInterval(refreshStatus, 1200);
     await loadObsScenes();
+
+    // Check updates
+    await refreshUpdateStatus(false);
+    setInterval(() => refreshUpdateStatus(false), 30 * 60 * 1000);
   } catch (err) {
     console.error('Init error:', err);
   } finally {
@@ -2702,6 +3040,10 @@ if (window.boostyAudit) {
       } else {
         showView(mock.view);
       }
+    }
+
+    if (mock.appearanceUiMode) {
+      setAppearanceUiMode(mock.appearanceUiMode, false);
     }
 
     if (mock.step) {
@@ -2751,6 +3093,7 @@ if (window.boostyAudit) {
     getState: () => ({
       currentView,
       currentStep,
+      appearanceUiMode,
       latestHealth,
       latestObsStatus,
       latestObsScenes,

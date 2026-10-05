@@ -63,6 +63,77 @@ function registerIpcHandlers(deps = {}) {
     return browserManager.copyExtensionsUrl(browserId);
   });
 
+  ipcMain.handle('copy-extension-path', () => {
+    if (typeof browserManager.copyExtensionPath === 'function') {
+      return browserManager.copyExtensionPath();
+    }
+    const extDir = browserManager.getExtensionDir();
+    if (clipboard && typeof clipboard.writeText === 'function') {
+      clipboard.writeText(extDir);
+    }
+    return { ok: true, extensionDir: extDir };
+  });
+
+  ipcMain.handle('get-extension-info', () => {
+    const { EXPECTED_EXTENSION_ID } = require('../../core/constants');
+    const persistentPath = browserManager.getExtensionDir();
+    const bundledPath = typeof browserManager.getBundledExtensionDir === 'function'
+      ? browserManager.getBundledExtensionDir()
+      : persistentPath;
+    const isTransient = typeof browserManager.isTransientPath === 'function'
+      ? browserManager.isTransientPath(persistentPath)
+      : false;
+    return {
+      persistentPath,
+      bundledPath,
+      extensionId: EXPECTED_EXTENSION_ID,
+      isTransient,
+    };
+  });
+
+  // --- Update Checker Channels ---
+  const updateChecker = deps.updateChecker || null;
+
+  ipcMain.handle('get-update-status', () => {
+    if (updateChecker && typeof updateChecker.getStatus === 'function') {
+      return updateChecker.getStatus();
+    }
+    return {
+      state: 'idle',
+      currentVersion: (app && typeof app.getVersion === 'function') ? app.getVersion() : '0.4.0',
+      updateAvailable: false,
+    };
+  });
+
+  ipcMain.handle('check-for-updates', async () => {
+    if (updateChecker && typeof updateChecker.checkForUpdates === 'function') {
+      return await updateChecker.checkForUpdates(true);
+    }
+    return {
+      state: 'idle',
+      currentVersion: (app && typeof app.getVersion === 'function') ? app.getVersion() : '0.4.0',
+      updateAvailable: false,
+    };
+  });
+
+  ipcMain.handle('open-release-url', async (_event, targetUrl) => {
+    const defaultUrl = updateChecker?.getStatus?.()?.releaseUrl || 'https://github.com/pefbrute/boosty-chat-overlay/releases';
+    const url = targetUrl || defaultUrl;
+    if (updateChecker && typeof updateChecker.validateReleaseUrl === 'function') {
+      if (!updateChecker.validateReleaseUrl(url)) {
+        return { ok: false, error: 'Invalid release URL' };
+      }
+    }
+    const shellMod = deps.shellModule || (() => {
+      try { return require('electron').shell; } catch { return null; }
+    })();
+    if (shellMod && typeof shellMod.openExternal === 'function') {
+      await shellMod.openExternal(url);
+      return { ok: true };
+    }
+    return { ok: false, error: 'Shell module unavailable' };
+  });
+
   // --- OBS Studio Management ---
   ipcMain.handle('launch-obs', () => {
     return obsService.launchObs();
@@ -107,8 +178,10 @@ function registerIpcHandlers(deps = {}) {
   ipcMain.handle('export-connectivity-diagnostic', async () => {
     try {
       const http = require('node:http');
-      return await new Promise((resolve) => {
-        const req = http.get('http://127.0.0.1:17369/diagnostic', (res) => {
+      const os = require('node:os');
+      const port = Number(process.env.BOOSTY_OVERLAY_PORT || 17369);
+      const diagnosticData = await new Promise((resolve) => {
+        const req = http.get(`http://127.0.0.1:${port}/diagnostic`, (res) => {
           let data = '';
           res.on('data', chunk => data += chunk);
           res.on('end', () => {
@@ -121,6 +194,30 @@ function registerIpcHandlers(deps = {}) {
         });
         req.on('error', (err) => resolve({ ok: false, error: err.message }));
       });
+
+      if (diagnosticData && typeof diagnosticData === 'object' && diagnosticData.ok) {
+        const homedir = os.homedir();
+        const maskPath = (p) => (typeof p === 'string' && homedir ? p.replace(homedir, '~') : p);
+        const persistentExtDir = (browserManager && typeof browserManager.getExtensionDir === 'function')
+          ? browserManager.getExtensionDir()
+          : null;
+        const { EXPECTED_EXTENSION_ID } = require('../../core/constants');
+
+        diagnosticData.appVersion = (app && typeof app.getVersion === 'function') ? app.getVersion() : '0.4.0';
+        diagnosticData.expectedExtensionId = EXPECTED_EXTENSION_ID;
+        diagnosticData.detectedExtensionId = diagnosticData.health?.detectedExtensionId || diagnosticData.health?.extension?.extensionId || null;
+        diagnosticData.detectedExtensionVersion = diagnosticData.health?.detectedExtensionVersion || diagnosticData.health?.extension?.version || null;
+        diagnosticData.bundledExtensionVersion = diagnosticData.health?.bundledExtensionVersion || diagnosticData.appVersion;
+        diagnosticData.persistentExtensionVersion = diagnosticData.health?.persistentExtensionVersion || diagnosticData.bundledExtensionVersion;
+        diagnosticData.extensionMigrationRequired = Boolean(diagnosticData.health?.extensionMigrationRequired);
+        diagnosticData.extensionBundledVersion = diagnosticData.bundledExtensionVersion;
+        diagnosticData.extensionDetectedVersion = diagnosticData.detectedExtensionVersion;
+        diagnosticData.extensionId = diagnosticData.detectedExtensionId || EXPECTED_EXTENSION_ID;
+        diagnosticData.extensionPersistentPath = maskPath(persistentExtDir);
+        diagnosticData.singleInstanceLock = true;
+        diagnosticData.updateStatus = updateChecker ? updateChecker.getStatus() : null;
+      }
+      return diagnosticData;
     } catch (err) {
       return { ok: false, error: err.message };
     }

@@ -2,6 +2,16 @@ name: Build Windows Installer
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
@@ -15,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
@@ -32,7 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify installer executable exists
+      - name: Verify installer executable exists & calculate checksum
         shell: pwsh
         run: |
           $installer = Get-ChildItem -Path dist -Filter "Boosty Chat Overlay Setup *.exe" -File
@@ -40,11 +50,26 @@ jobs:
             Write-Error "ERROR: Installer executable 'Boosty Chat Overlay Setup *.exe' was not found in dist/"
             exit 1
           }
+          $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $($installer.Name)" | Out-File -FilePath dist/SHA256SUMS.txt -Encoding ascii
           Write-Host "Found installer: $($installer.FullName) ($([math]::Round($installer.Length / 1MB, 2)) MB)"
+          Write-Host "SHA256: $hash"
 
       - name: Upload Windows Installer Artifact
         uses: actions/upload-artifact@v4
         with:
           name: boosty-chat-overlay-windows
-          path: dist/Boosty Chat Overlay Setup *.exe
+          path: |
+            dist/Boosty Chat Overlay Setup *.exe
+            dist/SHA256SUMS.txt
           if-no-files-found: error
+
+      - name: Publish Release Assets to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Boosty Chat Overlay Setup *.exe
+            dist/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

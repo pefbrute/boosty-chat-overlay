@@ -17,6 +17,10 @@ function getExtensionVersion() {
   return (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.0';
 }
 
+function getExtensionId() {
+  return (typeof chrome !== 'undefined' && chrome.runtime?.id) || 'bcoadgccgjomlcadhmeognidaoocohdp';
+}
+
 function getActiveTabsPayload() {
   const tabs = [];
   for (const tab of activeBoostyTabs.values()) {
@@ -102,6 +106,7 @@ function connectWs() {
       client: 'boosty-chat-connector',
       version: getExtensionVersion(),
       extensionVersion: getExtensionVersion(),
+      extensionId: getExtensionId(),
       tabs: getActiveTabsPayload(),
       generation: currentGen,
     };
