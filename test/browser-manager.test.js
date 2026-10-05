@@ -49,22 +49,24 @@ test('getExtensionDir handles packaged and unpackaged modes with persistent path
   assert.equal(devMgr.getExtensionDir(), path.resolve(__dirname, '..', 'extension'));
   assert.equal(devMgr.getBundledExtensionDir(), path.resolve(__dirname, '..', 'extension'));
 
+  const expectedBundled = path.resolve('/opt/app/resources/extension');
+  const expectedPersistent = path.resolve('/home/tester/.config/boosty-chat-overlay/extension');
   const fakeFs = {
     existsSync(p) {
-      return p === '/opt/app/resources/extension';
+      return path.resolve(p) === expectedBundled;
     },
     mkdirSync() {},
     readdirSync() { return []; },
   };
   const prodMgr = createBrowserManager({
     appModule: { isPackaged: true },
-    resourcesPath: '/opt/app/resources',
-    userDataDir: '/home/tester/.config/boosty-chat-overlay',
+    resourcesPath: path.resolve('/opt/app/resources'),
+    userDataDir: path.resolve('/home/tester/.config/boosty-chat-overlay'),
     fsModule: fakeFs,
   });
-  assert.equal(prodMgr.getBundledExtensionDir(), '/opt/app/resources/extension');
-  assert.equal(prodMgr.getPersistentExtensionDir(), '/home/tester/.config/boosty-chat-overlay/extension');
-  assert.equal(prodMgr.getExtensionDir(), '/home/tester/.config/boosty-chat-overlay/extension');
+  assert.equal(path.resolve(prodMgr.getBundledExtensionDir()), expectedBundled);
+  assert.equal(path.resolve(prodMgr.getPersistentExtensionDir()), expectedPersistent);
+  assert.equal(path.resolve(prodMgr.getExtensionDir()), expectedPersistent);
 });
 
 test('prepareBrowserExtension and copyExtensionsUrl', () => {
@@ -108,7 +110,7 @@ test('prepareBrowserExtension and copyExtensionsUrl', () => {
   assert.equal(res.managerUrl, 'brave://extensions/');
   assert.equal(res.firefox, false);
   assert.equal(clipboardText, 'brave://extensions/');
-  assert.equal(shownPath, '/tmp/extension/manifest.json');
+  assert.equal(path.resolve(shownPath), path.resolve('/tmp/extension/manifest.json'));
   assert.equal(spawned.cmd, '/usr/bin/brave-browser');
   assert.deepEqual(spawned.args, ['--new-window', 'brave://extensions/']);
 
