@@ -173,6 +173,27 @@ desktop/ (Electron Application)
 - **Duplicate Suppression (`shouldAcceptWsMessage`):** All `MESSAGE` frames originating from legacy connections are rejected/dropped with `duplicate: true, ignored: true` while a canonical connector is active, ensuring strictly 0 duplicated messages in history and SSE.
 - **Status Hub Guidance:** The UI detects `healthState.extensionMigrationRequired` and presents a non-intrusive warning badge (`Требуется обновление`) with a 3-step migration helper modal.
 
+### 2.22. Windows as Primary Production Target & NSIS Packaging Pipeline
+- **Production Target Priority:** Windows is the primary release target for this project.
+- **NSIS Contract:** Electron builder packages the Windows installer as a per-user, non-elevated installation (`perMachine: false`, `oneClick: false`, `allowToChangeInstallationDirectory: true`).
+  - Target install directory: `%LOCALAPPDATA%\Programs\boosty-chat-overlay`
+  - Uninstaller: `%LOCALAPPDATA%\Programs\boosty-chat-overlay\Uninstall Boosty Chat Overlay.exe`
+  - Shortcuts: Desktop shortcut and Start Menu folder `Boosty Chat Overlay`.
+- **CI/CD Pipeline (`.github/workflows/build-windows.yml`):**
+  - Runner: `windows-latest` with Node.js 22 LTS (`node-version: 22`).
+  - Automation triggers: Manual (`workflow_dispatch`) and Tag push (`tags: ['v*']`).
+  - Release publication: Computes SHA-256 hash in PowerShell (`Get-FileHash -Algorithm SHA256`) and uploads the NSIS setup executable along with `SHA256SUMS.txt` to GitHub Releases using `softprops/action-gh-release@v2`.
+
+### 2.23. Cross-Platform Path Separator Invariant in Tests
+- **Invariant:** Test suites and codebase utilities must **never** perform naive string comparisons on filesystem paths using hardcoded `/` or `\` separators.
+- On Windows, `path.join` emits backslashes (`\`), whereas Linux uses forward slashes (`/`).
+- Hardcoded path comparisons like `expect(result).toBe('/path/to/file')` or `.replace(/\\/g, '/')` without normalizers lead to false test failures on `windows-latest`.
+- **Normalization Standard:** Always use `path.resolve(...)` for absolute path comparisons, or use `path.posix` / `path.win32` explicitly when dealing with simulated cross-platform inputs (e.g. `desktop/obs/config.js`).
+
+### 2.24. Chromium-Only Browser Support Invariant (MV3)
+- **Invariant:** Companion extension support is strictly limited to Chromium-based browsers (Brave, Google Chrome, Microsoft Edge, Yandex Browser).
+- Firefox is explicitly excluded from candidate lists in `desktop/browser/manager.js` because Firefox requires signed `.xpi` add-ons and does not support persistent unpacked Manifest V3 extensions via a static directory in developer mode.
+
 ---
 
 ## 3. Where to Change What (Quick Index)
@@ -183,6 +204,8 @@ desktop/ (Electron Application)
 | Card size presets (Focus Mode) | [`core/config/size-presets.js`](file:///home/fedor/projects/boosty-chat-overlay/core/config/size-presets.js) |
 | Persistent extension deployer | [`desktop/browser/extension-deployer.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/browser/extension-deployer.js) |
 | GitHub Releases update checker | [`desktop/main/update-checker.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/main/update-checker.js) |
+| Windows CI/CD release workflow | [`.github/workflows/build-windows.yml`](file:///home/fedor/projects/boosty-chat-overlay/.github/workflows/build-windows.yml) |
+| Windows release QA runner | [`scripts/windows-release-qa.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/windows-release-qa.js) |
 | Release readiness E2E verification | [`scripts/verify-release-scenarios.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/verify-release-scenarios.js) |
 | :--- | :--- |
 | Boosty chat DOM selectors or layout parsing | [`extension/parser.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/parser.js) |
