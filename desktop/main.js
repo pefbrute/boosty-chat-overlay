@@ -36,7 +36,7 @@ if (!gotSingleInstanceLock) {
   });
 
   const obsService = createObsService({
-    appVersion: app.isReady() ? app.getVersion() : '0.4.0',
+    appVersion: app.isReady() ? app.getVersion() : '0.4.1',
     overlayPort: Number(process.env.BOOSTY_OVERLAY_PORT || 17369),
     isServerReady: () => Boolean(localServer && localServer.listening),
     getOverlayClients: () => (localSseHub ? localSseHub.clientCount() : 0),

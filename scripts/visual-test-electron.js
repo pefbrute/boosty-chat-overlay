@@ -450,6 +450,7 @@ async function runVisualQa() {
       view: 'dashboard',
       mock: {
         isChecking: true,
+        simulatedStartupTiming: { elapsedMs: 1200 },
         health: {
           extension: { state: 'checking' },
           boosty: { state: 'checking' },

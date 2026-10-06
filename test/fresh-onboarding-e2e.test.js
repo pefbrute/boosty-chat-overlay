@@ -324,6 +324,7 @@ async function startObsWebSocketServer({ password = '', initialScenes = ['Gaming
  * Connects a simulated MV3 extension WebSocket client to the local overlay server.
  */
 async function connectSimulatedExtension(overlayPort) {
+  const currentExtVersion = require('../package.json').version;
   const ws = new WebSocket(`ws://127.0.0.1:${overlayPort}/connector`);
   await new Promise((resolve, reject) => {
     ws.once('open', resolve);
@@ -333,8 +334,8 @@ async function connectSimulatedExtension(overlayPort) {
   ws.send(JSON.stringify({
     type: 'HANDSHAKE',
     client: 'boosty-chat-connector',
-    version: '0.4.0',
-    extensionVersion: '0.4.0',
+    version: currentExtVersion,
+    extensionVersion: currentExtVersion,
     extensionId: 'bcoadgccgjomlcadhmeognidaoocohdp',
     tabs: [
       {
@@ -354,7 +355,7 @@ async function connectSimulatedExtension(overlayPort) {
           tabId: 101,
           url: 'https://boosty.to/streamer/streams/only-chat',
           hasChat: true,
-          extensionVersion: '0.4.0',
+          extensionVersion: currentExtVersion,
         },
       }));
     }
