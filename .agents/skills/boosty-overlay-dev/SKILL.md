@@ -288,3 +288,61 @@ git diff --check
   2. Проверить `artifacts/overlay/console-errors.json` (0 ошибок).
   3. Открыть через `view_file`: `single-message.png`, `multiple-messages.png`, `long-message.png`, `narrow-source.png`, `small-height.png`, `top-right.png`.
   4. Проверить отсутствие наложения карточек, корректность отступов, читаемость кириллицы и отсутствие горизонтального скролла.
+
+---
+
+## 6. Windows Release QA (VM `Winda`)
+
+> [!IMPORTANT]
+> Перед выпуском релиза **обязательно** запустить Windows Release QA на VM `Winda`.
+> Используй скилл [`windows-qa-winda`](file:///home/fedor/.gemini/config/skills/windows-qa-winda/SKILL.md) для полной документации.
+
+### Минимальный чеклист Windows Release QA:
+
+```bash
+# 1. Сбросить VM к чистому baseline
+./scripts/local/winda.sh reset
+# → restore WindowsQA-Clean → start → 7×PASS health check
+
+# 2. Скопировать новый installer
+./scripts/local/winda.sh copy-installer ./dist/"Boosty Chat Overlay Setup X.Y.Z.exe"
+
+# 3. Запустить installer через GUI MCP
+./scripts/local/winda.sh gui launch_app \
+  '{"path":"\\\\VBOXSVR\\qa-share\\releases\\Boosty Chat Overlay Setup X.Y.Z.exe","wait_window_sec":5}'
+
+# 4. Пройти wizard → проверить установку (обратите внимание на пробелы в имени каталога):
+./scripts/local/winda.sh powershell \
+  'Test-Path "$env:LOCALAPPDATA\Programs\Boosty Chat Overlay\Boosty Chat Overlay.exe"'
+
+# 5. Запустить приложение → скриншот
+./scripts/local/winda.sh screenshot /tmp/boosty-qa.png
+# Обязательно проверить скриншот через view_file
+# Для автоматизации Chromium/Electron использовать связку буфера обмена и скан-кодов (см. windows-qa-winda 5.12)
+
+# 5.1. Верификация состояния и отправка тестового сообщения в OBS (без UI-кликов):
+./scripts/local/winda.sh powershell 'Invoke-RestMethod "http://127.0.0.1:17369/health" | ConvertTo-Json'
+./scripts/local/winda.sh powershell 'Invoke-RestMethod "http://127.0.0.1:17369/test"'
+
+# 6. Восстановить чистый снапшот
+./scripts/local/winda.sh stop
+./scripts/local/winda.sh restore-clean
+```
+
+### Файлы Windows QA инфраструктуры:
+
+| Файл | Назначение |
+|---|---|
+| [`scripts/local/winda.sh`](file:///home/fedor/projects/boosty-chat-overlay/scripts/local/winda.sh) | CLI управления VM |
+| [`docs/WINDOWS_QA_VM.md`](file:///home/fedor/projects/boosty-chat-overlay/docs/WINDOWS_QA_VM.md) | Архитектурная документация |
+| `~/.config/boosty-chat-overlay/winda.env` | Креды QA-юзера (не в repo) |
+| `~/.gemini/config/skills/windows-qa-winda/SKILL.md` | Полное руководство агента по Windows QA |
+
+### Ключевые факты:
+- **Session 0 vs Session 1:** `VBoxManage guestcontrol` → Session 0 (без GUI). `windows-gui-mcp` → Session 1 (интерактивный рабочий стол с UIA).
+- **UNC-пути и локальный стейджинг:** Для тихой установки NSIS (`/S`) всегда копировать инсталлер в локальный каталог `C:\QA\Setup.exe` и снимать `Unblock-File`. Прямой запуск с `\\VBOXSVR\qa-share\` может висеть на сетевой блокировке.
+- **Снапшот `WindowsQA-Clean`:** Чистый baseline с Brave/Chrome/OBS, `Boosty Chat Overlay` не установлен.
+- **Windows Update отключён** в снапшоте — старты всегда быстрые (~24s до готовности).
+- **OBS Safe Mode (.sentinel):** Всегда удалять `$env:APPDATA\obs-studio\.sentinel` перед стартом OBS, иначе obs-websocket (порт 4455) блокируется.
+- **Brave Profile Stale Locks:** При ошибке `#32770` в Brave — убить процессы `brave` и очистить `*lock*` файлы в `Brave-Browser\User Data`.
+- **NSIS Silent Uninstall Lock:** Перед вызовом деинсталлятора всегда выполнять `taskkill /F /IM "Boosty Chat Overlay.exe" /T`, иначе uninstaller тихо оставит залоченные бинарники.
