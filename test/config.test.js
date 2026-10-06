@@ -119,3 +119,44 @@ test('createConfigStore in-memory and disk persistence', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('normalizeConfig OBS connection fields and backward compatibility', () => {
+  // 1. Defaults
+  const def = normalizeConfig({});
+  assert.equal(def.obsHost, '127.0.0.1');
+  assert.equal(def.obsPort, 4455);
+  assert.equal(def.obsPassword, '');
+
+  // 2. Custom valid values
+  const custom = normalizeConfig({
+    obsHost: '192.168.1.50',
+    obsPort: 4456,
+    obsPassword: 'secret_password_123',
+  });
+  assert.equal(custom.obsHost, '192.168.1.50');
+  assert.equal(custom.obsPort, 4456);
+  assert.equal(custom.obsPassword, 'secret_password_123');
+
+  // 3. Clamping and fallbacks
+  const clamped = normalizeConfig({
+    obsHost: '   ',
+    obsPort: 999999, // out of port range 1..65535
+    obsPassword: null,
+  });
+  assert.equal(clamped.obsHost, '127.0.0.1');
+  assert.equal(clamped.obsPort, 4455);
+  assert.equal(clamped.obsPassword, '');
+
+  // 4. Backward compatibility: loading old file without OBS fields
+  const oldConfig = {
+    fontSize: 22,
+    maxMessages: 7,
+    textColor: '#ffffff',
+  };
+  const normalizedOld = normalizeConfig(oldConfig);
+  assert.equal(normalizedOld.fontSize, 22);
+  assert.equal(normalizedOld.maxMessages, 7);
+  assert.equal(normalizedOld.obsHost, '127.0.0.1');
+  assert.equal(normalizedOld.obsPort, 4455);
+  assert.equal(normalizedOld.obsPassword, '');
+});

@@ -52,6 +52,8 @@ ipcMain.handle('get-extension-info', () => ({
 ipcMain.handle('get-update-status', () => ({ state: 'up-to-date', updateAvailable: false }));
 ipcMain.handle('check-for-updates', () => ({ state: 'up-to-date', updateAvailable: false }));
 ipcMain.handle('copy-extension-path', () => ({ ok: true, extensionDir: '/tmp/extension' }));
+ipcMain.handle('get-obs-connection-config', () => ({ host: '127.0.0.1', port: 4455, password: '' }));
+ipcMain.handle('set-obs-connection-config', () => ({ ok: true }));
 
 app.whenReady().then(async () => {
   let win;

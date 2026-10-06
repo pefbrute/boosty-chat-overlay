@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   fitObsOverlay: password => ipcRenderer.invoke('fit-obs-overlay', password),
   refreshObsOverlay: () => ipcRenderer.invoke('refresh-obs-overlay'),
   getObsStatus: () => ipcRenderer.invoke('get-obs-status'),
+  getObsConnectionConfig: () => ipcRenderer.invoke('get-obs-connection-config'),
+  setObsConnectionConfig: config => ipcRenderer.invoke('set-obs-connection-config', config),
   onObsStateChanged: callback => {
     const handler = (_event, state) => callback(state);
     ipcRenderer.on('obs-state-changed', handler);

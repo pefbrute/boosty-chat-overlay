@@ -1,9 +1,17 @@
 const { app, BrowserWindow, clipboard, ipcMain } = require('electron');
+const fs = require('node:fs');
 const path = require('node:path');
 const { createObsService } = require('./obs/service.js');
 const { createBrowserManager } = require('./browser/manager.js');
 const { createUpdateChecker } = require('./main/update-checker.js');
 const { registerIpcHandlers } = require('./main/ipc.js');
+
+if (process.env.BOOSTY_OVERLAY_USER_DATA) {
+  const customUserData = path.resolve(process.env.BOOSTY_OVERLAY_USER_DATA);
+  fs.mkdirSync(customUserData, { recursive: true });
+  app.setPath('userData', customUserData);
+  app.setPath('sessionData', path.join(customUserData, 'sessionData'));
+}
 
 let mainWindow;
 let localServer;
@@ -45,6 +53,7 @@ if (!gotSingleInstanceLock) {
       height: 700,
       minWidth: 760,
       minHeight: 560,
+      show: process.env.BOOSTY_OVERLAY_HIDE_WINDOW !== '1',
       backgroundColor: '#111116',
       icon: path.join(__dirname, '..', 'build', 'icon.png'),
       title: 'Boosty Chat Overlay',
@@ -76,6 +85,9 @@ if (!gotSingleInstanceLock) {
     const serverModule = require('../server.js');
     localServer = serverModule.server;
     localSseHub = serverModule.sseHub;
+    if (serverModule.configStore) {
+      obsService.setConfigStore(serverModule.configStore);
+    }
 
     // Graceful port collision trap
     if (localServer) {
@@ -107,7 +119,8 @@ if (!gotSingleInstanceLock) {
         localServer.once('listening', () => obsService.scheduleRefresh(50));
       }
       setTimeout(() => obsService.scheduleRefresh(100), 500);
-      obsService.startPeriodicSync(15000);
+      const syncIntervalMs = Number(process.env.BOOSTY_OVERLAY_OBS_SYNC_MS || 15000);
+      obsService.startPeriodicSync(syncIntervalMs);
 
       // Background check for updates (non-blocking)
       setTimeout(() => {

@@ -54,6 +54,8 @@ ipcMain.handle('get-extension-info', () => ({
 ipcMain.handle('get-update-status', () => ({ state: 'up-to-date', updateAvailable: false }));
 ipcMain.handle('check-for-updates', () => ({ state: 'up-to-date', updateAvailable: false }));
 ipcMain.handle('copy-extension-path', () => ({ ok: true, extensionDir: '/tmp/extension' }));
+ipcMain.handle('get-obs-connection-config', () => ({ host: '127.0.0.1', port: 4455, password: '' }));
+ipcMain.handle('set-obs-connection-config', () => ({ ok: true }));
 
 app.whenReady().then(async () => {
   let desktopWin;
@@ -1087,19 +1089,40 @@ app.whenReady().then(async () => {
       (() => {
         const symbol = document.querySelector('#icon-boosty');
         const viewBox = symbol ? symbol.getAttribute('viewBox') : null;
+        const colorSymbol = document.querySelector('#icon-boosty-color');
+        const colorViewBox = colorSymbol ? colorSymbol.getAttribute('viewBox') : null;
         const logo = document.querySelector('.sidebar-header .logo');
         const logoIcon = logo ? logo.querySelector('.logo-icon') : null;
+        const logoUse = logoIcon ? logoIcon.querySelector('use') : null;
+        const logoRect = logo ? logo.getBoundingClientRect() : null;
+        const svgRect = logoIcon ? logoIcon.getBoundingClientRect() : null;
+        const useRect = logoUse ? logoUse.getBoundingClientRect() : null;
         const dashPillIcon = document.querySelector('#dash-boosty-pill use')?.getAttribute('href');
 
         return {
           viewBox,
+          colorViewBox,
           hasLogoIcon: Boolean(logoIcon),
+          logoSvgViewBoxAttr: logoIcon ? logoIcon.getAttribute('viewBox') : null,
+          logoRect: logoRect ? { left: logoRect.left, top: logoRect.top, right: logoRect.right, bottom: logoRect.bottom, width: logoRect.width, height: logoRect.height } : null,
+          svgRect: svgRect ? { left: svgRect.left, top: svgRect.top, right: svgRect.right, bottom: svgRect.bottom, width: svgRect.width, height: svgRect.height } : null,
+          useRect: useRect ? { left: useRect.left, top: useRect.top, right: useRect.right, bottom: useRect.bottom, width: useRect.width, height: useRect.height } : null,
           dashPillUsesBoosty: dashPillIcon === '#icon-boosty'
         };
       })()
     `);
     assert.strictEqual(boostyAssetCheck.viewBox, '0 0 235.6 292.2', 'Canonical Boosty viewBox must be 0 0 235.6 292.2');
+    assert.strictEqual(boostyAssetCheck.colorViewBox, '23.6 46.6 189 199', 'Color Boosty symbol viewBox must be 23.6 46.6 189 199');
     assert.strictEqual(boostyAssetCheck.hasLogoIcon, true, 'Sidebar logo must contain canonical .logo-icon SVG');
+    assert.strictEqual(boostyAssetCheck.logoSvgViewBoxAttr, null, 'Outer .logo-icon SVG must not duplicate symbol non-zero viewBox');
+    assert.ok(boostyAssetCheck.useRect && boostyAssetCheck.useRect.width > 0 && boostyAssetCheck.useRect.height > 0, 'Rendered logo <use> must have positive width/height');
+    assert.ok(
+      boostyAssetCheck.useRect.left >= boostyAssetCheck.svgRect.left - 0.5 &&
+      boostyAssetCheck.useRect.top >= boostyAssetCheck.svgRect.top - 0.5 &&
+      boostyAssetCheck.useRect.right <= boostyAssetCheck.svgRect.right + 0.5 &&
+      boostyAssetCheck.useRect.bottom <= boostyAssetCheck.svgRect.bottom + 0.5,
+      'Rendered logo <use> must be completely contained within .logo-icon SVG without clipping'
+    );
     assert.strictEqual(boostyAssetCheck.dashPillUsesBoosty, true, 'Dashboard boosty pill must use #icon-boosty');
     console.log('✔ Canonical Boosty asset in symbol and sidebar verified');
 

@@ -10,10 +10,22 @@ class MockClient extends EventEmitter {
     this.calls = [];
   }
 
-  async connect(password) {
-    if (password === 'bad') throw new Error('Bad password');
+  async connect(optionsOrPassword) {
+    let pwd = typeof optionsOrPassword === 'object' ? optionsOrPassword?.password : optionsOrPassword;
+    if (pwd === 'bad' || pwd === 'wrong_password') {
+      const err = new Error('Authentication failed');
+      err.code = 4005;
+      err.isAuthError = true;
+      throw err;
+    }
+    if (pwd === 'network_fail') {
+      const err = new Error('connect ECONNREFUSED 127.0.0.1:4455');
+      err.code = -1;
+      err.isConnectionError = true;
+      throw err;
+    }
     this.connected = true;
-    return { obs: this, restartRequired: false, port: 4455, password };
+    return { obs: this, restartRequired: false, port: 4455, password: pwd };
   }
 
   async disconnect() {
@@ -54,7 +66,15 @@ test('createObsService manages state, onStateChange callback, and listScenes', a
     onStateChange: state => stateChanges.push(state),
   });
 
-  assert.deepEqual(service.getStatus(), { ok: false, connected: false, scenes: [] });
+  assert.deepEqual(service.getStatus(), {
+    ok: false,
+    connected: false,
+    authFailed: false,
+    unavailable: false,
+    host: '127.0.0.1',
+    port: 4455,
+    scenes: [],
+  });
 
   // List scenes
   const res = await service.listScenes('mypassword');
@@ -319,4 +339,104 @@ test('Idempotency across setup runs, desktop restarts, and OBS reconnects (stric
   assert.equal(obsWorld.createInputCount, 1);
 
   await service2.destroy();
+});
+
+test('createObsService classifies authentication failure vs network failure cleanly', async () => {
+  const client = new MockClient();
+  const service = createObsService({ client });
+
+  // 1. Authentication failure
+  const authState = await service.listScenes('wrong_password');
+  assert.equal(authState.ok, false);
+  assert.equal(authState.connected, false);
+  assert.equal(authState.authFailed, true);
+  assert.equal(authState.unavailable, false);
+  assert.match(authState.error, /авторизоваться/);
+
+  // Status check matches
+  assert.equal(service.getStatus().authFailed, true);
+
+  // 2. Network connection failure
+  const connState = await service.listScenes('network_fail');
+  assert.equal(connState.ok, false);
+  assert.equal(connState.connected, false);
+  assert.equal(connState.authFailed, false);
+  assert.equal(connState.unavailable, true);
+  assert.match(connState.error, /подключиться/);
+
+  // 3. Successful connection clears authFailed
+  const okState = await service.listScenes('good_password');
+  assert.equal(okState.ok, true);
+  assert.equal(okState.connected, true);
+  assert.equal(okState.authFailed, false);
+  assert.equal(okState.unavailable, false);
+
+  await service.destroy();
+});
+
+test('createObsService supports connection config get/set with configStore persistence', async () => {
+  const client = new MockClient();
+  let savedConfig = {};
+  const mockConfigStore = {
+    get() {
+      return { obsHost: '127.0.0.1', obsPort: 4455, obsPassword: 'initial_pass' };
+    },
+    update(partial) {
+      savedConfig = { ...savedConfig, ...partial };
+      return savedConfig;
+    },
+  };
+
+  const service = createObsService({ client, configStore: mockConfigStore });
+
+  // Initial values match configStore
+  assert.deepEqual(service.getConnectionConfig(), {
+    host: '127.0.0.1',
+    port: 4455,
+    password: 'initial_pass',
+  });
+
+  // Update connection config
+  const updateRes = service.updateConnectionConfig({
+    host: '192.168.1.55',
+    port: 4456,
+    password: 'new_secret_pwd',
+  });
+
+  assert.equal(updateRes.ok, true);
+  assert.deepEqual(service.getConnectionConfig(), {
+    host: '192.168.1.55',
+    port: 4456,
+    password: 'new_secret_pwd',
+  });
+
+  // Verify saved into configStore
+  assert.equal(savedConfig.obsHost, '192.168.1.55');
+  assert.equal(savedConfig.obsPort, 4456);
+  assert.equal(savedConfig.obsPassword, 'new_secret_pwd');
+
+  await service.destroy();
+});
+
+test('updateConnectionConfig preserves active OBS connection when host/port/password are unchanged', async () => {
+  const client = new MockClient();
+  let disconnectCount = 0;
+  const origDisconnect = client.disconnect.bind(client);
+  client.disconnect = async () => {
+    disconnectCount++;
+    return origDisconnect();
+  };
+  client.isConnecting = () => false;
+
+  const service = createObsService({ client });
+  await service.listScenes({ host: '127.0.0.1', port: 4455, password: 'same_password' });
+  assert.equal(service.getStatus().connected, true);
+  assert.equal(disconnectCount, 0);
+
+  // Calling updateConnectionConfig with identical parameters (e.g. on onboarding Finish) must NOT disconnect
+  service.updateConnectionConfig({ host: '127.0.0.1', port: 4455, password: 'same_password' });
+  assert.equal(disconnectCount, 0);
+  assert.equal(service.getStatus().connected, true);
+
+  await service.destroy();
 });

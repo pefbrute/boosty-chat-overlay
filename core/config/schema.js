@@ -79,6 +79,22 @@ function normalizeConfig(input, current = defaultConfig) {
     return fallback;
   };
 
+  const hostVal = (value, fallback) => {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    return fallback || '127.0.0.1';
+  };
+  const portVal = (value, fallback) => {
+    if (value === undefined || value === null || value === '') return fallback;
+    const parsed = Number(value);
+    return (Number.isFinite(parsed) && parsed >= 1 && parsed <= 65535) ? Math.round(parsed) : fallback;
+  };
+  const passwordVal = (value, fallback) => {
+    if (value === undefined || value === null) return fallback ?? '';
+    return String(value);
+  };
+
   const rawAnimType =
     input?.animationType !== undefined ? input.animationType : input?.animation?.type;
   const baseAnimType = normalizeAnimationType(
@@ -121,6 +137,9 @@ function normalizeConfig(input, current = defaultConfig) {
     maxStackHeight: Math.round(number(input?.maxStackHeight, 160, 2160, base.maxStackHeight ?? 800)),
     animationType: normalizeAnimationType(rawAnimType, baseAnimType),
     animationDurationMs: normalizeAnimationDuration(rawAnimDuration, baseAnimDuration),
+    obsHost: hostVal(input?.obsHost, base.obsHost ?? '127.0.0.1'),
+    obsPort: portVal(input?.obsPort, base.obsPort ?? 4455),
+    obsPassword: passwordVal(input?.obsPassword, base.obsPassword ?? ''),
   };
 }
 

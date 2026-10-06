@@ -1,4 +1,4 @@
-const { getObsExecutablePath, launchObs } = require('./config.js');
+const { getObsExecutablePath, launchObs, readObsWebSocketConfig } = require('./config.js');
 const { createObsClient } = require('./client.js');
 const {
   fetchScenesState,
@@ -35,8 +35,40 @@ function createObsService(options = {}) {
 
   const mutationQueue = createMutationQueue();
 
-  let lastObsState = { ok: false, connected: false, scenes: [] };
+  function resolveInitialPort(configuredPort) {
+    const numPort = Number(configuredPort || 4455);
+    if (numPort !== 4455) return numPort;
+    const localObs = readObsWebSocketConfig(options);
+    if (localObs?.config?.server_port) {
+      const localPort = Number(localObs.config.server_port);
+      if (Number.isFinite(localPort) && localPort > 0 && localPort <= 65535) {
+        return localPort;
+      }
+    }
+    return numPort;
+  }
+
+  let configStore = options.configStore || null;
+  let currentHost = '127.0.0.1';
+  let currentPort = resolveInitialPort(4455);
   let currentPassword = '';
+
+  if (configStore && typeof configStore.get === 'function') {
+    const cfg = configStore.get();
+    if (cfg.obsHost) currentHost = String(cfg.obsHost).trim();
+    if (cfg.obsPort) currentPort = resolveInitialPort(cfg.obsPort);
+    if (cfg.obsPassword !== undefined) currentPassword = String(cfg.obsPassword);
+  }
+
+  let lastObsState = {
+    ok: false,
+    connected: false,
+    authFailed: false,
+    unavailable: false,
+    host: currentHost,
+    port: currentPort,
+    scenes: [],
+  };
 
   let refreshTimer = null;
   let refreshInFlight = false;
@@ -164,7 +196,15 @@ function createObsService(options = {}) {
   client.on('ConnectionClosed', () => {
     selfHealDoneForZeroClients = false;
     migrationRanForCurrentConnection = false;
-    const disconnectedState = { ok: false, connected: false, scenes: [] };
+    const disconnectedState = {
+      ok: false,
+      connected: false,
+      authFailed: false,
+      unavailable: true,
+      host: currentHost,
+      port: currentPort,
+      scenes: [],
+    };
     notifyStateChanged(disconnectedState);
   });
 
@@ -181,15 +221,49 @@ function createObsService(options = {}) {
    * Connects to OBS, runs automatic idempotent duplicate migration if needed,
    * and queries current scenes state.
    */
-  async function fetchState(password = '') {
-    currentPassword = String(password || '');
+  async function fetchState(override = '') {
+    let host = currentHost;
+    let port = currentPort;
+    let password = currentPassword;
+
+    if (typeof override === 'object' && override !== null) {
+      if (override.host) {
+        host = String(override.host).trim();
+        currentHost = host;
+      }
+      if (override.port) {
+        port = Number(override.port);
+        currentPort = port;
+      }
+      if (override.password !== undefined) {
+        password = String(override.password);
+        currentPassword = password;
+      }
+    } else if (typeof override === 'string' && override !== '') {
+      password = override;
+      currentPassword = password;
+    }
+
     let state;
     try {
-      const conn = await client.connect(currentPassword);
+      const conn = await client.connect({ host, port, password });
       if (conn.restartRequired) {
-        state = { ok: false, connected: false, restartRequired: true, scenes: [] };
+        state = {
+          ok: false,
+          connected: false,
+          restartRequired: true,
+          authFailed: false,
+          unavailable: false,
+          host,
+          port,
+          scenes: [],
+        };
       } else {
         state = await fetchScenesState(client, { port: overlayPort });
+        state.authFailed = false;
+        state.unavailable = false;
+        state.host = host;
+        state.port = port;
 
         // Automatic one-time/idempotent duplicate & legacy migration on OBS startup/discovery
         if (!mutationQueue.isBlocked() && !migrationRanForCurrentConnection && state.duplicateCount > 0) {
@@ -201,6 +275,10 @@ function createObsService(options = {}) {
             appVersion,
           });
           state = await fetchScenesState(client, { port: overlayPort });
+          state.authFailed = false;
+          state.unavailable = false;
+          state.host = host;
+          state.port = port;
           state.lastMigration = migration;
         } else if (state.canonicalOverlayInput) {
           migrationRanForCurrentConnection = true;
@@ -209,11 +287,42 @@ function createObsService(options = {}) {
         await maybeSelfHealOverlay(state);
       }
     } catch (error) {
+      const code = Number(error?.code);
+      const msg = String(error?.message || '').toLowerCase();
+      const isAuth = Boolean(
+        error?.isAuthError ||
+        code === 4005 ||
+        code === 4009 ||
+        code === 4002 ||
+        code === 4006 ||
+        msg.includes('authentication failed') ||
+        msg.includes('authentication required') ||
+        msg.includes('auth failed') ||
+        msg.includes('not identified') ||
+        msg.includes('identify')
+      );
+      const isConn = Boolean(
+        error?.isConnectionError ||
+        code === -1 ||
+        msg.includes('econnrefused') ||
+        msg.includes('enotfound') ||
+        msg.includes('etimedout') ||
+        msg.includes('connection refused') ||
+        msg.includes('connect econnrefused')
+      );
+
       state = {
         ok: false,
         connected: false,
+        authFailed: isAuth,
+        unavailable: isConn || (!isAuth && !error?.restartRequired),
+        host,
+        port,
         scenes: [],
-        error: error?.message || String(error),
+        error: isAuth
+          ? 'OBS найден, но не удалось авторизоваться'
+          : (isConn ? 'Не удалось подключиться к OBS' : (error?.message || String(error))),
+        rawError: error?.message || String(error),
       };
     }
     notifyStateChanged(state);
@@ -287,13 +396,80 @@ function createObsService(options = {}) {
     },
 
     /**
+     * Configures config store instance for persistence.
+     */
+    setConfigStore(store) {
+      configStore = store;
+      if (configStore && typeof configStore.get === 'function') {
+        const cfg = configStore.get();
+        if (cfg.obsHost) currentHost = String(cfg.obsHost).trim();
+        if (cfg.obsPort) currentPort = resolveInitialPort(cfg.obsPort);
+        if (cfg.obsPassword !== undefined) currentPassword = String(cfg.obsPassword);
+      }
+    },
+
+    /**
+     * Returns current connection parameters.
+     */
+    getConnectionConfig() {
+      return {
+        host: currentHost,
+        port: currentPort,
+        password: currentPassword,
+      };
+    },
+
+    /**
+     * Updates OBS connection parameters, optionally persisting to config store,
+     * and triggers an immediate reconnect if parameters changed or if currently disconnected.
+     */
+    updateConnectionConfig(newConfig = {}, persist = true) {
+      const nextHost = newConfig.host !== undefined ? String(newConfig.host || '127.0.0.1').trim() : currentHost;
+      const nextPort = newConfig.port !== undefined ? Number(newConfig.port || 4455) : currentPort;
+      const nextPassword = newConfig.password !== undefined ? String(newConfig.password || '') : currentPassword;
+
+      const changed = nextHost !== currentHost || nextPort !== currentPort || nextPassword !== currentPassword;
+
+      currentHost = nextHost;
+      currentPort = nextPort;
+      currentPassword = nextPassword;
+
+      if (persist && configStore && typeof configStore.update === 'function') {
+        configStore.update({
+          obsHost: currentHost,
+          obsPort: currentPort,
+          obsPassword: currentPassword,
+        });
+      }
+
+      if (changed) {
+        // Disconnect previous active connection so new parameters take effect immediately
+        Promise.resolve(client.disconnect())
+          .catch(() => {})
+          .finally(() => {
+            scheduleRefresh(0);
+          });
+      } else if (!client.isConnected() && !client.isConnecting()) {
+        scheduleRefresh(0);
+      }
+
+      return {
+        ok: true,
+        host: currentHost,
+        port: currentPort,
+        password: currentPassword,
+      };
+    },
+
+    /**
      * Explicitly runs idempotent migration to consolidate duplicate overlay inputs into one canonical source.
      */
     async migrateOverlay(password = '') {
       return mutationQueue.enqueue(async () => {
         try {
-          currentPassword = String(password || '');
-          const conn = await client.connect(currentPassword);
+          const effectivePwd = String(password || currentPassword || '');
+          currentPassword = effectivePwd;
+          const conn = await client.connect({ host: currentHost, port: currentPort, password: effectivePwd });
           if (conn.restartRequired) return { ok: false, restartRequired: true };
 
           const res = await migrateOverlayInputs(client, {
@@ -315,8 +491,9 @@ function createObsService(options = {}) {
     async addScene(password = '', sceneIdentifier = '') {
       return mutationQueue.enqueue(async () => {
         try {
-          currentPassword = String(password || '');
-          const conn = await client.connect(currentPassword);
+          const effectivePwd = String(password || currentPassword || '');
+          currentPassword = effectivePwd;
+          const conn = await client.connect({ host: currentHost, port: currentPort, password: effectivePwd });
           if (conn.restartRequired) return { ok: false, restartRequired: true };
 
           const res = await addSceneTarget(client, sceneIdentifier, {
@@ -338,8 +515,9 @@ function createObsService(options = {}) {
     async removeScene(password = '', sceneIdentifier = '') {
       return mutationQueue.enqueue(async () => {
         try {
-          currentPassword = String(password || '');
-          const conn = await client.connect(currentPassword);
+          const effectivePwd = String(password || currentPassword || '');
+          currentPassword = effectivePwd;
+          const conn = await client.connect({ host: currentHost, port: currentPort, password: effectivePwd });
           if (conn.restartRequired) return { ok: false, restartRequired: true };
 
           const res = await removeSceneTarget(client, sceneIdentifier, {
@@ -360,8 +538,9 @@ function createObsService(options = {}) {
     async fitOverlayToCanvas(password = '') {
       return mutationQueue.enqueue(async () => {
         try {
-          currentPassword = String(password || '');
-          const conn = await client.connect(currentPassword);
+          const effectivePwd = String(password || currentPassword || '');
+          currentPassword = effectivePwd;
+          const conn = await client.connect({ host: currentHost, port: currentPort, password: effectivePwd });
           if (conn.restartRequired) return { ok: false, restartRequired: true };
 
           const res = await normalizeOverlayTransform(client, {

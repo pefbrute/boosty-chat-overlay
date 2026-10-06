@@ -127,9 +127,12 @@ desktop/ (Electron Application)
 - Exit animation runs at 75% duration; DOM removal occurs only after transition ends.
 - **Invariant:** In deterministic mode (`BOOSTY_OVERLAY_UI_TEST=1` / `setDeterministicMode(true)`) or reduced motion, animations are suppressed to ensure zero partial-frame flakiness in screenshots.
 
-### 2.14. Canonical Boosty Asset & Sticky Live Preview UX
-- **Invariant:** Single centralized SVG asset `desktop/assets/boosty.svg` (symbol `#icon-boosty`) across the entire desktop UI.
-- **Invariant:** Live preview container `#sticky-preview-container` is sticky (`position: sticky; top: 80px;`) on viewports >= 900px and falls back to `position: relative` on compact viewports (<900px).
+### 2.14. Canonical Boosty Asset, SVG Symbol Sizing & Sticky Live Preview UX
+- **Invariant (Dual Boosty Symbols):**
+  - `#icon-boosty-color` (`viewBox="23.6 46.6 189 199"`, gradient `#boosty-brand-gradient`): brand logo in `.logo` containers (sidebar header, onboarding header).
+  - `#icon-boosty` (`viewBox="0 0 235.6 292.2"`, `currentColor`): monochrome icon in action buttons and status pills.
+- **Invariant (Zero Duplicate ViewBox on Outer `<svg>`):** When `<svg class="logo-icon">` or `<svg class="icon-svg">` uses `<use href="#symbol">`, the outer `<svg>` element must **NEVER** duplicate the `<symbol>`'s non-zero `viewBox`. Per the W3C SVG 2 specification, `<use>` already instantiates a nested viewport using the symbol's viewBox; duplicating non-zero `(minX, minY)` on the outer `<svg>` shifts the rendered graphic twice, causing severe clipping by the outer SVG's default `overflow: hidden`.
+- **Invariant (Sticky Live Preview):** Live preview container `#sticky-preview-container` is sticky (`position: sticky; top: 80px;`) on viewports >= 900px and falls back to `position: relative` on compact viewports (<900px).
 
 ### 2.15. Persistent WebSocket Transport v2 & Control/Data Plane Isolation
 - **Primary Transport (`ws://127.0.0.1:17369/connector`):** The MV3 service worker (`extension/background.js`) maintains a persistent WebSocket to `server.js` with a 20-second `PING`/`PONG` keepalive (below Chromium's 30s MV3 worker idle suspension threshold).
@@ -194,6 +197,22 @@ desktop/ (Electron Application)
 - **Invariant:** Companion extension support is strictly limited to Chromium-based browsers (Brave, Google Chrome, Microsoft Edge, Yandex Browser).
 - Firefox is explicitly excluded from candidate lists in `desktop/browser/manager.js` because Firefox requires signed `.xpi` add-ons and does not support persistent unpacked Manifest V3 extensions via a static directory in developer mode.
 
+### 2.25. OBS WebSocket Password Auth & Fresh Onboarding Transition Invariants
+- **Secret Storage & Redaction (`obsPassword`):**
+  - `obsHost`, `obsPort`, and `obsPassword` are stored in `overlay-settings.json` via `core/config/store.js`.
+  - **Strict Redaction Invariant:** `obsPassword` is **never** returned in `GET /config`, `POST /config` responses, `GET /health`, `GET /diagnostic`, or SSE `config` events (`stripSecrets` in `server.js` deletes `obsPassword` and exposes only boolean `hasObsPassword: Boolean(cfg.obsPassword)`).
+- **Auth Error Classification & `connectionGeneration` Guard (`desktop/obs/client.js`):**
+  - Close codes `4009` (`Authentication failed`) and `4005` / `Authentication` errors must be classified as `authFailed: true, unavailable: false` (never conflated with `ECONNREFUSED` / `OBS offline`).
+  - Because `obs-websocket-js` emits a `ConnectionClosed` event right as a failed `connect()` promise rejects on `4009`, `client.js` tracks a monotonic `connectionGeneration` counter and `activeObs === obs` guard so stale/aborted sockets cannot overwrite `authFailed: true` with `unavailable: true`.
+- **Idempotent `updateConnectionConfig` (`desktop/obs/service.js`):**
+  - Calling `obsService.updateConnectionConfig({ host, port, password })` (e.g., when clicking `Готово` on Onboarding Step 3) must check whether `{ host, port, password }` actually changed before calling `client.disconnect()`. Disconnecting an already-authenticated OBS socket when parameters are unchanged causes a false disconnect right as the user lands on the Dashboard.
+- **Dual-View DOM Input Trap (`readObsConnectionInputs` in `desktop/app.js`):**
+  - Onboarding (`#ob-obs-*`) and Dashboard (`#dash-obs-*`) inputs coexist in `desktop/index.html`.
+  - **Never** read them via `dashEl?.value ?? obEl?.value`: an empty string `""` in an unedited `#dash-obs-password` input is non-nullish and will silently mask the password typed into `#ob-obs-password`! Always pass an explicit `source` (`'onboarding'` vs `'dashboard'`) to `readObsConnectionInputs(source)` and keep both input sets synchronized.
+- **Isolated Fresh Onboarding E2E (`npm run test:onboarding`):**
+  - `desktop/main.js` supports `BOOSTY_OVERLAY_USER_DATA` (setting both `userData` and `sessionData` **before** `app.requestSingleInstanceLock()`), `BOOSTY_OVERLAY_OBS_CONFIG_PATH`, and `BOOSTY_OVERLAY_HIDE_WINDOW=1`.
+  - `test/fresh-onboarding-e2e.test.js` verifies the complete `fresh state → onboarding → dashboard → connected services` flow without intermediate app restarts against a real protocol-level `obswebsocket.msgpack` SHA256 server.
+
 ---
 
 ## 3. Where to Change What (Quick Index)
@@ -207,7 +226,7 @@ desktop/ (Electron Application)
 | Windows CI/CD release workflow | [`.github/workflows/build-windows.yml`](file:///home/fedor/projects/boosty-chat-overlay/.github/workflows/build-windows.yml) |
 | Windows release QA runner | [`scripts/windows-release-qa.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/windows-release-qa.js) |
 | Release readiness E2E verification | [`scripts/verify-release-scenarios.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/verify-release-scenarios.js) |
-| :--- | :--- |
+| Fresh onboarding & OBS auth E2E test | [`test/fresh-onboarding-e2e.test.js`](file:///home/fedor/projects/boosty-chat-overlay/test/fresh-onboarding-e2e.test.js) |
 | Boosty chat DOM selectors or layout parsing | [`extension/parser.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/parser.js) |
 | Message schema or validation | [`core/messages/model.js`](file:///home/fedor/projects/boosty-chat-overlay/core/messages/model.js), [`types/message.d.ts`](file:///home/fedor/projects/boosty-chat-overlay/types/message.d.ts) |
 | Message history ring buffer or deduplication | [`core/messages/history.js`](file:///home/fedor/projects/boosty-chat-overlay/core/messages/history.js), [`core/messages/dedup.js`](file:///home/fedor/projects/boosty-chat-overlay/core/messages/dedup.js) |
@@ -215,7 +234,7 @@ desktop/ (Electron Application)
 | Drag & Drop math, corner mapping & snapping | [`core/layout/positioning.js`](file:///home/fedor/projects/boosty-chat-overlay/core/layout/positioning.js) |
 | Stream Profiles definitions & auto-detector | [`core/config/profiles.js`](file:///home/fedor/projects/boosty-chat-overlay/core/config/profiles.js), [`core/config/presets.js`](file:///home/fedor/projects/boosty-chat-overlay/core/config/presets.js) |
 | SSE broadcasting and reconnection | [`core/sse/hub.js`](file:///home/fedor/projects/boosty-chat-overlay/core/sse/hub.js), [`server.js`](file:///home/fedor/projects/boosty-chat-overlay/server.js) |
-| OBS WebSocket client, scenes, and mutations | [`desktop/obs/`](file:///home/fedor/projects/boosty-chat-overlay/desktop/obs/) (`client.js`, `scenes.js`, `service.js`) |
+| OBS WebSocket client, scenes, and mutations | [`desktop/obs/`](file:///home/fedor/projects/boosty-chat-overlay/desktop/obs/) (`client.js`, `scenes.js`, `service.js`, `config.js`) |
 | OBS Canonical 1:1 transform math & validation | [`desktop/obs/transform.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/obs/transform.js) |
 | Chromium browser detection or extension unpack | [`desktop/browser/manager.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/browser/manager.js) |
 | Electron IPC channels | [`desktop/main/ipc.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/main/ipc.js), [`desktop/preload.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/preload.js) |

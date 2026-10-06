@@ -55,7 +55,9 @@ function broadcast(message, isTest = false) {
 }
 
 function broadcastConfig() {
-  sseHub.broadcastConfig(configStore.get());
+  const cfg = configStore.get();
+  const { obsPassword, ...safeConfig } = cfg;
+  sseHub.broadcastConfig(safeConfig);
 }
 
 const server = http.createServer((request, response) => {
@@ -102,7 +104,9 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/config') {
-    return sendJson(response, 200, configStore.get());
+    const cfg = configStore.get();
+    const { obsPassword, ...safeConfig } = cfg;
+    return sendJson(response, 200, safeConfig);
   }
 
   if (request.method === 'POST' && url.pathname === '/config') {
@@ -115,7 +119,8 @@ const server = http.createServer((request, response) => {
       try {
         const updated = configStore.update(JSON.parse(body));
         broadcastConfig();
-        return sendJson(response, 200, updated);
+        const { obsPassword, ...safeConfig } = updated;
+        return sendJson(response, 200, safeConfig);
       } catch {
         return sendJson(response, 400, { error: 'Invalid config' });
       }
@@ -397,6 +402,7 @@ module.exports = {
   wss,
   sseHub,
   healthTracker,
+  configStore,
   defaultConfig,
   normalizeConfig,
   normalizedConfig,

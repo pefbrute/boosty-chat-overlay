@@ -337,3 +337,36 @@ test('deriveSystemStatus: OBS duplicateCount > 0 shows brief warning without ext
   assert.equal(status.overlay.text, 'Обнаружены дубликаты оверлея OBS');
   assert.equal(status.overlay.action, null);
 });
+
+test('deriveSystemStatus: OBS authFailed shows error badge, clear detail, and configure-obs-password CTA', () => {
+  const state = {
+    health: {
+      extensionConnected: true,
+      boostyConnected: true,
+      boostyTabUrl: 'https://boosty.to/streamer_live',
+      boosty: { state: 'chat-detected' },
+      extension: { state: 'connected' },
+    },
+    obs: {
+      ok: false,
+      connected: false,
+      authFailed: true,
+      scenes: [],
+    },
+  };
+
+  const status = deriveSystemStatus(state);
+  assert.equal(status.obs.status, 'auth-failed');
+  assert.equal(status.obs.badgeClass, 'error');
+  assert.equal(status.obs.text, 'Ошибка авторизации');
+  assert.match(status.obs.detail, /не удалось авторизоваться/);
+  assert.equal(status.obs.action.id, 'configure-obs-password');
+  assert.equal(status.obs.action.label, 'Ввести пароль');
+
+  assert.equal(status.overlay.status, 'obs-disconnected');
+  assert.equal(status.overlay.badgeClass, 'error');
+  assert.equal(status.overlay.text, 'Ошибка авторизации OBS');
+
+  assert.equal(status.overall.ready, false);
+  assert.equal(status.overall.title, 'Ошибка авторизации OBS');
+});

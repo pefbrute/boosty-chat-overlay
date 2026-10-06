@@ -13,6 +13,10 @@ const { spawn } = require('node:child_process');
  * @returns {string}
  */
 function getObsWebSocketConfigPath(options = {}) {
+  const customPath = options.configPath || process.env.BOOSTY_OVERLAY_OBS_CONFIG_PATH;
+  if (customPath) {
+    return String(customPath).trim();
+  }
   const platform = options.platform || process.platform;
   const home = options.homeDir || os.homedir();
   const pathMod = platform === 'win32' ? path.win32 : path.posix;

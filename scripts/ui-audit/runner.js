@@ -234,6 +234,8 @@ app.whenReady().then(async () => {
     ipcMain.handle('get-obs-status', () => currentAuditObsMock);
     ipcMain.handle('copy-overlay-url', () => true);
     ipcMain.handle('get-app-version', () => '0.4.0');
+    ipcMain.handle('get-obs-connection-config', () => ({ host: '127.0.0.1', port: 4455, password: '' }));
+    ipcMain.handle('set-obs-connection-config', () => ({ ok: true }));
 
     desktopWin.webContents.on('dom-ready', () => {
       desktopWin.webContents.executeJavaScript(`

@@ -84,6 +84,14 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
       calls.obsService.push({ method: 'getStatus' });
       return { ok: true, connected: true };
     },
+    getConnectionConfig() {
+      calls.obsService.push({ method: 'getConnectionConfig' });
+      return { host: '127.0.0.1', port: 4455, password: 'secretpassword' };
+    },
+    updateConnectionConfig(cfg) {
+      calls.obsService.push({ method: 'updateConnectionConfig', cfg });
+      return { ok: true, config: cfg };
+    },
   };
 
   const mockClipboard = {
@@ -125,6 +133,8 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
     'fit-obs-overlay',
     'refresh-obs-overlay',
     'get-obs-status',
+    'get-obs-connection-config',
+    'set-obs-connection-config',
     'get-app-version',
     'export-connectivity-diagnostic',
     'get-update-status',
@@ -167,5 +177,18 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
     method: 'addScene',
     pwd: 'pwd123',
     sc: 'Gaming',
+  });
+
+  // Test OBS connection config
+  const getConnHandler = handlers.get('get-obs-connection-config');
+  const connCfg = await getConnHandler();
+  assert.deepEqual(connCfg, { host: '127.0.0.1', port: 4455, password: 'secretpassword' });
+
+  const setConnHandler = handlers.get('set-obs-connection-config');
+  const setConnRes = await setConnHandler({}, { host: 'localhost', port: 4456, password: 'newpass' });
+  assert.equal(setConnRes.ok, true);
+  assert.deepEqual(calls.obsService.find(c => c.method === 'updateConnectionConfig'), {
+    method: 'updateConnectionConfig',
+    cfg: { host: 'localhost', port: 4456, password: 'newpass' },
   });
 });

@@ -155,6 +155,52 @@ async function runVisualQa() {
           });
         }
 
+        // 5. Logo icon containment & clipping check (sidebar & onboarding header)
+        const visibleLogos = Array.from(document.querySelectorAll('.logo')).filter(el => {
+          const style = window.getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+        });
+
+        visibleLogos.forEach((logoEl, idx) => {
+          const logoRect = logoEl.getBoundingClientRect();
+          const svgEl = logoEl.querySelector('svg.logo-icon');
+          const useEl = svgEl ? svgEl.querySelector('use') : null;
+          if (!svgEl) {
+            detected.push(`Visible .logo [${idx}] is missing svg.logo-icon`);
+            return;
+          }
+          const svgRect = svgEl.getBoundingClientRect();
+          if (svgRect.width <= 0 || svgRect.height <= 0) {
+            detected.push(`svg.logo-icon [${idx}] has invalid dimensions: ${svgRect.width}x${svgRect.height}`);
+          }
+          if (
+            svgRect.left < logoRect.left - 0.5 ||
+            svgRect.top < logoRect.top - 0.5 ||
+            svgRect.right > logoRect.right + 0.5 ||
+            svgRect.bottom > logoRect.bottom + 0.5
+          ) {
+            detected.push(`svg.logo-icon [${idx}] overflows parent .logo bounds`);
+          }
+          if (useEl) {
+            const useRect = useEl.getBoundingClientRect();
+            if (useRect.width <= 0 || useRect.height <= 0) {
+              detected.push(`svg.logo-icon use [${idx}] has zero dimensions: ${useRect.width}x${useRect.height}`);
+            }
+            if (
+              useRect.left < svgRect.left - 0.5 ||
+              useRect.top < svgRect.top - 0.5 ||
+              useRect.right > svgRect.right + 0.5 ||
+              useRect.bottom > svgRect.bottom + 0.5
+            ) {
+              detected.push(
+                `Logo icon content is clipped by svg.logo-icon [${idx}]: ` +
+                `use=[${useRect.left.toFixed(1)}, ${useRect.top.toFixed(1)}, ${useRect.right.toFixed(1)}, ${useRect.bottom.toFixed(1)}] ` +
+                `outside svg=[${svgRect.left.toFixed(1)}, ${svgRect.top.toFixed(1)}, ${svgRect.right.toFixed(1)}, ${svgRect.bottom.toFixed(1)}]`
+              );
+            }
+          }
+        });
+
         return detected;
       });
 
@@ -1183,7 +1229,7 @@ async function runVisualQa() {
     await win.evaluate(() => window.scrollTo(0, 0));
     await win.waitForTimeout(100);
 
-    // 5.2 Onboarding View
+    // 5.2 Onboarding View (Step 1 & Step 3 Auth Failed)
     await applyState({ view: 'onboarding', step: 1 });
     await win.waitForFunction(() => {
       const el = document.querySelector('#onboarding-view');
@@ -1193,6 +1239,22 @@ async function runVisualQa() {
     await captureScreenshot('onboarding.png');
     statesChecked.push('onboarding');
     console.log('✓ Onboarding view verified -> onboarding.png');
+
+    await applyState({
+      view: 'onboarding',
+      step: 3,
+      obs: {
+        ok: false,
+        connected: false,
+        authFailed: true,
+        error: 'OBS найден, но не удалось авторизоваться',
+        scenes: [],
+      },
+    });
+    await verifyLayout('onboarding-step3-auth-failed');
+    await captureScreenshot('onboarding-step3-auth-failed.png');
+    statesChecked.push('onboarding-step3-auth-failed');
+    console.log('✓ Onboarding Step 3 Auth Failed verified -> onboarding-step3-auth-failed.png');
 
     // Return to dashboard
     await applyState({ view: 'dashboard' });

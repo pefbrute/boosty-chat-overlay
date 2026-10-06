@@ -167,6 +167,17 @@ function registerIpcHandlers(deps = {}) {
     return obsService.refreshOverlay();
   });
 
+  ipcMain.handle('get-obs-connection-config', () => {
+    return obsService.getConnectionConfig();
+  });
+
+  ipcMain.handle('set-obs-connection-config', (_event, config) => {
+    if (!config || typeof config !== 'object') {
+      throw new Error('Config must be an object');
+    }
+    return obsService.updateConnectionConfig(config);
+  });
+
   // --- Application Information & Diagnostics ---
   ipcMain.handle('get-app-version', () => {
     if (app && typeof app.getVersion === 'function') {

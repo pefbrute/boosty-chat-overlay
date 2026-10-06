@@ -28,6 +28,9 @@ const defaultConfig = {
   maxStackHeight: 800,
   animationType: 'fade',
   animationDurationMs: 280,
+  obsHost: '127.0.0.1',
+  obsPort: 4455,
+  obsPassword: '',
 };
 
 module.exports = {

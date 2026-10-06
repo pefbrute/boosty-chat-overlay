@@ -96,7 +96,7 @@
     <main id="onboarding-view" class="view" style="display: none;">
       <header class="app-header">
         <div class="logo">
-          <svg class="logo-icon" aria-hidden="true" viewBox="23.6 46.6 189 199"><use href="#icon-boosty-color"/></svg>
+          <svg class="logo-icon" aria-hidden="true"><use href="#icon-boosty-color"/></svg>
         </div>
         <div class="header-text">
           <h1>Boosty Chat Overlay</h1>
@@ -285,9 +285,25 @@
                 </button>
               </div>
             </div>
-            <div id="ob-obs-password-row" class="password-row">
-              <input id="ob-obs-password" type="password" placeholder="Пароль OBS WebSocket (если настроен)" autocomplete="off">
+            <div id="ob-obs-auth-alert" class="obs-auth-alert" style="display: none;">
+              <span>⚠</span>
+              <span>OBS найден, но не удалось авторизоваться. Введите пароль WebSocket ниже.</span>
             </div>
+            <div id="ob-obs-password-row" class="password-row" style="margin-top: 10px;">
+              <div class="password-input-wrapper">
+                <input id="ob-obs-password" type="password" placeholder="Пароль OBS WebSocket (если настроен)" autocomplete="off">
+                <button type="button" id="ob-obs-password-toggle" class="password-toggle-btn" title="Показать/скрыть пароль" aria-label="Показать/скрыть пароль">👁</button>
+              </div>
+              <button type="button" id="ob-obs-save-password-btn" class="secondary">Подключить</button>
+            </div>
+            <details id="ob-obs-advanced-details" class="obs-advanced-details">
+              <summary>Настройки хоста и порта OBS</summary>
+              <div class="obs-advanced-body">
+                <input id="ob-obs-host" class="obs-host-input" type="text" placeholder="127.0.0.1" value="127.0.0.1" autocomplete="off" aria-label="Хост OBS WebSocket">
+                <input id="ob-obs-port" class="obs-port-input" type="number" placeholder="4455" value="4455" autocomplete="off" aria-label="Порт OBS WebSocket">
+                <button type="button" id="ob-obs-connect-btn" class="secondary">Подключиться</button>
+              </div>
+            </details>
             <p id="ob-obs-result" class="result"></p>
           </div>
 
@@ -346,7 +362,7 @@
       <aside id="app-sidebar" class="app-sidebar" aria-label="Основная навигация">
         <div class="sidebar-header">
           <div class="logo">
-            <svg class="logo-icon" aria-hidden="true" viewBox="23.6 46.6 189 199"><use href="#icon-boosty-color"/></svg>
+            <svg class="logo-icon" aria-hidden="true"><use href="#icon-boosty-color"/></svg>
           </div>
           <div class="brand-text">
             <span class="brand-title">Boosty Chat</span>
@@ -1144,9 +1160,24 @@
                 <button id="dash-refresh-obs" class="secondary icon-btn" title="Обновить список сцен" aria-label="Обновить список сцен">
                   <svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg>
                 </button>
-                <input id="dash-obs-password" type="password" placeholder="Пароль WebSocket (если требуется)" autocomplete="off">
+                <div class="password-input-wrapper">
+                  <input id="dash-obs-password" type="password" placeholder="Пароль WebSocket (если требуется)" autocomplete="off">
+                  <button type="button" id="dash-obs-password-toggle" class="password-toggle-btn" title="Показать/скрыть пароль" aria-label="Показать/скрыть пароль">👁</button>
+                </div>
                 <button id="dash-toggle-obs-scene" class="primary">Добавить в сцену</button>
                 <button id="dash-obs-launch-btn-setup" class="secondary">Запустить OBS</button>
+              </div>
+              <details id="dash-obs-advanced-details" class="obs-advanced-details">
+                <summary>Настройки подключения WebSocket (хост и порт)</summary>
+                <div class="obs-advanced-body">
+                  <input id="dash-obs-host" class="obs-host-input" type="text" placeholder="127.0.0.1" value="127.0.0.1" autocomplete="off" aria-label="Хост OBS WebSocket">
+                  <input id="dash-obs-port" class="obs-port-input" type="number" placeholder="4455" value="4455" autocomplete="off" aria-label="Порт OBS WebSocket">
+                  <button type="button" id="dash-obs-connect-btn" class="secondary">Подключиться</button>
+                </div>
+              </details>
+              <div id="dash-obs-auth-alert" class="obs-auth-alert" style="display: none;">
+                <span>⚠</span>
+                <span>OBS найден, но не удалось авторизоваться. Проверьте пароль WebSocket в OBS и в настройках приложения.</span>
               </div>
               <p id="dash-obs-result" class="result"></p>
               <p id="dash-obs-targets-hint" class="hint"></p>

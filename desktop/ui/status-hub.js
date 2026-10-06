@@ -48,6 +48,7 @@ function deriveSystemStatus(state = {}) {
   // 1. OBS Status
   const isObsConnected = Boolean(obs.ok && obs.connected);
   const isRestartRequired = Boolean(obs.restartRequired);
+  const isAuthFailed = Boolean(obs.authFailed);
   const rawScenes = Array.isArray(obs.scenes) ? obs.scenes : [];
   const activeScene = rawScenes.find(s => s.hasChat) || rawScenes[0];
 
@@ -76,6 +77,20 @@ function deriveSystemStatus(state = {}) {
       action: {
         id: 'restart-obs',
         label: 'Перезапустить OBS',
+        primary: true,
+      },
+    };
+  } else if (isAuthFailed) {
+    obsItem = {
+      key: 'obs',
+      status: 'auth-failed',
+      badgeClass: 'error',
+      title: 'OBS Studio',
+      text: 'Ошибка авторизации',
+      detail: 'OBS найден, но не удалось авторизоваться. Проверьте пароль WebSocket в OBS и в настройках приложения.',
+      action: {
+        id: 'configure-obs-password',
+        label: 'Ввести пароль',
         primary: true,
       },
     };
@@ -336,10 +351,10 @@ function deriveSystemStatus(state = {}) {
   let overlayItem = {
     key: 'overlay',
     status: 'obs-disconnected',
-    badgeClass: 'pending',
+    badgeClass: isAuthFailed ? 'error' : 'pending',
     title: 'Оверлей в OBS',
-    text: 'OBS не подключён',
-    detail: 'Подключите OBS Studio',
+    text: isAuthFailed ? 'Ошибка авторизации OBS' : 'OBS не подключён',
+    detail: isAuthFailed ? 'Требуется авторизация в OBS Studio' : 'Подключите OBS Studio',
     action: null,
   };
 
@@ -508,8 +523,10 @@ function deriveSystemStatus(state = {}) {
     overall = {
       ready: false,
       status: 'setup-required',
-      title: 'OBS не подключён',
-      desc: 'Запустите OBS Studio для отображения чата',
+      title: isAuthFailed ? 'Ошибка авторизации OBS' : 'OBS не подключён',
+      desc: isAuthFailed
+        ? 'OBS найден, но не удалось авторизоваться. Проверьте пароль WebSocket.'
+        : 'Запустите OBS Studio для отображения чата',
       progress,
     };
   } else {

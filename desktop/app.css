@@ -2131,6 +2131,18 @@ button.small-btn {
   color: var(--success-text);
 }
 
+.badge.error, .badge.danger {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-text);
+}
+
+.badge.warning {
+  background: var(--pending-bg);
+  border: 1px solid var(--pending-border);
+  color: var(--pending-text);
+}
+
 .badge-dot {
   border-radius: 50%;
   display: inline-block;
@@ -2472,6 +2484,88 @@ kbd {
   cursor: pointer;
   font-size: 18px;
   padding: 4px;
+}
+
+/* ==========================================================================
+   OBS WebSocket Connection & Authentication UX
+   ========================================================================== */
+.password-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.password-input-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.password-input-wrapper input {
+  width: 100%;
+  padding-right: 36px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.password-toggle-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.obs-advanced-details {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.obs-advanced-details summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.obs-advanced-details summary:hover {
+  color: var(--text-main);
+}
+
+.obs-advanced-body {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.obs-auth-alert {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  color: var(--danger-text);
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ==========================================================================

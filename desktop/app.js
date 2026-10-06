@@ -448,8 +448,11 @@ function renderObsUi(result) {
   const dashTargetsHint = document.querySelector('#dash-obs-targets-hint');
   const launchContainer = document.querySelector('#ob-obs-launch-container');
   const setupLaunchBtn = document.querySelector('#dash-obs-launch-btn-setup');
+  const obAuthAlert = document.querySelector('#ob-obs-auth-alert');
+  const dashAuthAlert = document.querySelector('#dash-obs-auth-alert');
 
   const isConnected = Boolean(result && result.ok && result.connected);
+  const isAuthFailed = Boolean(result && result.authFailed);
 
   renderStatusHubUi();
 
@@ -459,30 +462,50 @@ function renderObsUi(result) {
 
   if (!isConnected) {
     latestObsScenes = [];
-    if (obBadge) setDomClass(obBadge, 'badge pending');
-    if (obBadgeText) setDomText(obBadgeText, 'OBS не подключён');
-    if (dashBadge) {
-      setDomClass(dashBadge, 'badge pending');
-      setDomText(dashBadge, 'OBS не подключён');
+    if (isAuthFailed) {
+      if (obBadge) setDomClass(obBadge, 'badge error');
+      if (obBadgeText) setDomText(obBadgeText, 'Ошибка авторизации OBS');
+      if (dashBadge) {
+        setDomClass(dashBadge, 'badge error');
+        setDomText(dashBadge, 'Ошибка авторизации');
+      }
+      if (obAuthAlert) setDomDisplay(obAuthAlert, 'flex');
+      if (dashAuthAlert) setDomDisplay(dashAuthAlert, 'flex');
+      if (dashTargetsHint) setDomText(dashTargetsHint, 'OBS найден, но не удалось авторизоваться. Проверьте пароль WebSocket в OBS и в настройках приложения.');
+    } else {
+      if (obBadge) setDomClass(obBadge, 'badge pending');
+      if (obBadgeText) setDomText(obBadgeText, 'OBS не подключён');
+      if (dashBadge) {
+        setDomClass(dashBadge, 'badge pending');
+        setDomText(dashBadge, 'OBS не подключён');
+      }
+      if (obAuthAlert) setDomDisplay(obAuthAlert, 'none');
+      if (dashAuthAlert) setDomDisplay(dashAuthAlert, 'none');
+      if (dashTargetsHint) setDomText(dashTargetsHint, '');
     }
-    if (dashTargetsHint) setDomText(dashTargetsHint, '');
-    if (launchContainer) setDomDisplay(launchContainer, 'flex');
+
+    if (launchContainer) setDomDisplay(launchContainer, isAuthFailed ? 'none' : 'flex');
 
     [obSelect, dashSelect].forEach(select => {
       if (select) {
-        select.innerHTML = '<option value="">Запустите OBS Studio…</option>';
+        select.innerHTML = isAuthFailed
+          ? '<option value="">Требуется авторизация OBS…</option>'
+          : '<option value="">Запустите OBS Studio…</option>';
         select.disabled = true;
       }
     });
 
     updateObsActionButton('#ob-obs-scene-select', '#ob-add-obs-btn');
     updateObsActionButton('#dash-obs-scene', '#dash-toggle-obs-scene');
+    updateObsStep3State();
     updateObsCanvasStatusUi(null);
     updateContextualActionCard();
     renderStatusHubUi();
     return;
   }
 
+  if (obAuthAlert) setDomDisplay(obAuthAlert, 'none');
+  if (dashAuthAlert) setDomDisplay(dashAuthAlert, 'none');
   if (launchContainer) setDomDisplay(launchContainer, 'none');
   if (obBadge) setDomClass(obBadge, 'badge connected');
   if (obBadgeText) setDomText(obBadgeText, 'OBS Studio подключён');
@@ -608,25 +631,179 @@ function updateObsCanvasStatusUi(result) {
 function updateObsStep3State() {
   const step3Btn = document.querySelector('#ob-step3-next-btn');
   const step3Reason = document.querySelector('#ob-step3-reason');
-  const hasChatInAnyScene = Boolean(addedSceneName || (Array.isArray(latestObsScenes) && latestObsScenes.some(s => s.hasChat)));
+  const isConnected = Boolean(latestObsStatus && latestObsStatus.ok && latestObsStatus.connected);
+  const isAuthFailed = Boolean(latestObsStatus && latestObsStatus.authFailed);
+  const hasChatInAnyScene = isConnected && Boolean(addedSceneName || (Array.isArray(latestObsScenes) && latestObsScenes.some(s => s.hasChat)));
 
   if (step3Btn) {
     step3Btn.disabled = !hasChatInAnyScene;
   }
   if (step3Reason) {
+    if (isAuthFailed) {
+      setDomText(step3Reason, 'Ошибка авторизации: введите верный пароль OBS WebSocket');
+    } else {
+      setDomText(step3Reason, 'Сначала добавьте чат в сцену');
+    }
     setDomDisplay(step3Reason, hasChatInAnyScene ? 'none' : 'inline');
   }
 }
 
-async function loadObsScenes() {
-  const password = document.querySelector('#dash-obs-password')?.value ||
-                   document.querySelector('#ob-obs-password')?.value || '';
-  try {
-    const result = await window.boostyOverlay.listObsScenes(password);
-    renderObsUi(result);
-  } catch (err) {
-    renderObsUi({ ok: false, connected: false, error: err?.message });
+function isOnboardingActive() {
+  const obView = document.querySelector('#onboarding-view');
+  return Boolean(obView && obView.style.display !== 'none');
+}
+
+function readObsConnectionInputs(source) {
+  const useOb = source === 'ob' || (!source && isOnboardingActive());
+  const hostInput = document.querySelector(useOb ? '#ob-obs-host' : '#dash-obs-host');
+  const otherHostInput = document.querySelector(useOb ? '#dash-obs-host' : '#ob-obs-host');
+  const portInput = document.querySelector(useOb ? '#ob-obs-port' : '#dash-obs-port');
+  const otherPortInput = document.querySelector(useOb ? '#dash-obs-port' : '#ob-obs-port');
+  const pwdInput = document.querySelector(useOb ? '#ob-obs-password' : '#dash-obs-password');
+  const otherPwdInput = document.querySelector(useOb ? '#dash-obs-password' : '#ob-obs-password');
+
+  const host = (hostInput?.value || otherHostInput?.value || '127.0.0.1').trim();
+  const port = Number(portInput?.value || otherPortInput?.value || 4455);
+  let password = '';
+  if (pwdInput && pwdInput.value !== '') {
+    password = pwdInput.value;
+  } else if (otherPwdInput && otherPwdInput.value !== '') {
+    password = otherPwdInput.value;
   }
+
+  // Keep both onboarding and setup/dashboard inputs synchronized
+  if (hostInput && hostInput.value !== host) hostInput.value = host;
+  if (otherHostInput && otherHostInput.value !== host) otherHostInput.value = host;
+  if (portInput && String(portInput.value) !== String(port)) portInput.value = String(port);
+  if (otherPortInput && String(otherPortInput.value) !== String(port)) otherPortInput.value = String(port);
+  if (pwdInput && pwdInput.value !== password) pwdInput.value = password;
+  if (otherPwdInput && otherPwdInput.value !== password) otherPwdInput.value = password;
+
+  return { host, port, password };
+}
+
+async function loadObsScenes(source) {
+  const { host, port, password } = readObsConnectionInputs(source);
+  try {
+    const result = await window.boostyOverlay.listObsScenes({ host, port, password });
+    renderObsUi(result);
+    return result;
+  } catch (err) {
+    const isAuth = Boolean(err?.isAuthError || /auth/i.test(err?.message || ''));
+    const failState = {
+      ok: false,
+      connected: false,
+      authFailed: isAuth,
+      error: err?.message,
+    };
+    renderObsUi(failState);
+    return failState;
+  }
+}
+
+async function loadObsConnectionConfig() {
+  if (!window.boostyOverlay?.getObsConnectionConfig) return;
+  try {
+    const cfg = await window.boostyOverlay.getObsConnectionConfig();
+    if (cfg) {
+      if (cfg.host) {
+        ['#dash-obs-host', '#ob-obs-host'].forEach(sel => {
+          const el = document.querySelector(sel);
+          if (el) el.value = cfg.host;
+        });
+      }
+      if (cfg.port) {
+        ['#dash-obs-port', '#ob-obs-port'].forEach(sel => {
+          const el = document.querySelector(sel);
+          if (el) el.value = cfg.port;
+        });
+      }
+      if (cfg.password !== undefined) {
+        ['#dash-obs-password', '#ob-obs-password'].forEach(sel => {
+          const el = document.querySelector(sel);
+          if (el) el.value = cfg.password;
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[OBS Config] Load failed:', e);
+  }
+}
+
+async function saveObsConnectionConfig(source) {
+  const { host, port, password } = readObsConnectionInputs(source);
+
+  if (window.boostyOverlay?.setObsConnectionConfig) {
+    try {
+      await window.boostyOverlay.setObsConnectionConfig({ host, port, password });
+    } catch (e) {
+      console.warn('[OBS Config] Save failed:', e);
+    }
+  }
+}
+
+function setupPasswordToggles() {
+  [
+    { inputId: '#dash-obs-password', toggleId: '#dash-obs-password-toggle' },
+    { inputId: '#ob-obs-password', toggleId: '#ob-obs-password-toggle' },
+  ].forEach(({ inputId, toggleId }) => {
+    const input = document.querySelector(inputId);
+    const toggle = document.querySelector(toggleId);
+    if (!input || !toggle) return;
+    toggle.addEventListener('click', () => {
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      toggle.textContent = isPassword ? '🙈' : '👁';
+    });
+  });
+}
+
+function setupObsConnectionSync() {
+  const syncPairs = [
+    { a: '#dash-obs-host', b: '#ob-obs-host' },
+    { a: '#dash-obs-port', b: '#ob-obs-port' },
+    { a: '#dash-obs-password', b: '#ob-obs-password' },
+  ];
+
+  syncPairs.forEach(({ a, b }) => {
+    const elA = document.querySelector(a);
+    const elB = document.querySelector(b);
+    if (elA && elB) {
+      elA.addEventListener('input', () => { elB.value = elA.value; });
+      elB.addEventListener('input', () => { elA.value = elB.value; });
+      elA.addEventListener('change', async () => {
+        elB.value = elA.value;
+        await saveObsConnectionConfig('dash');
+      });
+      elB.addEventListener('change', async () => {
+        elA.value = elB.value;
+        await saveObsConnectionConfig('ob');
+      });
+    }
+  });
+
+  ['#dash-obs-password', '#ob-obs-password'].forEach(inputSel => {
+    const isOb = inputSel.startsWith('#ob-');
+    document.querySelector(inputSel)?.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const src = isOb ? 'ob' : 'dash';
+        await saveObsConnectionConfig(src);
+        await loadObsScenes(src);
+      }
+    });
+  });
+
+  [
+    { sel: '#dash-obs-connect-btn', src: 'dash' },
+    { sel: '#ob-obs-connect-btn', src: 'ob' },
+    { sel: '#ob-obs-save-password-btn', src: 'ob' },
+  ].forEach(({ sel, src }) => {
+    document.querySelector(sel)?.addEventListener('click', async () => {
+      await saveObsConnectionConfig(src);
+      await loadObsScenes(src);
+    });
+  });
 }
 
 // --- Contextual Action Card & Readiness State ---
@@ -1752,6 +1929,9 @@ async function loadSettings() {
 
 // --- Event Listeners Setup ---
 function setupEventListeners() {
+  setupPasswordToggles();
+  setupObsConnectionSync();
+
   // Navigation
   document.querySelectorAll('.sidebar-nav .nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2128,7 +2308,8 @@ function setupEventListeners() {
     btn.disabled = true;
     btn.innerHTML = '<svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg>';
     try {
-      await loadObsScenes();
+      await saveObsConnectionConfig('dash');
+      await loadObsScenes('dash');
     } finally {
       btn.innerHTML = '<svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg>';
       btn.disabled = false;
@@ -2150,7 +2331,8 @@ function setupEventListeners() {
 
     const currentScene = latestObsScenes.find(s => s.sceneUuid === sceneId);
     const isRemove = Boolean(currentScene && currentScene.hasChat);
-    const password = document.querySelector('#dash-obs-password')?.value || '';
+    await saveObsConnectionConfig('dash');
+    const { password } = readObsConnectionInputs('dash');
     const btn = document.querySelector('#dash-toggle-obs-scene');
     btn.disabled = true;
     btn.textContent = isRemove ? 'Удаляем…' : 'Добавляем…';
@@ -2167,7 +2349,7 @@ function setupEventListeners() {
             ? `Чат убран из сцены «${res.removedScene}».`
             : `Готово: источник «Boosty Chat» добавлен в сцену «${res.addedScene}».`;
         }
-        await loadObsScenes();
+        await loadObsScenes('dash');
       } else if (res.restartRequired) {
         if (resultNode) resultNode.textContent = 'WebSocket включён в OBS. Перезапустите OBS Studio один раз.';
       } else {
@@ -2191,8 +2373,7 @@ function setupEventListeners() {
     btn.disabled = true;
     btn.textContent = 'Подгоняем…';
     try {
-      const password = document.querySelector('#dash-obs-password')?.value ||
-                       document.querySelector('#ob-obs-password')?.value || '';
+      const { password } = readObsConnectionInputs();
       const res = await window.boostyOverlay.fitObsOverlay(password);
       if (res && res.ok) {
         await loadObsScenes();
@@ -2216,8 +2397,17 @@ function setupEventListeners() {
   });
 
   // Status Hub Action Buttons
-  document.querySelector('#dash-obs-launch-btn')?.addEventListener('click', () => {
-    window.boostyOverlay.launchObs();
+  document.querySelector('#dash-obs-launch-btn')?.addEventListener('click', (e) => {
+    const actionId = e.currentTarget?.getAttribute('data-action-id');
+    if (actionId === 'configure-obs-password') {
+      const pwdInput = document.querySelector('#dash-obs-password');
+      if (pwdInput) {
+        pwdInput.focus();
+        pwdInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else {
+      window.boostyOverlay.launchObs();
+    }
   });
 
   document.querySelector('#dash-ext-fix-btn')?.addEventListener('click', (e) => {
@@ -2411,7 +2601,8 @@ function setupEventListeners() {
     btn.disabled = true;
     btn.innerHTML = '<svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg><span>Обновляем…</span>';
     try {
-      await loadObsScenes();
+      await saveObsConnectionConfig('ob');
+      await loadObsScenes('ob');
     } finally {
       btn.innerHTML = '<svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg><span>Обновить</span>';
       btn.disabled = false;
@@ -2427,7 +2618,8 @@ function setupEventListeners() {
       return;
     }
 
-    const password = document.querySelector('#ob-obs-password')?.value || '';
+    await saveObsConnectionConfig('ob');
+    const { password } = readObsConnectionInputs('ob');
     const btn = document.querySelector('#ob-add-obs-btn');
     btn.disabled = true;
     btn.textContent = 'Добавляем…';
@@ -2438,7 +2630,7 @@ function setupEventListeners() {
       if (res.ok) {
         addedSceneName = res.addedScene;
         if (resultNode) resultNode.textContent = `✓ Чат успешно добавлен в сцену «${res.addedScene}».`;
-        await loadObsScenes();
+        await loadObsScenes('ob');
       } else if (res.restartRequired) {
         if (resultNode) resultNode.textContent = 'WebSocket включён. Перезапустите OBS Studio один раз.';
       } else {
@@ -2461,7 +2653,8 @@ function setupEventListeners() {
     setWizardStep(2);
   });
 
-  document.querySelector('#ob-step3-next-btn')?.addEventListener('click', () => {
+  document.querySelector('#ob-step3-next-btn')?.addEventListener('click', async () => {
+    await saveObsConnectionConfig('ob');
     setWizardStep(4);
   });
 
@@ -2469,10 +2662,13 @@ function setupEventListeners() {
     fetch(`${getApiOrigin()}/test`).catch(() => {});
   });
 
-  document.querySelector('#ob-finish-btn')?.addEventListener('click', () => {
+  document.querySelector('#ob-finish-btn')?.addEventListener('click', async () => {
+    await saveObsConnectionConfig('ob');
     localStorage.setItem('onboardingCompleted', 'true');
     onboardingCompleted = true;
     showView('dashboard');
+    await refreshStatus();
+    await loadObsScenes('dash');
   });
 
   // Modal actions
@@ -2776,6 +2972,26 @@ async function refreshStatus() {
       setDomDisplay(obStep1Reason, isExtActive ? 'none' : 'inline');
     }
 
+    // Onboarding step 2 status
+    const obBoostyBadge = document.querySelector('#ob-boosty-status-badge');
+    const obBoostyText = document.querySelector('#ob-boosty-status-text');
+    const obBoostyHint = document.querySelector('#ob-boosty-hint');
+    if (obBoostyBadge) {
+      if (boostyLifecycle === 'chat-detected') {
+        setDomClass(obBoostyBadge, 'badge connected');
+        if (obBoostyText) setDomText(obBoostyText, 'Чат Boosty обнаружен');
+        if (obBoostyHint) setDomText(obBoostyHint, 'Отлично! Чат стрима подключён и готов передавать сообщения.');
+      } else if (boostyLifecycle === 'tab-detected') {
+        setDomClass(obBoostyBadge, 'badge connected');
+        if (obBoostyText) setDomText(obBoostyText, 'Страница Boosty открыта');
+        if (obBoostyHint) setDomText(obBoostyHint, 'Вкладка Boosty найдена. Когда откроете чат стрима, сообщения пойдут автоматически.');
+      } else {
+        setDomClass(obBoostyBadge, 'badge pending');
+        if (obBoostyText) setDomText(obBoostyText, 'Ждём открытие страницы Boosty…');
+        if (obBoostyHint) setDomText(obBoostyHint, 'Расширение установлено. Осталось открыть страницу чата на Boosty.');
+      }
+    }
+
     // Modal status
     const modalBadge = document.querySelector('#modal-ext-badge');
     const modalText = document.querySelector('#modal-ext-text');
@@ -2946,6 +3162,7 @@ async function refreshUpdateStatus(force = false) {
 async function init() {
   try {
     setupEventListeners();
+    await loadObsConnectionConfig();
     initAppearanceUiMode();
     await renderBrowserSelection();
 
@@ -2978,6 +3195,15 @@ async function init() {
           banner.className = 'status-banner banner-warning';
           banner.style.display = 'flex';
           banner.textContent = `Конфликт портов: порт ${port} уже занят другим приложением.`;
+        }
+      });
+    }
+
+    // Listen for live OBS state changes from main process
+    if (window.boostyOverlay?.onObsStateChanged) {
+      window.boostyOverlay.onObsStateChanged((state) => {
+        if (!window.__AUDIT_HEALTH_MOCK__ && state) {
+          renderObsUi(state);
         }
       });
     }
@@ -3054,6 +3280,10 @@ if (window.boostyAudit) {
         if (obNotDetectedBox && !latestHealth?.extensionConnected) {
           setDomDisplay(obNotDetectedBox, 'block');
         }
+      }
+      if (mock.obs) {
+        await new Promise(r => setTimeout(r, 50));
+        renderObsUi(mock.obs);
       }
     }
 
