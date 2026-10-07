@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
     return () => ipcRenderer.removeListener('server-port-conflict', handler);
   },
   openChatMonitor: () => ipcRenderer.invoke('open-chat-monitor'),
+  getAppVariant: () => ipcRenderer.invoke('get-app-variant'),
 });
 
 if (process.env.UI_AUDIT_MODE === '1' || process.env.BOOSTY_OVERLAY_UI_TEST === '1') {

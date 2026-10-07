@@ -99,7 +99,10 @@
           <svg class="logo-icon" aria-hidden="true"><use href="#icon-boosty-color"/></svg>
         </div>
         <div class="header-text">
-          <h1>Boosty Chat Overlay</h1>
+          <div class="brand-title-row">
+            <h1>Boosty Chat Overlay</h1>
+            <span id="onboarding-lab-badge" class="brand-lab-badge" style="display: none;">LAB</span>
+          </div>
           <p>Мастер быстрой настройки</p>
         </div>
       </header>
@@ -365,8 +368,11 @@
             <svg class="logo-icon" aria-hidden="true"><use href="#icon-boosty-color"/></svg>
           </div>
           <div class="brand-text">
-            <span class="brand-title">Boosty Chat</span>
-            <span class="brand-subtitle">Stream Overlay</span>
+            <div class="brand-title-row">
+              <span class="brand-title">Boosty Chat</span>
+              <span id="main-lab-badge" class="brand-lab-badge" style="display: none;">LAB</span>
+            </div>
+            <span class="brand-subtitle">Оверлей для стрима</span>
           </div>
         </div>
 
@@ -1381,6 +1387,7 @@
       </div>
     </div>
 
+    <script src="../core/i18n/ru.js"></script>
     <script src="../core/config/presets.js"></script>
     <script src="../core/config/profiles.js"></script>
     <script src="../core/config/size-presets.js"></script>

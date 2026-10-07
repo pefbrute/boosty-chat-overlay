@@ -16,6 +16,7 @@
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
           <span class="brand-title">Boosty Chat</span>
+          <span id="monitor-lab-badge" class="brand-lab-badge" style="display: none;">LAB</span>
         </div>
         <div id="monitor-status" class="status-badge status-waiting" role="status" aria-live="polite">
           <span class="status-dot"></span>
@@ -24,6 +25,15 @@
       </div>
 
       <div class="header-actions">
+        <button id="btn-density" class="header-btn" type="button" title="Компактный режим" aria-pressed="false" aria-label="Компактный режим">
+          <svg class="btn-icon icon-density" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+          <span class="btn-label">Компактно</span>
+        </button>
+
         <button id="btn-always-on-top" class="header-btn" type="button" title="Закрепить поверх других окон" aria-pressed="false" aria-label="Поверх окон">
           <svg class="btn-icon icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="12" y1="17" x2="12" y2="22"/>
@@ -44,43 +54,380 @@
         </button>
 
         <button id="btn-clear" class="header-btn" type="button" title="Очистить текущий вид чата" aria-label="Очистить окно">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           </svg>
           <span class="btn-label">Очистить</span>
         </button>
+
+        <button id="btn-message-lab" class="header-btn btn-dev-lab" type="button" title="Message Lab / QA Composer (Ctrl+Shift+L)" aria-label="Message Lab" aria-expanded="false" style="display: none;">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 2v7.31L4.1 18.2A2 2 0 0 0 5.8 21h12.4a2 2 0 0 0 1.7-2.8L14 9.31V2"/>
+            <path d="M8.5 2h7"/>
+            <path d="M14 9.3a6.5 6.5 0 1 1-4 0"/>
+          </svg>
+          <span class="btn-label">Lab</span>
+        </button>
       </div>
     </header>
+
+    <!-- Attention Toolbar: Filters & Search Toggle -->
+    <div class="monitor-toolbar" role="toolbar" aria-label="Фильтры сообщений">
+      <nav class="filter-tabs" role="tablist" aria-label="Фильтрация чата">
+        <button class="filter-tab active" type="button" role="tab" data-filter="all" aria-selected="true" title="Все сообщения (Ctrl+1)">
+          <span class="tab-label">Все</span>
+        </button>
+        <button class="filter-tab" type="button" role="tab" data-filter="important" aria-selected="false" title="Важные сообщения (Ctrl+2)">
+          <span class="tab-label">Важное</span>
+          <span id="badge-important" class="tab-unread-badge badge-important" style="display: none;">0</span>
+        </button>
+        <button class="filter-tab" type="button" role="tab" data-filter="mentions" aria-selected="false" title="Упоминания (Ctrl+3)">
+          <span class="tab-label">Упоминания</span>
+          <span id="badge-mentions" class="tab-unread-badge badge-mention" style="display: none;">0</span>
+        </button>
+        <button class="filter-tab" type="button" role="tab" data-filter="replies" aria-selected="false" title="Ответы (Ctrl+4)">
+          <span class="tab-label">Ответы</span>
+          <span id="badge-replies" class="tab-unread-badge badge-reply" style="display: none;">0</span>
+        </button>
+        <button class="filter-tab filter-tab-tech" type="button" role="tab" data-filter="tech" aria-selected="false" title="Технические проблемы (Ctrl+5)">
+          <span class="tab-label">Техпроблемы</span>
+          <span id="badge-tech" class="tab-unread-badge badge-tech" style="display: none;">0</span>
+        </button>
+      </nav>
+
+      <div class="toolbar-actions">
+        <button id="btn-search-toggle" class="toolbar-icon-btn" type="button" title="Поиск (Ctrl+F)" aria-label="Поиск" aria-expanded="false">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Search Panel (Expandable) -->
+    <div id="search-panel" class="search-panel" style="display: none;">
+      <div class="search-input-wrap">
+        <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="search-input" type="text" placeholder="Поиск по нику или тексту... (Esc)" autocomplete="off" spellcheck="false" aria-label="Поиск по чату">
+        <button id="btn-search-clear" class="search-clear-btn" type="button" title="Очистить поиск (Esc)" aria-label="Очистить поиск" style="display: none;">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06z"/>
+          </svg>
+        </button>
+      </div>
+      <div id="search-match-count" class="search-match-count" style="display: none;">0</div>
+    </div>
 
     <!-- Paused Stream Notification Banner -->
     <div id="pause-banner" class="pause-banner" style="display: none;">
       <div class="pause-banner-content">
-        <span class="pause-pulse-dot"></span>
+        <span class="pause-pulse-dot" aria-hidden="true"></span>
+        <svg class="pause-banner-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <rect x="3" y="2" width="3.5" height="12" rx="1"/>
+          <rect x="9.5" y="2" width="3.5" height="12" rx="1"/>
+        </svg>
         <span>Чат на паузе • Накоплено: <strong id="paused-count">0</strong></span>
       </div>
       <button id="btn-resume-banner" class="banner-resume-btn" type="button">Возобновить</button>
     </div>
 
+    <!-- Technical Issue Sticky Alert Banner -->
+    <div id="tech-issue-banner" class="tech-issue-banner" role="alert" aria-live="polite" style="display: none;">
+      <div class="tech-banner-main">
+        <span class="tech-banner-icon" aria-hidden="true">⚠</span>
+        <div class="tech-banner-text-wrap">
+          <span id="tech-banner-severity" class="tech-banner-severity">Вероятная проблема</span>
+          <span id="tech-banner-summary" class="tech-banner-summary">Нет звука — 2 сообщения от 2 зрителей</span>
+        </div>
+      </div>
+      <div class="tech-banner-actions">
+        <button id="btn-tech-show" class="tech-banner-btn tech-btn-show" type="button">Показать</button>
+        <button id="btn-tech-dismiss" class="tech-banner-btn tech-btn-dismiss" type="button" title="Скрыть уведомление на 60 сек">Скрыть</button>
+      </div>
+    </div>
+
+    <!-- User Context Panel / Drawer -->
+    <aside id="user-context-panel" class="user-context-panel" aria-label="Контекст пользователя" aria-hidden="true" style="display: none;">
+      <div class="user-context-header">
+        <div class="user-context-header-main">
+          <div id="user-context-avatar" class="user-context-avatar-wrap"></div>
+          <div class="user-context-info">
+            <div class="user-context-name-row">
+              <span id="user-context-username" class="user-context-username">Пользователь</span>
+              <span id="user-context-role-badge" class="chat-badge" style="display: none;"></span>
+            </div>
+            <div id="user-context-meta" class="user-context-meta">Зритель • 0 сообщений</div>
+          </div>
+        </div>
+        <div class="user-context-header-actions">
+          <button id="btn-user-context-copy" class="user-context-icon-btn" type="button" title="Копировать ник" aria-label="Копировать ник">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <button id="btn-user-context-close" class="user-context-close-btn" type="button" title="Закрыть (Esc)" aria-label="Закрыть">✕</button>
+        </div>
+      </div>
+
+      <!-- Summary Bar -->
+      <div id="user-context-summary" class="user-context-summary">
+        Последние 10 сообщений
+      </div>
+
+      <!-- Search inside User Context -->
+      <div class="user-context-search-wrap">
+        <div class="search-input-wrap">
+          <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="user-context-search-input" type="text" placeholder="Поиск в сообщениях пользователя..." autocomplete="off" spellcheck="false" aria-label="Поиск в сообщениях пользователя">
+          <button id="btn-user-context-search-clear" class="search-clear-btn" type="button" title="Очистить поиск" aria-label="Очистить поиск" style="display: none;">
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages Container -->
+      <div id="user-context-body" class="user-context-body" tabindex="0" aria-label="Сообщения выбранного пользователя">
+        <button id="btn-user-context-show-more" class="user-context-show-more-btn" type="button" style="display: none;">
+          Показать более ранние (+10)
+        </button>
+        <div id="user-context-empty" class="user-context-empty" style="display: none;">
+          Сообщений не найдено
+        </div>
+        <div id="user-context-messages-list" class="user-context-messages-list"></div>
+      </div>
+
+      <!-- Quick Jump feedback toast -->
+      <div id="user-context-toast" class="user-context-toast" style="display: none;" role="status" aria-live="polite"></div>
+    </aside>
+
+    <!-- Message Lab / QA Composer Drawer (Dev / QA Only) -->
+    <aside id="message-lab-drawer" class="message-lab-drawer" aria-label="QA Composer" style="display: none;">
+      <div class="lab-header">
+        <div class="lab-title-wrap">
+          <svg class="lab-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 2v7.31L4.1 18.2A2 2 0 0 0 5.8 21h12.4a2 2 0 0 0 1.7-2.8L14 9.31V2"/>
+            <path d="M8.5 2h7"/>
+          </svg>
+          <span class="lab-title">Message Lab</span>
+          <span class="lab-dev-tag">QA</span>
+        </div>
+        <div class="lab-header-controls">
+          <span id="lab-status-text" class="lab-status-text"></span>
+          <button id="btn-lab-close" class="lab-close-btn" type="button" title="Закрыть (Esc)" aria-label="Закрыть">✕</button>
+        </div>
+      </div>
+
+      <nav class="lab-nav" role="tablist">
+        <button class="lab-nav-btn active" type="button" data-tab="composer" role="tab" aria-selected="true">Конструктор</button>
+        <button class="lab-nav-btn" type="button" data-tab="presets" role="tab" aria-selected="false">Пресеты и Сценарии</button>
+        <button class="lab-nav-btn" type="button" data-tab="batch" role="tab" aria-selected="false">Пакетная отправка</button>
+      </nav>
+
+      <div class="lab-content">
+        <!-- Tab 1: Composer -->
+        <div id="lab-panel-composer" class="lab-tab-panel active">
+          <div class="lab-form-grid">
+            <!-- Author & Role -->
+            <div class="lab-field-row">
+              <div class="lab-field-group flex-2">
+                <label for="lab-author" class="lab-label">Автор:</label>
+                <div class="lab-input-with-pills">
+                  <input id="lab-author" type="text" class="lab-input" value="ViewerAlice" placeholder="Ник автора">
+                  <div class="persona-pills">
+                    <button type="button" class="persona-pill-btn" data-persona="ViewerAlice">Зритель</button>
+                    <button type="button" class="persona-pill-btn" data-persona="ModMike">Модератор</button>
+                    <button type="button" class="persona-pill-btn" data-persona="Alex_Stream">Стример</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="lab-field-group flex-1">
+                <label for="lab-role" class="lab-label">Роль:</label>
+                <select id="lab-role" class="lab-select">
+                  <option value="user">Зритель</option>
+                  <option value="moderator">Модератор</option>
+                  <option value="streamer">Стример</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Message Text -->
+            <div class="lab-field-group">
+              <label for="lab-text" class="lab-label">Текст сообщения:</label>
+              <textarea id="lab-text" class="lab-textarea" rows="2" placeholder="Введите текст сообщения или выберите пресет..."></textarea>
+            </div>
+
+            <!-- Mention & Reply -->
+            <div class="lab-field-row">
+              <div class="lab-field-group flex-1">
+                <label for="lab-mention" class="lab-label">Упомянуть (@ник):</label>
+                <input id="lab-mention" type="text" class="lab-input" placeholder="например Alex_Stream">
+              </div>
+
+              <div class="lab-field-group flex-1">
+                <label for="lab-reply-mode" class="lab-label">Ответ на сообщение:</label>
+                <select id="lab-reply-mode" class="lab-select">
+                  <option value="none">Без ответа</option>
+                  <option value="history">Из истории чата</option>
+                  <option value="manual">Указать вручную</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="lab-reply-history-wrap" class="lab-field-group" style="display: none;">
+              <label for="lab-reply-history" class="lab-label">Выберите сообщение из истории:</label>
+              <select id="lab-reply-history" class="lab-select">
+                <option value="">-- Загрузка истории... --</option>
+              </select>
+            </div>
+
+            <div id="lab-reply-manual-wrap" class="lab-field-row" style="display: none;">
+              <div class="lab-field-group flex-1">
+                <input id="lab-reply-author" type="text" class="lab-input" placeholder="Автор цитаты">
+              </div>
+              <div class="lab-field-group flex-2">
+                <input id="lab-reply-text" type="text" class="lab-input" placeholder="Текст цитаты">
+              </div>
+            </div>
+
+            <!-- Custom Emoji & Avatar -->
+            <div class="lab-field-row">
+              <div class="lab-field-group flex-1">
+                <label for="lab-emoji-url" class="lab-label">Кастомный эмодзи (URL / data):</label>
+                <div class="lab-input-group">
+                  <input id="lab-emoji-url" type="text" class="lab-input" placeholder="URL картинки эмодзи">
+                  <input id="lab-emoji-alt" type="text" class="lab-input lab-input-sm" placeholder=":fire:">
+                </div>
+              </div>
+
+              <div class="lab-field-group flex-1">
+                <label for="lab-avatar" class="lab-label">Аватар автора:</label>
+                <div class="lab-input-with-pills">
+                  <input id="lab-avatar" type="text" class="lab-input" placeholder="URL аватара (опционально)">
+                  <div class="avatar-pills">
+                    <button id="btn-avatar-sample" type="button" class="avatar-pill-btn" title="Валидный SVG-аватар">Пример</button>
+                    <button id="btn-avatar-broken" type="button" class="avatar-pill-btn" title="Битый 404 URL">Битый</button>
+                    <button id="btn-avatar-clear" type="button" class="avatar-pill-btn" title="Очистить">✕</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Timestamp Mode -->
+            <div class="lab-field-row">
+              <div class="lab-field-group flex-1">
+                <label for="lab-timestamp-mode" class="lab-label">Время сообщения:</label>
+                <div class="lab-input-group">
+                  <select id="lab-timestamp-mode" class="lab-select">
+                    <option value="now">Сейчас</option>
+                    <option value="+1m">+1 мин (вперёд)</option>
+                    <option value="-5m">-5 мин (назад)</option>
+                    <option value="manual">Вручную (HH:MM:SS)</option>
+                  </select>
+                  <input id="lab-custom-timestamp" type="text" class="lab-input lab-input-sm" placeholder="19:00:00" style="display: none;">
+                </div>
+              </div>
+            </div>
+
+            <div id="lab-inline-error" class="lab-error-text" style="display: none;"></div>
+
+            <!-- Action Buttons -->
+            <div class="lab-submit-bar">
+              <button id="btn-lab-send" class="lab-send-btn" type="button">
+                <span>Отправить в чат</span>
+                <span class="lab-btn-hint">(Ctrl+Enter)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Presets & Scenarios -->
+        <div id="lab-panel-presets" class="lab-tab-panel" style="display: none;">
+          <div class="lab-section-title">Быстрые сценарии внимания (Macro):</div>
+          <div id="lab-scenarios-grid" class="lab-scenarios-grid"></div>
+
+          <div class="lab-section-title" style="margin-top: 10px;">Канонические пресеты:</div>
+          <div id="lab-presets-grid" class="lab-presets-grid"></div>
+        </div>
+
+        <!-- Tab 3: Batch Send -->
+        <div id="lab-panel-batch" class="lab-tab-panel" style="display: none;">
+          <div class="lab-batch-wrap">
+            <div class="lab-field-row">
+              <div class="lab-field-group flex-1">
+                <label for="lab-batch-count" class="lab-label">Количество сообщений:</label>
+                <select id="lab-batch-count" class="lab-select">
+                  <option value="10">10 сообщений</option>
+                  <option value="25" selected>25 сообщений</option>
+                  <option value="50">50 сообщений</option>
+                </select>
+              </div>
+
+              <div class="lab-field-group flex-1">
+                <label for="lab-batch-interval" class="lab-label">Интервал отправки:</label>
+                <select id="lab-batch-interval" class="lab-select">
+                  <option value="0">Мгновенно (0 мс)</option>
+                  <option value="60" selected>Быстро (60 мс)</option>
+                  <option value="200">Плавно (200 мс)</option>
+                </select>
+              </div>
+            </div>
+
+            <button id="btn-lab-batch-send" class="lab-batch-btn" type="button">Запустить отправку пачки</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
     <!-- Main Message Container -->
     <main id="chat-container" class="chat-container" tabindex="0" aria-label="Сообщения чата">
       <div id="empty-state" class="empty-state">
-        <div class="empty-icon">💬</div>
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          <circle cx="8" cy="10" r="1" fill="currentColor"/>
+          <circle cx="12" cy="10" r="1" fill="currentColor"/>
+          <circle cx="16" cy="10" r="1" fill="currentColor"/>
+        </svg>
         <div class="empty-title">Сообщений пока нет</div>
-        <div class="empty-desc">Сообщения из стрим-чата Boosty появятся здесь</div>
+        <div class="empty-desc">Откройте чат Boosty — новые сообщения появятся здесь</div>
+      </div>
+
+      <!-- No Results State (Search/Filter specific) -->
+      <div id="no-results-state" class="empty-state no-results-state" style="display: none;">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          <line x1="8" y1="11" x2="14" y2="11"/>
+        </svg>
+        <div class="empty-title">Ничего не найдено</div>
+        <div class="empty-desc">Попробуйте изменить фильтр или запрос</div>
       </div>
 
       <div id="messages-list" class="messages-list"></div>
 
       <!-- Floating Scroll to Bottom Indicator -->
       <button id="btn-scroll-bottom" class="scroll-bottom-btn" type="button" style="display: none;" aria-label="Прокрутить к новым сообщениям">
-        <span>Новые сообщения</span>
+        <span class="scroll-bottom-label">Новые сообщения</span>
         <span id="unread-count-badge" class="unread-badge" style="display: none;">0</span>
         <span class="arrow-down" aria-hidden="true">↓</span>
       </button>
     </main>
   </div>
 
+  <script src="../../core/i18n/ru.js"></script>
+  <script src="technical-issues.js"></script>
+  <script src="lab.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

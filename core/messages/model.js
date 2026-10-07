@@ -292,6 +292,13 @@
       normalized.eventId = eventId;
     }
 
+    if (typeof input.source === 'string' && input.source.trim()) {
+      normalized.source = input.source.trim();
+    }
+    if (input.qaSynthetic === true) {
+      normalized.qaSynthetic = true;
+    }
+
     return normalized;
   }
 

@@ -3179,6 +3179,20 @@ async function init() {
       if (window.boostyOverlay?.getAppVersion) {
         appVersion = await window.boostyOverlay.getAppVersion();
       }
+      if (window.boostyOverlay?.getAppVariant) {
+        try {
+          const variant = await window.boostyOverlay.getAppVariant();
+          if (variant?.isLab) {
+            document.title = variant.mainWindowTitle || 'Boosty Chat Overlay Lab';
+            const mainBadge = document.querySelector('#main-lab-badge');
+            if (mainBadge) mainBadge.style.display = 'inline-flex';
+            const obBadge = document.querySelector('#onboarding-lab-badge');
+            if (obBadge) obBadge.style.display = 'inline-flex';
+          }
+        } catch {
+          // Fallback if test fixture does not register IPC handler
+        }
+      }
       if (window.boostyOverlay?.hasObsExecutable) {
         hasObsExecutableCached = await window.boostyOverlay.hasObsExecutable();
       }

@@ -54,6 +54,7 @@ ipcMain.handle('check-for-updates', () => ({ state: 'up-to-date', updateAvailabl
 ipcMain.handle('copy-extension-path', () => ({ ok: true, extensionDir: '/tmp/extension' }));
 ipcMain.handle('get-obs-connection-config', () => ({ host: '127.0.0.1', port: 4455, password: '' }));
 ipcMain.handle('set-obs-connection-config', () => ({ ok: true }));
+ipcMain.handle('get-app-variant', () => ({ isLab: false, name: 'Boosty Chat Overlay', mainWindowTitle: 'Boosty Chat Overlay' }));
 
 app.whenReady().then(async () => {
   let win;

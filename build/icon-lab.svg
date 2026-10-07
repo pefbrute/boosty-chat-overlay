@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="23.6 46.6 189 199" width="512" height="512">
+  <defs>
+    <linearGradient id="boosty-gradient" x1="145.0777" y1="76.148" x2="80.5868" y2="296.0785" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#EF7829"/>
+      <stop offset="0.052" stop-color="#F07529"/>
+      <stop offset="0.355" stop-color="#F0672B"/>
+      <stop offset="0.667" stop-color="#F15E2C"/>
+      <stop offset="1" stop-color="#F15A2C"/>
+    </linearGradient>
+    <filter id="badge-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <path fill="url(#boosty-gradient)" d="M44.3,164.5L76.9,51.6H127l-10.1,35c-0.1,0.2-0.2,0.4-0.3,0.6L90,179.6h24.8c-10.4,25.9-18.5,46.2-24.3,60.9 c-45.8-0.5-58.6-33.3-47.4-72.1 M90.7,240.6l60.4-86.9h-25.6l22.3-55.7c38.2,4,56.2,34.1,45.6,70.5 c-11.3,39.1-57.1,72.1-101.7,72.1C91.3,240.6,91,240.6,90.7,240.6z"/>
+
+  <!-- LAB Badge Overlay -->
+  <g filter="url(#badge-shadow)">
+    <rect x="124" y="196" width="82" height="44" rx="10" fill="#7c3aed" stroke="#0f1117" stroke-width="5"/>
+    <text x="165" y="227" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="900" font-size="25" fill="#ffffff" text-anchor="middle" letter-spacing="1.2">LAB</text>
+  </g>
+</svg>

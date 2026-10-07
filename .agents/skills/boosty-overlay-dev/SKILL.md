@@ -237,6 +237,29 @@ desktop/ (Electron Application)
 - If a Boosty tab was detected before an extension reload, or its Port disconnected without a new handshake, the server tracks tab state and marks `staleTabScript: true` in `/health`.
 - Status Hub detects this state and renders actionable guidance (`Обновите страницу (Ctrl+R)`), eliminating confusion when a tab is visually present but the content script is detached.
 
+### 2.30. Chat Monitor v1.2 Attention & Autoscroll Invariants (`desktop/chat-monitor/app.js`)
+- **Decoupled `followLatest` vs. `hasFocus` Invariant:**
+  - `followLatest` (boolean, default `true`, threshold `BOTTOM_THRESHOLD_PX = 60`): controls strictly whether incoming messages automatically scroll the container to the bottom (`scrollTop = scrollHeight`).
+  - **Critical Rule:** Autoscroll must **never** be gated behind `document.hasFocus()`. Because Chat Monitor is a companion window on a secondary display while the streamer is focused in a game, OBS, or browser, it must continue autoscrolling when `followLatest === true` even when unfocused.
+  - `hasFocus` (`document.hasFocus()`) controls only unread counter accumulation (`unreadTotal`, tab badges `#badge-important`, `#badge-mentions`, `#badge-replies`, and window title `Boosty Chat (N)`). Unreads reset automatically upon window focus when at the bottom (`checkResetUnread()`).
+- **Pre-Mutation Snapshot & Synchronous Scroll:**
+  - Always capture `const wasFollowLatest = followLatest;` **before** calling `appendMessageCard(message)`.
+  - If `appendedCard !== null && wasFollowLatest`, call `scrollToBottom()` which assigns `chatContainer.scrollTop = chatContainer.scrollHeight` synchronously (never rely on `scrollTo({ behavior: 'smooth' })`, which is throttled in background/hidden Chromium windows), plus `requestAnimationFrame` and `onMediaLoad` hooks for async avatars/custom emojis.
+- **Attention Filters & Local Search:**
+  - 4 filter tabs (`all`, `important`, `mentions`, `replies` with hotkeys `Ctrl+1..4`) and expandable search panel (`Ctrl+F` / `Esc`) filter local `allMessages` without affecting SSE or server history.
+
+### 2.31. Message Lab / QA Composer & Synthetic Pipeline (`desktop/chat-monitor/lab.js`)
+- **Zero Fake Renderer Invariant:** Synthetic messages built in Message Lab (`buildSyntheticMessage`, `generateBatchMessages`, `MACRO_SCENARIOS`) are sent via `POST /message` into the exact same localhost server pipeline (`normalizeIncomingMessage` → `validateNormalizedMessage` → `messageDedup` → `messageHistory` → `sseHub.broadcastMessage`).
+- **Contract Metadata:** `core/messages/model.js` preserves optional `source: 'message_lab'` and `qaSynthetic: true` fields.
+- **Strict Production Isolation:** Message Lab UI (`#btn-message-lab`, `#message-lab-drawer`) and `.badge-qa` card pills are enabled **only** when `BOOSTY_MESSAGE_LAB=1` or `BOOSTY_APP_VARIANT=lab` (or in `BOOSTY_OVERLAY_UI_TEST=1`). In normal production mode, they are strictly hidden (`display: none`).
+
+### 2.32. OS-Level Dev/QA Application Variant (`desktop/main/app-variant.js`)
+- Launching via `npm run start:lab` (`scripts/start-lab.js` or `./run-desktop-lab.sh`) activates the `lab` variant (`BOOSTY_APP_VARIANT=lab`, `BOOSTY_MESSAGE_LAB=1`):
+  - **Distinct App Name & Title:** `Boosty Chat Overlay Lab` / `Boosty Chat Monitor — Lab` with header badge `LAB`.
+  - **Distinct App ID & WM_CLASS:** `ru.pefbrute.boosty-chat-overlay.lab` / `boosty-chat-overlay-lab`.
+  - **Isolated `userData`:** `~/.config/boosty-chat-overlay-lab` (applied in `desktop/main.js` **before** `app.requestSingleInstanceLock()`), ensuring QA testing never overwrites production onboarding state, settings, or window bounds.
+  - **Distinct Icon:** `build/icon-lab.png` (rendered from `build/icon-lab.svg` with a high-contrast purple `LAB` pill).
+
 ---
 
 ## 3. Where to Change What (Quick Index)
@@ -246,6 +269,7 @@ desktop/ (Electron Application)
 | Canonical constants & Extension ID | [`core/constants.js`](file:///home/fedor/projects/boosty-chat-overlay/core/constants.js) |
 | Card size presets (Focus Mode) | [`core/config/size-presets.js`](file:///home/fedor/projects/boosty-chat-overlay/core/config/size-presets.js) |
 | Persistent extension deployer | [`desktop/browser/extension-deployer.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/browser/extension-deployer.js) |
+| OS-level Production vs Lab app variant | [`desktop/main/app-variant.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/main/app-variant.js), [`scripts/start-lab.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/start-lab.js) |
 | GitHub Releases update checker | [`desktop/main/update-checker.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/main/update-checker.js) |
 | Windows CI/CD release workflow | [`.github/workflows/build-windows.yml`](file:///home/fedor/projects/boosty-chat-overlay/.github/workflows/build-windows.yml) |
 | Windows release QA runner | [`scripts/windows-release-qa.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/windows-release-qa.js) |
@@ -267,8 +291,9 @@ desktop/ (Electron Application)
 | Desktop Electron UI Visual QA runner | [`scripts/visual-test-electron.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-electron.js) |
 | OBS Overlay Visual QA runner | [`scripts/visual-test-overlay.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-overlay.js) |
 | Chat Monitor window manager & lifecycle | [`desktop/chat-monitor/manager.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/manager.js), [`desktop/chat-monitor/state.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/state.js) |
-| Chat Monitor UI, renderer & autoscroll | [`desktop/chat-monitor/index.html`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/index.html), [`desktop/chat-monitor/app.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/app.js), [`desktop/chat-monitor/style.css`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/style.css) |
-| Chat Monitor Visual QA runner | [`scripts/visual-test-chat-monitor.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-chat-monitor.js) |
+| Chat Monitor UI, renderer & autoscroll | [`desktop/chat-monitor/index.html`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/index.html), [`desktop/chat-monitor/app.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/app.js), [`desktop/chat-monitor/app.css`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/app.css) |
+| Chat Monitor Message Lab / QA Composer | [`desktop/chat-monitor/lab.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/lab.js), [`test/message-lab.test.js`](file:///home/fedor/projects/boosty-chat-overlay/test/message-lab.test.js) |
+| Chat Monitor Visual QA & Electron E2E | [`scripts/visual-test-chat-monitor.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-chat-monitor.js), [`test/chat-monitor-autoscroll.electron.test.js`](file:///home/fedor/projects/boosty-chat-overlay/test/chat-monitor-autoscroll.electron.test.js) |
 | Extension auto-reinjection & reconnect backoff | [`extension/background.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/background.js), [`extension/content.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/content.js) |
 | Live E2E runners & test harnesses | [`scripts/live-e2e.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e.js), [`scripts/live-e2e-full.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e-full.js), [`scripts/live-e2e/`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e/) |
 
@@ -336,7 +361,7 @@ git diff --check
 - **При изменении `desktop/chat-monitor/`:**
   1. Запустить `npm run test:chat-monitor:visual`.
   2. Проверить `artifacts/chat-monitor/console-errors.json` (0 ошибок).
-  3. Открыть через `view_file`: `1-normal-messages.png`, `2-long-messages.png`, `3-reply-mention-emoji.png`, `4-many-messages-scroll.png`, `5-paused.png`, `6-new-indicator.png`, `7-min-size-340x400.png`.
+  3. Открыть через `view_file`: `01-empty-waiting.png`, `02-normal-messages.png`, `04-reply-mention-emoji.png`, `07-new-messages-indicator.png`, `08-minimum-window-size.png`, `09-compact-mode.png`, `10-important-highlight.png`, `15-unread-counters.png`, `lab-01-composer.png`, `lab-03-presets-scenarios.png`, `lab-04-window-header-badge.png`, `autoscroll-after-burst.png`.
 - **При изменении `overlay/`:**
   1. Запустить `npm run test:overlay:visual`.
   2. Проверить `artifacts/overlay/console-errors.json` (0 ошибок).

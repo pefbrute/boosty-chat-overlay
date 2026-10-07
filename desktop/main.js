@@ -6,6 +6,10 @@ const { createBrowserManager } = require('./browser/manager.js');
 const { createUpdateChecker } = require('./main/update-checker.js');
 const { createChatMonitorManager } = require('./chat-monitor/manager.js');
 const { registerIpcHandlers } = require('./main/ipc.js');
+const { getAppVariant, applyAppVariant } = require('./main/app-variant.js');
+
+const appVariant = getAppVariant();
+applyAppVariant(app, appVariant);
 
 if (process.env.BOOSTY_OVERLAY_USER_DATA) {
   const customUserData = path.resolve(process.env.BOOSTY_OVERLAY_USER_DATA);
@@ -21,7 +25,7 @@ let localSseHub;
 // --- Single Instance Lock (P1) ---
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
-  console.warn('[Boosty Overlay] Another instance is already running. Quitting.');
+  console.warn(`[${appVariant.name}] Another instance is already running. Quitting.`);
   app.quit();
 } else {
   app.on('second-instance', () => {
@@ -56,8 +60,8 @@ if (!gotSingleInstanceLock) {
       minHeight: 560,
       show: process.env.BOOSTY_OVERLAY_HIDE_WINDOW !== '1',
       backgroundColor: '#111116',
-      icon: path.join(__dirname, '..', 'build', 'icon.png'),
-      title: 'Boosty Chat Overlay',
+      icon: appVariant.iconPath,
+      title: appVariant.mainWindowTitle,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -87,6 +91,8 @@ if (!gotSingleInstanceLock) {
       BrowserWindow,
       screen: require('electron').screen,
       app,
+      title: appVariant.monitorWindowTitle,
+      icon: appVariant.iconPath,
     });
 
     const serverModule = require('../server.js');
@@ -117,6 +123,7 @@ if (!gotSingleInstanceLock) {
       obsService,
       updateChecker,
       chatMonitorManager,
+      appVariant,
       app,
       clipboard,
       overlayUrl: `http://127.0.0.1:${process.env.BOOSTY_OVERLAY_PORT || 17369}/overlay/`,

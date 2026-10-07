@@ -17,6 +17,7 @@ function registerIpcHandlers(deps = {}) {
     obsService,
     app,
     chatMonitorManager = deps.chatMonitorManager || null,
+    appVariant = deps.appVariant || null,
     clipboard = require('electron').clipboard,
     overlayUrl = 'http://127.0.0.1:17369/overlay/',
   } = deps;
@@ -208,6 +209,12 @@ function registerIpcHandlers(deps = {}) {
       return app.getVersion();
     }
     return '0.4.0';
+  });
+
+  ipcMain.handle('get-app-variant', () => {
+    if (appVariant) return appVariant;
+    const { getAppVariant } = require('./app-variant.js');
+    return getAppVariant();
   });
 
   ipcMain.handle('export-connectivity-diagnostic', async () => {
