@@ -24,7 +24,7 @@ function getBundledExtensionVersion() {
       if (manifest.version) return manifest.version;
     }
   } catch {}
-  return appVersion || '0.5.1';
+  return appVersion || '0.5.2';
 }
 const bundledExtensionVersion = getBundledExtensionVersion();
 

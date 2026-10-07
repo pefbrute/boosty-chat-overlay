@@ -1,6 +1,6 @@
 {
   "name": "boosty-chat-overlay",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "Local Boosty chat overlay for OBS",
   "author": {
@@ -109,6 +109,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Boosty Chat Overlay",
       "runAfterFinish": true,
+      "deleteAppDataOnUninstall": true,
+      "include": "build/installer.nsh",
       "artifactName": "${productName} Setup ${version}.${ext}"
     }
   },

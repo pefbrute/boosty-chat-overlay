@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApCe34r+TKSl4RlD7zsxc0zME4xzRngI/A9kAPOQGO9l5C1cSt3DG04sYXX4VZeF2SBSPUsJcMMEgDLt8l2RMPtit14peDcy+Ulrrhd4fhettI19NceaVHjxV9kT4vXj4oGgV/yFaaD0K4ZVrt2d9w1MnvbtNFq6cS3nFjRaDk3tPd7+yXDHYrI7h1PCD/ftUGv+PJGTpnnp/Hq8RxRKdqedK39NrDIIIkC5w4TRtvKH41X/RPPE93uatp2P2UU/sZNQWUsDf8RSHor07VFEmy9765PApS1uA2RdZOW2eiIg2ig/Lf8jCO1vqRs2S9n7xeMhFcy5FHcHRsDQIrnDk6QIDAQAB",
   "name": "Boosty Chat Connector (local)",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Sends messages from an open Boosty chat to a local OBS overlay.",
   "permissions": ["alarms", "storage", "scripting", "tabs"],
   "host_permissions": [
