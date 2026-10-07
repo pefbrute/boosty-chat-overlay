@@ -5,13 +5,16 @@
 > [!IMPORTANT]
 > **Разделение задач по интерфейсу:**
 >
-> 1. **Desktop UI (`desktop/**/*`):**
+> 1. **Desktop Main UI (`desktop/**/*` исключая `desktop/chat-monitor`):**
 >    Любые изменения `desktop/index.html`, `desktop/app.css`, `desktop/app.js` или `desktop/ui/*` считаются завершёнными **ТОЛЬКО** после запуска `npm run test:ui:visual` и обязательного просмотра всех затронутых скриншотов в `artifacts/ui/` через `view_file`.
 >
-> 2. **OBS Overlay (`overlay/**/*`):**
+> 2. **Chat Monitor (`desktop/chat-monitor/**/*`):**
+>    Любые изменения `desktop/chat-monitor/index.html`, `desktop/chat-monitor/app.js`, `desktop/chat-monitor/style.css` или `desktop/chat-monitor/manager.js` считаются завершёнными **ТОЛЬКО** после запуска `npm run test:chat-monitor:visual` и обязательного просмотра скриншотов в `artifacts/chat-monitor/` через `view_file`.
+>
+> 3. **OBS Overlay (`overlay/**/*`):**
 >    Любые изменения `overlay/index.html`, `overlay/overlay.js`, `overlay/renderer.js` или `overlay/style.css` считаются завершёнными **ТОЛЬКО** после запуска `npm run test:overlay:visual` и обязательного просмотра всех затронутых скриншотов в `artifacts/overlay/` через `view_file`.
 >
-> 3. **Desktop + Overlay:** Если задача затронула обе части — **обязательны обе команды** и просмотр скриншотов обеих папок.
+> 4. **Комбинированные изменения:** Если задача затронула несколько частей — **обязательны соответствующие визуальные команды** и просмотр скриншотов для каждой из них.
 >
 > Агенту категорически запрещено завершать задачу по UI или отчитываться пользователю, опираясь исключительно на то, что «код компилируется» или «тесты прошли». Необходима двухпроходная визуальная инспекция (Two-Pass Visual QA) созданных PNG-скриншотов.
 
@@ -87,12 +90,15 @@ npm test
 # 3. Интеграционные тесты в реальном Electron
 npm run test:integration
 
-# 4. Визуальное тестирование Desktop UI (если затронут desktop/)
+# 4. Визуальное тестирование Desktop UI (если затронут desktop/ кроме chat-monitor)
 npm run test:ui:visual
 
-# 5. Визуальное тестирование OBS Overlay (если затронут overlay/)
+# 5. Визуальное тестирование Chat Monitor (если затронут desktop/chat-monitor/)
+npm run test:chat-monitor:visual
+
+# 6. Визуальное тестирование OBS Overlay (если затронут overlay/)
 npm run test:overlay:visual
 
-# 6. Проверка форматирования и git diff
+# 7. Проверка форматирования и git diff
 git diff --check
 ```

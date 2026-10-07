@@ -42,6 +42,7 @@ desktop/ (Electron Application)
    ├── desktop/main.js       (Minimal bootstrap & lifecycle)
    ├── desktop/obs/          (OBS WebSocket v5, scenes, mutation queue, CEF recovery)
    ├── desktop/browser/      (Browser manager, extension unpacker)
+   ├── desktop/chat-monitor/ (Dedicated streamer Chat Monitor window manager & UI)
    ├── desktop/main/ipc.js   (Thin IPC routing & validation ONLY)
    └── desktop/ui/status-hub (Pure function deriveSystemStatus)
 ```
@@ -51,6 +52,7 @@ desktop/ (Electron Application)
 2. **OBS logic lives strictly in `desktop/obs/`.** Never move OBS WebSocket code back into `desktop/main.js` or into `core/`.
 3. **`desktop/main/ipc.js` is glue code only.** Handlers validate arguments, catch errors, and delegate to `ObsService` or `BrowserManager`. **No business logic in IPC handlers.**
 4. **`extension/parser.js` must be browser-independent.** It operates on standard DOM nodes and produces a `NormalizedMessage` contract.
+5. **Chat Monitor lives in `desktop/chat-monitor/`.** It is an independent secondary window for the streamer, consuming the existing `/history` and `/events` endpoints. Never create a duplicate message pipeline or transport for it.
 
 ---
 
@@ -213,6 +215,28 @@ desktop/ (Electron Application)
   - `desktop/main.js` supports `BOOSTY_OVERLAY_USER_DATA` (setting both `userData` and `sessionData` **before** `app.requestSingleInstanceLock()`), `BOOSTY_OVERLAY_OBS_CONFIG_PATH`, and `BOOSTY_OVERLAY_HIDE_WINDOW=1`.
   - `test/fresh-onboarding-e2e.test.js` verifies the complete `fresh state → onboarding → dashboard → connected services` flow without intermediate app restarts against a real protocol-level `obswebsocket.msgpack` SHA256 server.
 
+### 2.26. Chat Monitor v1: Streamer Dedicated Window & Zero Redundant Pipeline
+- **Dedicated Streamer View:** OBS Overlay is strictly for viewers on stream; Chat Monitor is a practical, dense, high-contrast Electron `BrowserWindow` for the streamer on a second monitor.
+- **Zero Redundant Pipeline Invariant:** Chat Monitor must **never** instantiate its own WebSocket transport, duplicate the message model, or bypass the server. It is strictly a consumer of `GET /history` and SSE `GET /events`, receiving `NormalizedMessage`.
+- **Single Canonical Instance:** Opening Chat Monitor when already open restores, shows, and focuses the existing window (`createChatMonitorManager`). It never spawns duplicate window instances.
+- **Independent Window Lifecycle:** Closing the Chat Monitor window must never terminate the application. Closing the main application cleans up all secondary windows.
+- **Multi-Display Safe Placement:** Saved window bounds (`chat-monitor-state.json`) are validated against `screen.getAllDisplays()` (`validateWindowBounds`). If saved coordinates are off-screen (e.g. disconnected external monitor), the window is safely centered on the primary display work area, with dimensions clamped to minimum `340×400`.
+- **Pause Autoscroll Queue Invariant:** Pausing autoscroll suspends DOM mutations in the chat list and buffers incoming messages in memory. A floating indicator (`Новые сообщения ↓ (+N)`) displays the unread count. Resuming autoscroll flushes the queued DOM batch and scrolls smoothly to the latest message.
+- **Client-Side Clear View:** The "Clear View" button clears only the local monitor DOM view; it must **never** wipe server history or affect OBS Overlay.
+
+### 2.27. Content Script Invalidation & Idempotency Guard (`extension/content.js`)
+- When an extension is updated or reloaded in developer mode, active content scripts in existing tabs have their extension context invalidated.
+- **Teardown Invariant:** All `chrome.runtime.Port` and `chrome.runtime.sendMessage` calls are guarded with `isContextInvalidatedError(err)`. Upon detecting context invalidation, all DOM MutationObservers, polling timers, and listeners are immediately torn down via `teardown()`.
+- **Idempotency Guard Invariant:** `content.js` registers `window.__BOOSTY_CHAT_CONNECTOR_ACTIVE__ = true` and `window.__BOOSTY_CHAT_CONNECTOR_CLEANUP__ = teardown`. If injected multiple times, any previous instance is cleanly disassembled before the new instance attaches, preventing duplicate observers and duplicate message emissions.
+
+### 2.28. Localhost Connector Fast Bounded Backoff & Dynamic Auto-Reinjection (`extension/background.js`)
+- **Fast Bounded Backoff:** Because desktop server startup on `127.0.0.1:17369` is a normal transient condition during app launch, connection retries to `ws://127.0.0.1:17369/connector` use bounded backoff: 250ms, 500ms, 1000ms, capped at 1500ms (never back off to 10–30s on localhost). Once connected, the retry counter resets to 0.
+- **Dynamic Auto-Reinjection:** When `background.js` initializes, it queries `chrome.tabs.query({ url: '*://boosty.to/*' })` and uses `chrome.scripting.executeScript` to dynamically inject `parser.js` and `content.js` into existing tabs. This ensures Boosty tabs opened before the extension or server immediately activate without requiring the user to manually press Ctrl+R.
+
+### 2.29. Stale Content Script Detection & User Guidance (`core/health/tracker.js`, `desktop/ui/status-hub.js`)
+- If a Boosty tab was detected before an extension reload, or its Port disconnected without a new handshake, the server tracks tab state and marks `staleTabScript: true` in `/health`.
+- Status Hub detects this state and renders actionable guidance (`Обновите страницу (Ctrl+R)`), eliminating confusion when a tab is visually present but the content script is detached.
+
 ---
 
 ## 3. Where to Change What (Quick Index)
@@ -242,6 +266,10 @@ desktop/ (Electron Application)
 | Overlay visual card layout, animations & CSS | [`overlay/renderer.js`](file:///home/fedor/projects/boosty-chat-overlay/overlay/renderer.js), [`overlay/style.css`](file:///home/fedor/projects/boosty-chat-overlay/overlay/style.css) |
 | Desktop Electron UI Visual QA runner | [`scripts/visual-test-electron.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-electron.js) |
 | OBS Overlay Visual QA runner | [`scripts/visual-test-overlay.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-overlay.js) |
+| Chat Monitor window manager & lifecycle | [`desktop/chat-monitor/manager.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/manager.js), [`desktop/chat-monitor/state.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/state.js) |
+| Chat Monitor UI, renderer & autoscroll | [`desktop/chat-monitor/index.html`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/index.html), [`desktop/chat-monitor/app.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/app.js), [`desktop/chat-monitor/style.css`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/style.css) |
+| Chat Monitor Visual QA runner | [`scripts/visual-test-chat-monitor.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-chat-monitor.js) |
+| Extension auto-reinjection & reconnect backoff | [`extension/background.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/background.js), [`extension/content.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/content.js) |
 | Live E2E runners & test harnesses | [`scripts/live-e2e.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e.js), [`scripts/live-e2e-full.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e-full.js), [`scripts/live-e2e/`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e/) |
 
 ---
@@ -290,18 +318,25 @@ npm run test:integration
 # 4. Playwright Desktop UI Visual QA (если затронут desktop/)
 npm run test:ui:visual
 
-# 5. Playwright Overlay Visual QA (если затронут overlay/)
+# 5. Playwright Chat Monitor Visual QA (если затронут desktop/chat-monitor/)
+npm run test:chat-monitor:visual
+
+# 6. Playwright Overlay Visual QA (если затронут overlay/)
 npm run test:overlay:visual
 
-# 6. Check for whitespace/git diff issues
+# 7. Check for whitespace/git diff issues
 git diff --check
 ```
 
 ### Visual Inspection Protocols:
-- **При изменении `desktop/`:**
+- **При изменении `desktop/` (основное окно):**
   1. Запустить `npm run test:ui:visual`.
   2. Проверить `artifacts/ui/console-errors.json` (0 ошибок).
   3. Открыть через `view_file`: `dashboard-1280x850.png`, `dashboard-800x650.png`, `appearance.png`, `state-obs-offline.png`.
+- **При изменении `desktop/chat-monitor/`:**
+  1. Запустить `npm run test:chat-monitor:visual`.
+  2. Проверить `artifacts/chat-monitor/console-errors.json` (0 ошибок).
+  3. Открыть через `view_file`: `1-normal-messages.png`, `2-long-messages.png`, `3-reply-mention-emoji.png`, `4-many-messages-scroll.png`, `5-paused.png`, `6-new-indicator.png`, `7-min-size-340x400.png`.
 - **При изменении `overlay/`:**
   1. Запустить `npm run test:overlay:visual`.
   2. Проверить `artifacts/overlay/console-errors.json` (0 ошибок).
