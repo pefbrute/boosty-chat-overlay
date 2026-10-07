@@ -141,7 +141,7 @@ test('App Variant — IPC registration exposes get-app-variant', async () => {
   assert.equal(result.badge, 'LAB');
 });
 
-test('App Variant — Linux desktop launcher and wrapper integrity', () => {
+test('App Variant — Linux desktop launcher and wrapper integrity', { skip: process.platform !== 'linux' }, () => {
   const desktopFilePath = path.resolve(
     process.env.HOME,
     '.local/share/applications/boosty-chat-overlay-lab.desktop'

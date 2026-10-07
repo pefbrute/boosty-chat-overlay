@@ -157,7 +157,7 @@ test('Fresh Reset — isFreshRunning detects missing lock file', () => {
   fs.rmSync(path.dirname(testFreshDir), { recursive: true, force: true });
 });
 
-test('Fresh Variant — Linux desktop launcher and wrapper integrity', () => {
+test('Fresh Variant — Linux desktop launcher and wrapper integrity', { skip: process.platform !== 'linux' }, () => {
   const desktopFilePath = path.resolve(
     os.homedir(),
     '.local/share/applications/boosty-chat-overlay-fresh.desktop'
