@@ -16,7 +16,7 @@ const REQUEST_TIMEOUT_MS = 3500; // 3.5 seconds
  * @param {number} [options.timeoutMs]
  */
 function createUpdateChecker(options = {}) {
-  const currentVersion = options.currentVersion || '0.5.0';
+  const currentVersion = options.currentVersion || '0.5.1';
   const repo = options.repo || DEFAULT_REPO;
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const intervalMs = options.checkIntervalMs ?? CHECK_INTERVAL_MS;

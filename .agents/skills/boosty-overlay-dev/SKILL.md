@@ -260,6 +260,23 @@ desktop/ (Electron Application)
   - **Isolated `userData`:** `~/.config/boosty-chat-overlay-lab` (applied in `desktop/main.js` **before** `app.requestSingleInstanceLock()`), ensuring QA testing never overwrites production onboarding state, settings, or window bounds.
   - **Distinct Icon:** `build/icon-lab.png` (rendered from `build/icon-lab.svg` with a high-contrast purple `LAB` pill).
 
+### 2.33. Tutorial Video Toolchain & Onboarding Media Invariants (`tools/tutorial-video/`, `desktop/assets/tutorials/`)
+- **Zero Bundle Bloat Invariant:** Remotion, React 18, and video compilation dependencies live strictly in isolated `tools/tutorial-video/` with their own `package.json`. They must **never** be added to root `dependencies` or packaged into the Electron app / Windows NSIS installer.
+- **Canonical Mini-Lesson Format:**
+  - Aspect ratio: 16:9 (`1280×720`), 30 fps, VP8/WebM codec (sub-350 KB payload).
+  - Duration: 8–15 seconds, silent, auto-looping, no music or voiceover.
+  - Scene design: accent focus (single arrow/outline at a time), smooth subtle zooms, Russian text limited to 5–7 words per scene.
+- **Complete Asset Triad:** Every onboarding tutorial must provide 3 assets in `desktop/assets/tutorials/`:
+  1. `<id>.webm` — animated mini-lesson video;
+  2. `<id>-poster.png` — crisp first-frame poster;
+  3. `<id>-diagram.svg` — high-contrast vector infographic.
+- **Accessibility & Graceful Degradation (`desktop/app.js`, `desktop/app.css`):**
+  - **`prefers-reduced-motion: reduce`:** When active, `<video>` is automatically bypassed and replaced with the static `.svg` diagram.
+  - **Error Fallback:** If `<video>` fails to load (`onerror`), UI gracefully falls back to the poster image and `.svg` diagram without broken media placeholders.
+  - **Manual Mode Toggle:** Streamer can manually switch between video and diagram at any time.
+  - **Lazy Mount & Teardown:** Video is mounted/started only upon entering the target onboarding step (e.g. Step 2) and torn down upon step change to eliminate background decoding overhead.
+- **Visual QA Determinism:** In UI visual test mode (`BOOSTY_OVERLAY_UI_TEST=1`), tutorial video is initialized with deterministic playback hooks to prevent flakiness and race conditions in visual diffs.
+
 ---
 
 ## 3. Where to Change What (Quick Index)
@@ -295,6 +312,9 @@ desktop/ (Electron Application)
 | Chat Monitor Message Lab / QA Composer | [`desktop/chat-monitor/lab.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/lab.js), [`test/message-lab.test.js`](file:///home/fedor/projects/boosty-chat-overlay/test/message-lab.test.js) |
 | Chat Monitor Visual QA & Electron E2E | [`scripts/visual-test-chat-monitor.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/visual-test-chat-monitor.js), [`test/chat-monitor-autoscroll.electron.test.js`](file:///home/fedor/projects/boosty-chat-overlay/test/chat-monitor-autoscroll.electron.test.js) |
 | Extension auto-reinjection & reconnect backoff | [`extension/background.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/background.js), [`extension/content.js`](file:///home/fedor/projects/boosty-chat-overlay/extension/content.js) |
+| Tutorial video Remotion composition | [`tools/tutorial-video/src/ExtensionInstallYandex.tsx`](file:///home/fedor/projects/boosty-chat-overlay/tools/tutorial-video/src/ExtensionInstallYandex.tsx), [`tools/tutorial-video/src/Root.tsx`](file:///home/fedor/projects/boosty-chat-overlay/tools/tutorial-video/src/Root.tsx) |
+| Onboarding tutorial assets & SVG diagram | [`desktop/assets/tutorials/`](file:///home/fedor/projects/boosty-chat-overlay/desktop/assets/tutorials/) |
+| Tutorial video workflow documentation | [`docs/TUTORIAL_VIDEO_WORKFLOW.md`](file:///home/fedor/projects/boosty-chat-overlay/docs/TUTORIAL_VIDEO_WORKFLOW.md) |
 | Live E2E runners & test harnesses | [`scripts/live-e2e.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e.js), [`scripts/live-e2e-full.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e-full.js), [`scripts/live-e2e/`](file:///home/fedor/projects/boosty-chat-overlay/scripts/live-e2e/) |
 
 ---
@@ -358,6 +378,12 @@ git diff --check
   1. Запустить `npm run test:ui:visual`.
   2. Проверить `artifacts/ui/console-errors.json` (0 ошибок).
   3. Открыть через `view_file`: `dashboard-1280x850.png`, `dashboard-800x650.png`, `appearance.png`, `state-obs-offline.png`.
+  4. Если затронут Onboarding или обучающие материалы (`#ob-tutorial-card`), дополнительно проверить: `onboarding.png`, `onboarding-800x650.png`, `tutorial-01-video-start.png`, `tutorial-03-drag-folder.png`, `tutorial-05-reduced-motion.png`, `tutorial-06-video-fallback.png`.
+- **При изменении видео-туториалов (`tools/tutorial-video/`):**
+  1. Предпросмотр в Remotion Studio: `npm run tutorial:preview`.
+  2. Рендер WebM 720p: `npm run tutorial:render`.
+  3. Обновление постера: `npm run tutorial:poster`.
+  4. Проверить размер итогового `.webm` (не более 400 KB) и отсутствие искажений кириллицы.
 - **При изменении `desktop/chat-monitor/`:**
   1. Запустить `npm run test:chat-monitor:visual`.
   2. Проверить `artifacts/chat-monitor/console-errors.json` (0 ошибок).

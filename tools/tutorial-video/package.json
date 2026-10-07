@@ -1,0 +1,20 @@
+{
+  "name": "tutorial-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion tutorial video generation toolchain",
+  "scripts": {
+    "preview": "remotion studio src/index.jsx",
+    "render:yandex": "remotion render src/index.jsx ExtensionInstallYandex ../../desktop/assets/tutorials/yandex-extension-install.webm --codec=vp8 --crf=26 --gl=angle",
+    "render:poster": "remotion still src/index.jsx ExtensionInstallPoster ../../desktop/assets/tutorials/yandex-extension-install-poster.png --gl=angle",
+    "render:yandex:mp4": "remotion render src/index.jsx ExtensionInstallYandex ../../desktop/assets/tutorials/yandex-extension-install.mp4 --codec=h264 --crf=23 --gl=angle"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.234"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.234"
+  }
+}

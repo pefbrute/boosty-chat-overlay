@@ -3,7 +3,7 @@
 /**
  * First-Class Browser Metadata & Instruction Catalog.
  * Centralized registry for browser identification, detection rules, extension URLs,
- * and localized onboarding/recovery flows across platforms (Linux, Windows, macOS).
+ * drag-and-drop capability flags, and localized 3-step onboarding / recovery flows across platforms.
  */
 const SUPPORTED_BROWSERS = {
   yandex: {
@@ -14,46 +14,35 @@ const SUPPORTED_BROWSERS = {
     extensionsUrlDisplay: 'browser://extensions',
     openExtensionsBtnText: '🌐 Открыть расширения Яндекс Браузера',
     openBrowserBtnText: '🌐 Открыть Яндекс Браузер',
-    guideTitle: 'Откройте страницу расширений Яндекс Браузера',
+    supportsDragDropInstall: true,
+    devModeHint: 'Переключатель находится в правом верхнем углу страницы расширений.',
+    guideTitle: 'Установите расширение',
+    guideSubtitle: 'Три простых шага — займёт меньше минуты.',
     guideSteps: [
       {
         num: '①',
-        title: 'Откройте страницу расширений Яндекс Браузера',
-        desc: 'Перейдите по адресу: <code id="ob-ext-url-code" class="ob-code-pill">browser://extensions</code>',
+        title: 'Откройте страницу расширений',
+        desc: 'В Яндекс Браузере откроется вкладка со списком установленных расширений.',
+        ctaText: '🌐 Открыть расширения Яндекс Браузера',
       },
       {
         num: '②',
         title: 'Включите «Режим разработчика»',
-        desc: 'В правом верхнем углу страницы расширений включите тумблер режима разработчика.',
+        desc: 'Переключатель находится в правом верхнем углу страницы расширений.',
       },
       {
         num: '③',
-        title: 'Нажмите «Загрузить распакованное расширение»',
-        desc: 'Кнопка появится в верхней панели инструментов после включения режима разработчика.',
-      },
-      {
-        num: '④',
-        title: 'Выберите папку Boosty Chat Overlay',
-        desc: 'Укажите распакованную папку расширения из блока ниже.',
-      },
-      {
-        num: '⑤',
-        title: 'Убедитесь, что расширение включено',
-        desc: 'Тумблер на карточке Boosty Chat Overlay должен быть активен.',
-      },
-      {
-        num: '⑥',
-        title: 'Вернитесь в приложение и нажмите «Проверить подключение»',
-        desc: 'Приложение автоматически установит связь с расширением.',
+        title: 'Перетащите папку extension',
+        desc: 'Откройте папку расширения и перетащите именно папку extension в окно страницы расширений браузера.',
+        ctaText: '📁 Открыть папку extension',
+        dndHint: 'Зажмите папку extension мышью и перетащите её на страницу расширений.',
       },
     ],
-    recoveryCardTitle: '❓ Расширение установлено, но приложение пока его не видит?',
+    recoveryCardTitle: 'Расширение не подключилось?',
     recoverySteps: [
-      'Откройте страницу <code id="ob-recovery-url" class="ob-code-pill">browser://extensions</code> в Яндекс Браузере.',
-      'Убедитесь, что переключатель Boosty Chat Overlay включён.',
-      'Нажмите значок обновления расширения (🔄) на карточке.',
+      'Убедитесь, что расширение включено на странице <code id="ob-recovery-url" class="ob-code-pill">browser://extensions</code> в Яндекс Браузере.',
       'Обновите вкладку со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
-      'Затем вернитесь сюда и нажмите «Проверить снова».',
+      'Нажмите «Проверить снова».',
     ],
     linuxCandidates: [
       '/usr/bin/yandex-browser',
@@ -81,14 +70,18 @@ const SUPPORTED_BROWSERS = {
     label: 'Brave',
     extensionsUrl: 'brave://extensions/',
     extensionsUrlDisplay: 'brave://extensions',
-    openExtensionsBtnText: '🌐 Открыть страницу расширений (Brave)',
+    openExtensionsBtnText: '🌐 Открыть расширения Brave',
     openBrowserBtnText: '🌐 Открыть Brave',
-    guideTitle: 'Откройте страницу расширений в Brave',
+    supportsDragDropInstall: true,
+    devModeHint: 'Переключатель находится в правом верхнем углу страницы расширений.',
+    guideTitle: 'Установите расширение',
+    guideSubtitle: 'Три простых шага — займёт меньше минуты.',
     guideSteps: [
       {
         num: '①',
-        title: 'Откройте страницу расширений в Brave',
-        desc: 'Перейдите по адресу: <code id="ob-ext-url-code" class="ob-code-pill">brave://extensions</code>',
+        title: 'Откройте страницу расширений',
+        desc: 'В Brave откроется вкладка со списком установленных расширений.',
+        ctaText: '🌐 Открыть расширения Brave',
       },
       {
         num: '②',
@@ -97,31 +90,17 @@ const SUPPORTED_BROWSERS = {
       },
       {
         num: '③',
-        title: 'Нажмите «Загрузить распакованное расширение»',
-        desc: 'Кнопка «Load unpacked» появится в верхней панели инструментов.',
-      },
-      {
-        num: '④',
-        title: 'Выберите папку расширения',
-        desc: 'Укажите распакованную папку расширения из блока ниже.',
-      },
-      {
-        num: '⑤',
-        title: 'Убедитесь, что расширение включено',
-        desc: 'Тумблер на карточке Boosty Chat Overlay должен быть активен.',
-      },
-      {
-        num: '⑥',
-        title: 'Вернитесь в приложение и нажмите «Проверить подключение»',
-        desc: 'Приложение автоматически установит связь с расширением.',
+        title: 'Перетащите папку extension',
+        desc: 'Откройте папку расширения и перетащите именно папку extension в окно страницы расширений браузера.',
+        ctaText: '📁 Открыть папку extension',
+        dndHint: 'Зажмите папку extension мышью и перетащите её на страницу расширений.',
       },
     ],
-    recoveryCardTitle: '❓ Расширение установлено, но приложение пока его не видит?',
+    recoveryCardTitle: 'Расширение не подключилось?',
     recoverySteps: [
-      'Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
       'Убедитесь, что переключатель расширения включён на странице <code id="ob-recovery-url" class="ob-code-pill">brave://extensions</code>.',
-      'Нажмите значок перезагрузки (🔄) на карточке расширения в браузере.',
-      'Затем вернитесь сюда и нажмите «Проверить снова».',
+      'Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
+      'Нажмите «Проверить снова».',
     ],
     linuxCandidates: [
       '/usr/bin/brave-browser',
@@ -145,14 +124,18 @@ const SUPPORTED_BROWSERS = {
     label: 'Google Chrome',
     extensionsUrl: 'chrome://extensions/',
     extensionsUrlDisplay: 'chrome://extensions',
-    openExtensionsBtnText: '🌐 Открыть страницу расширений (Chrome)',
+    openExtensionsBtnText: '🌐 Открыть расширения Chrome',
     openBrowserBtnText: '🌐 Открыть Chrome',
-    guideTitle: 'Откройте страницу расширений в Chrome',
+    supportsDragDropInstall: true,
+    devModeHint: 'Переключатель находится в правом верхнем углу страницы расширений.',
+    guideTitle: 'Установите расширение',
+    guideSubtitle: 'Три простых шага — займёт меньше минуты.',
     guideSteps: [
       {
         num: '①',
-        title: 'Откройте страницу расширений в Chrome',
-        desc: 'Перейдите по адресу: <code id="ob-ext-url-code" class="ob-code-pill">chrome://extensions</code>',
+        title: 'Откройте страницу расширений',
+        desc: 'В Chrome откроется вкладка со списком установленных расширений.',
+        ctaText: '🌐 Открыть расширения Chrome',
       },
       {
         num: '②',
@@ -161,31 +144,17 @@ const SUPPORTED_BROWSERS = {
       },
       {
         num: '③',
-        title: 'Нажмите «Загрузить распакованное расширение»',
-        desc: 'Кнопка «Load unpacked» появится в верхней панели инструментов.',
-      },
-      {
-        num: '④',
-        title: 'Выберите папку расширения',
-        desc: 'Укажите распакованную папку расширения из блока ниже.',
-      },
-      {
-        num: '⑤',
-        title: 'Убедитесь, что расширение включено',
-        desc: 'Тумблер на карточке Boosty Chat Overlay должен быть активен.',
-      },
-      {
-        num: '⑥',
-        title: 'Вернитесь в приложение и нажмите «Проверить подключение»',
-        desc: 'Приложение автоматически установит связь с расширением.',
+        title: 'Перетащите папку extension',
+        desc: 'Откройте папку расширения и перетащите именно папку extension в окно страницы расширений браузера.',
+        ctaText: '📁 Открыть папку extension',
+        dndHint: 'Зажмите папку extension мышью и перетащите её на страницу расширений.',
       },
     ],
-    recoveryCardTitle: '❓ Расширение установлено, но приложение пока его не видит?',
+    recoveryCardTitle: 'Расширение не подключилось?',
     recoverySteps: [
-      'Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
       'Убедитесь, что переключатель расширения включён на странице <code id="ob-recovery-url" class="ob-code-pill">chrome://extensions</code>.',
-      'Нажмите значок перезагрузки (🔄) на карточке расширения в браузере.',
-      'Затем вернитесь сюда и нажмите «Проверить снова».',
+      'Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
+      'Нажмите «Проверить снова».',
     ],
     linuxCandidates: [
       '/usr/bin/google-chrome',
@@ -209,14 +178,18 @@ const SUPPORTED_BROWSERS = {
     label: 'Microsoft Edge',
     extensionsUrl: 'edge://extensions/',
     extensionsUrlDisplay: 'edge://extensions',
-    openExtensionsBtnText: '🌐 Открыть страницу расширений (Edge)',
+    openExtensionsBtnText: '🌐 Открыть расширения Edge',
     openBrowserBtnText: '🌐 Открыть Edge',
-    guideTitle: 'Откройте страницу расширений в Edge',
+    supportsDragDropInstall: true,
+    devModeHint: 'Переключатель находится в левой боковой панели страницы расширений.',
+    guideTitle: 'Установите расширение',
+    guideSubtitle: 'Три простых шага — займёт меньше минуты.',
     guideSteps: [
       {
         num: '①',
-        title: 'Откройте страницу расширений в Edge',
-        desc: 'Перейдите по адресу: <code id="ob-ext-url-code" class="ob-code-pill">edge://extensions</code>',
+        title: 'Откройте страницу расширений',
+        desc: 'В Edge откроется вкладка со списком установленных расширений.',
+        ctaText: '🌐 Открыть расширения Edge',
       },
       {
         num: '②',
@@ -225,31 +198,17 @@ const SUPPORTED_BROWSERS = {
       },
       {
         num: '③',
-        title: 'Нажмите «Загрузить распакованное расширение»',
-        desc: 'Кнопка появится в верхней панели инструментов.',
-      },
-      {
-        num: '④',
-        title: 'Выберите папку расширения',
-        desc: 'Укажите распакованную папку расширения из блока ниже.',
-      },
-      {
-        num: '⑤',
-        title: 'Убедитесь, что расширение включено',
-        desc: 'Тумблер на карточке Boosty Chat Overlay должен быть активен.',
-      },
-      {
-        num: '⑥',
-        title: 'Вернитесь в приложение и нажмите «Проверить подключение»',
-        desc: 'Приложение автоматически установит связь с расширением.',
+        title: 'Перетащите папку extension',
+        desc: 'Откройте папку расширения и перетащите именно папку extension в окно страницы расширений браузера.',
+        ctaText: '📁 Открыть папку extension',
+        dndHint: 'Зажмите папку extension мышью и перетащите её на страницу расширений.',
       },
     ],
-    recoveryCardTitle: '❓ Расширение установлено, но приложение пока его не видит?',
+    recoveryCardTitle: 'Расширение не подключилось?',
     recoverySteps: [
-      'Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
       'Убедитесь, что переключатель расширения включён на странице <code id="ob-recovery-url" class="ob-code-pill">edge://extensions</code>.',
-      'Нажмите значок перезагрузки (🔄) на карточке расширения в браузере.',
-      'Затем вернитесь сюда и нажмите «Проверить снова».',
+      'Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
+      'Нажмите «Проверить снова».',
     ],
     linuxCandidates: [
       '/usr/bin/microsoft-edge',
@@ -270,16 +229,20 @@ const SUPPORTED_BROWSERS = {
     id: 'chromium',
     name: 'Chromium',
     label: 'Chromium',
-    extensionsUrl: 'chrome://extensions',
+    extensionsUrl: 'chrome://extensions/',
     extensionsUrlDisplay: 'chrome://extensions',
-    openExtensionsBtnText: '🌐 Открыть страницу расширений (Chromium)',
+    openExtensionsBtnText: '🌐 Открыть расширения Chromium',
     openBrowserBtnText: '🌐 Открыть Chromium',
-    guideTitle: 'Откройте страницу расширений в Chromium',
+    supportsDragDropInstall: true,
+    devModeHint: 'Переключатель находится в правом верхнем углу страницы расширений.',
+    guideTitle: 'Установите расширение',
+    guideSubtitle: 'Три простых шага — займёт меньше минуты.',
     guideSteps: [
       {
         num: '①',
-        title: 'Откройте страницу расширений в Chromium',
-        desc: 'Перейдите по адресу: <code id="ob-ext-url-code" class="ob-code-pill">chrome://extensions</code>',
+        title: 'Откройте страницу расширений',
+        desc: 'В Chromium откроется вкладка со списком установленных расширений.',
+        ctaText: '🌐 Открыть расширения Chromium',
       },
       {
         num: '②',
@@ -288,21 +251,17 @@ const SUPPORTED_BROWSERS = {
       },
       {
         num: '③',
-        title: 'Нажмите «Загрузить распакованное расширение»',
-        desc: 'Кнопка появится в верхней панели инструментов.',
-      },
-      {
-        num: '④',
-        title: 'Выберите папку расширения',
-        desc: 'Укажите распакованную папку расширения из блока ниже.',
+        title: 'Перетащите папку extension',
+        desc: 'Откройте папку расширения и перетащите именно папку extension в окно страницы расширений браузера.',
+        ctaText: '📁 Открыть папку extension',
+        dndHint: 'Зажмите папку extension мышью и перетащите её на страницу расширений.',
       },
     ],
-    recoveryCardTitle: '❓ Расширение установлено, но приложение пока его не видит?',
+    recoveryCardTitle: 'Расширение не подключилось?',
     recoverySteps: [
-      'Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
       'Убедитесь, что переключатель расширения включён на странице <code id="ob-recovery-url" class="ob-code-pill">chrome://extensions</code>.',
-      'Нажмите значок перезагрузки (🔄) на карточке расширения в браузере.',
-      'Затем вернитесь сюда и нажмите «Проверить снова».',
+      'Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).',
+      'Нажмите «Проверить снова».',
     ],
     linuxCandidates: [
       '/usr/bin/chromium',
@@ -325,7 +284,7 @@ function getBrowserMetadata(browserId) {
 
 function getExtensionsUrlForBrowser(browserId) {
   const meta = SUPPORTED_BROWSERS[browserId];
-  return meta?.extensionsUrl || 'chrome://extensions';
+  return meta?.extensionsUrl || 'chrome://extensions/';
 }
 
 function getSupportedBrowserList() {

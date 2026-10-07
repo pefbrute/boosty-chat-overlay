@@ -137,128 +137,245 @@
       <!-- Step 1: Browser & Extension -->
       <section id="step-1" class="wizard-panel active">
         <div class="card-hero">
-          <h2>Подключите расширение Boosty Chat Overlay</h2>
-          <p>Расширение передаёт сообщения из Boosty в приложение.</p>
+          <h2 id="ob-hero-title">Установите расширение</h2>
+          <p id="ob-hero-subtitle">Три простых шага — займёт меньше минуты.</p>
         </div>
 
         <div class="card">
-          <!-- 1. Browser Choice Section -->
+          <!-- 1. Browser Choice Section (compact) -->
           <div class="ob-section ob-browser-section">
             <div class="ob-section-header">
-              <span class="ob-step-badge">1</span>
               <span id="ob-browser-prompt" class="ob-section-title">В каком браузере вы открываете Boosty?</span>
             </div>
             <div id="ob-browser-options" class="browser-choice-grid"></div>
           </div>
 
-          <!-- 2. Step-by-Step Instructions -->
-          <div class="ob-section ob-guide-section">
-            <div class="ob-section-header">
-              <span class="ob-step-badge">2</span>
-              <span id="ob-guide-title" class="ob-section-title">Пошаговая установка расширения</span>
+          <!-- Banner if extension is already connected -->
+          <div id="ob-ext-already-connected-banner" class="ob-already-connected-banner" style="display: none;">
+            <div class="ob-already-connected-content">
+              <div class="ob-already-title">✓ Расширение уже подключено</div>
+              <div class="ob-already-subtitle">Всё готово. Можно продолжать.</div>
             </div>
-            <div id="ob-guide-steps" class="ob-guide-steps">
-              <div class="ob-guide-step">
-                <span class="ob-step-num">①</span>
-                <div class="ob-step-body">
-                  <div class="ob-step-title">Откройте страницу расширений в браузере</div>
-                  <div class="ob-step-desc">
-                    Перейдите по адресу: <code id="ob-ext-url-code" class="ob-code-pill">brave://extensions</code>
+            <button id="ob-show-instructions-btn" class="secondary btn-sm" type="button">
+              Переустановить / показать инструкцию
+            </button>
+          </div>
+
+          <!-- Mini-Lesson Video Tutorial Card -->
+          <div id="ob-tutorial-card" class="ob-tutorial-card">
+            <div class="ob-tutorial-header">
+              <div class="ob-tutorial-title-wrap">
+                <span class="ob-tutorial-badge">Как установить — 10 сек</span>
+                <h3 class="ob-tutorial-title">Посмотрите, как это сделать</h3>
+              </div>
+              <div class="ob-tutorial-actions">
+                <button id="ob-tutorial-expand-btn" class="ob-tutorial-ctrl-btn secondary" type="button" aria-label="Показать видео крупнее" title="Показать видео крупнее">
+                  <span id="ob-tutorial-expand-icon">🔍</span>
+                  <span id="ob-tutorial-expand-text">Крупнее</span>
+                </button>
+                <button id="ob-tutorial-toggle-btn" class="ob-tutorial-ctrl-btn" type="button" aria-label="Пауза видео" title="Пауза / Воспроизведение">
+                  <span id="ob-tutorial-pause-icon">⏸</span>
+                  <span id="ob-tutorial-play-icon" style="display: none;">▶</span>
+                  <span id="ob-tutorial-ctrl-text">Пауза</span>
+                </button>
+                <button id="ob-tutorial-scheme-btn" class="ob-tutorial-ctrl-btn secondary" type="button" aria-label="Схема шагов" title="Показать схему вместо видео">
+                  <span id="ob-tutorial-scheme-text">Схема</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="ob-tutorial-player-wrapper">
+              <video
+                id="ob-tutorial-video"
+                class="ob-tutorial-video"
+                preload="none"
+                data-src="assets/tutorials/yandex-extension-install.webm"
+                poster="assets/tutorials/yandex-extension-install-poster.png"
+                muted
+                playsinline
+                loop
+                aria-label="Обучающее видео: установка расширения Boosty Chat Overlay"
+              ></video>
+
+              <!-- Static Diagram Fallback -->
+              <div id="ob-tutorial-static-fallback" class="ob-tutorial-static-fallback" style="display: none;">
+                <img
+                  src="assets/tutorials/yandex-extension-install-diagram.svg"
+                  alt="Схема установки: 1. Откройте расширения -> 2. Режим разработчика -> 3. Перетащите папку extension"
+                  class="ob-tutorial-diagram-img"
+                />
+              </div>
+
+              <!-- Reduced Motion Overlay -->
+              <div id="ob-tutorial-rm-overlay" class="ob-tutorial-rm-overlay" style="display: none;">
+                <div class="ob-tutorial-rm-content">
+                  <span class="ob-tutorial-rm-text">Автовоспроизведение отключено</span>
+                  <button id="ob-tutorial-rm-play-btn" class="secondary btn-sm" type="button">
+                    ▶ Показать видео
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lightbox / Modal for Larger Tutorial Video -->
+          <div id="ob-tutorial-lightbox" class="ob-tutorial-lightbox" style="display: none;" role="dialog" aria-modal="true" aria-label="Обучающее видео: Как установить расширение">
+            <div class="ob-tutorial-lightbox-backdrop" id="ob-tutorial-lightbox-backdrop"></div>
+            <div class="ob-tutorial-lightbox-dialog">
+              <div class="ob-tutorial-lightbox-header">
+                <div class="ob-tutorial-title-wrap">
+                  <span class="ob-tutorial-badge">Как установить — 10 сек</span>
+                  <h3 class="ob-tutorial-title">Посмотрите, как это сделать</h3>
+                </div>
+                <button id="ob-tutorial-lightbox-close" class="ob-tutorial-lightbox-close-btn" type="button" aria-label="Закрыть">✕</button>
+              </div>
+              <div class="ob-tutorial-lightbox-video-wrapper">
+                <video
+                  id="ob-tutorial-lightbox-video"
+                  class="ob-tutorial-lightbox-video"
+                  muted
+                  playsinline
+                  loop
+                  controls
+                ></video>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Main 3-Step Setup Flow -->
+          <div id="ob-three-steps-container" class="ob-three-steps-container">
+            <!-- Step 1 Card -->
+            <div class="ob-step-card" data-step="1">
+              <div class="ob-step-card-header">
+                <span class="ob-step-card-num">1</span>
+                <div class="ob-step-card-info">
+                  <h3 id="ob-step1-title" class="ob-step-card-title">Откройте страницу расширений</h3>
+                  <p id="ob-step1-desc" class="ob-step-card-desc">В браузере откроется страница установленных расширений.</p>
+                </div>
+              </div>
+              <div class="ob-step-card-action">
+                <button id="ob-open-ext-page-btn" class="primary btn-large" type="button">
+                  🌐 Открыть расширения Яндекс Браузера
+                </button>
+                <div class="ob-step-secondary-url">
+                  <span class="ob-url-label">Адрес:</span>
+                  <code id="ob-ext-url-code" class="ob-code-pill">browser://extensions</code>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 2 Card -->
+            <div class="ob-step-card" data-step="2">
+              <div class="ob-step-card-header">
+                <span class="ob-step-card-num">2</span>
+                <div class="ob-step-card-info">
+                  <h3 id="ob-step2-title" class="ob-step-card-title">Включите «Режим разработчика»</h3>
+                  <p id="ob-step2-desc" class="ob-step-card-desc">Переключатель находится в правом верхнем углу страницы расширений.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3 Card -->
+            <div class="ob-step-card" data-step="3">
+              <div class="ob-step-card-header">
+                <span class="ob-step-card-num">3</span>
+                <div class="ob-step-card-info">
+                  <h3 id="ob-step3-title" class="ob-step-card-title">Перетащите папку extension</h3>
+                  <p id="ob-step3-desc" class="ob-step-card-desc">Откройте папку расширения и перетащите именно папку extension в окно страницы расширений браузера.</p>
+                </div>
+              </div>
+              <div class="ob-step-card-action">
+                <button id="ob-open-ext-folder-btn" class="primary btn-large" type="button">
+                  📁 Открыть папку extension
+                </button>
+                <div id="ob-folder-opened-hint" class="ob-folder-opened-hint" style="display: none;">
+                  <span>✓ Папка extension открыта</span>
+                </div>
+                <div id="ob-drag-drop-hint" class="ob-drag-drop-hint">
+                  <div class="ob-drag-drop-badge">
+                    <svg class="ob-dnd-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span class="ob-dnd-arrow">➔</span>
+                    <svg class="ob-dnd-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="3" width="20" height="18" rx="2"></rect>
+                      <path d="M2 9h20"></path>
+                    </svg>
                   </div>
-                </div>
-              </div>
-              <div class="ob-guide-step">
-                <span class="ob-step-num">②</span>
-                <div class="ob-step-body">
-                  <div class="ob-step-title">Включите «Режим разработчика»</div>
-                  <div class="ob-step-desc">Переключатель находится в правом верхнем углу страницы расширений.</div>
-                </div>
-              </div>
-              <div class="ob-guide-step">
-                <span class="ob-step-num">③</span>
-                <div class="ob-step-body">
-                  <div class="ob-step-title">Нажмите «Загрузить распакованное расширение»</div>
-                  <div class="ob-step-desc">Кнопка «Load unpacked» появится в верхней панели инструментов.</div>
-                </div>
-              </div>
-              <div class="ob-guide-step">
-                <span class="ob-step-num">④</span>
-                <div class="ob-step-body">
-                  <div class="ob-step-title">Выберите папку расширения</div>
-                  <div class="ob-step-desc">Укажите распакованную папку расширения из блока ниже.</div>
+                  <span class="ob-dnd-text">Зажмите папку extension мышью и перетащите её на страницу расширений.</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 3. Extension Folder Block -->
-          <div class="ob-section ob-folder-section">
-            <div class="ob-folder-header">
-              <span class="ob-folder-label">Папка расширения</span>
-            </div>
-            <div class="ob-folder-box">
-              <div class="ob-folder-path-wrap">
-                <code id="ob-ext-folder-path" class="ob-folder-path">Определяем путь…</code>
+          <!-- 3. Manual Fallback Accordion (Collapsed by default) -->
+          <details id="ob-manual-fallback" class="ob-fallback-accordion">
+            <summary class="ob-fallback-summary">
+              <span>Не получилось перетащить папку extension? <strong class="ob-fallback-link">Установить вручную</strong></span>
+            </summary>
+            <div class="ob-fallback-content">
+              <ol class="ob-fallback-steps">
+                <li>Нажмите <strong>«Загрузить распакованное расширение»</strong> и выберите папку <strong>extension</strong>.</li>
+                <li>Убедитесь, что выбрана именно папка <code>extension</code> внутри установки приложения.</li>
+              </ol>
+              <div class="ob-fallback-folder-box">
+                <div class="ob-folder-path-wrap">
+                  <span class="ob-folder-label">Путь к папке extension:</span>
+                  <code id="ob-ext-folder-path" class="ob-folder-path">Определяем путь…</code>
+                </div>
+                <div class="ob-folder-btns">
+                  <button id="ob-manual-open-folder-btn" class="secondary btn-sm" type="button">
+                    📁 Открыть папку extension
+                  </button>
+                  <button id="ob-copy-ext-path-btn" class="secondary btn-sm" type="button">
+                    📋 Скопировать путь
+                  </button>
+                </div>
               </div>
-              <div class="ob-folder-btns">
-                <button id="ob-open-ext-folder-btn" class="secondary" type="button">
-                  📁 Открыть папку
-                </button>
-                <button id="ob-copy-ext-path-btn" class="secondary" type="button">
-                  📋 Скопировать путь
-                </button>
-              </div>
             </div>
-          </div>
+          </details>
 
-          <!-- 4. Primary Actions (CTAs) -->
-          <div class="ob-section ob-actions-section">
-            <div class="actions ob-primary-actions-grid">
-              <button id="ob-open-ext-page-btn" class="primary btn-large" type="button">
-                🌐 Открыть страницу расширений
-              </button>
-              <button id="ob-reopen-folder-btn" class="secondary btn-large" type="button">
-                📁 Открыть папку расширения
-              </button>
-              <button id="ob-recheck-btn" class="secondary" type="button">
-                🔄 Проверить подключение
-              </button>
-            </div>
-          </div>
-
-          <!-- 5. Status Card -->
+          <!-- 4. Live Status Card -->
           <div id="ob-ext-status-box" class="status-box ob-status-card">
             <div class="ob-status-header">
-              <div id="ob-ext-status-badge" class="badge checking">
-                <span class="badge-dot"></span> <span id="ob-ext-status-text">Проверяем расширение…</span>
+              <div class="ob-status-title-wrap">
+                <span class="ob-status-title">Статус расширения:</span>
+                <div id="ob-ext-status-badge" class="badge checking">
+                  <span class="badge-dot"></span> <span id="ob-ext-status-text">Ожидаем подключение…</span>
+                </div>
               </div>
             </div>
-            <div id="ob-ext-hint" class="hint-text">Ищем связь с браузером…</div>
+            <div id="ob-ext-hint" class="hint-text">Связь установится автоматически, как только вы перетащите папку extension в браузер.</div>
 
             <div id="ob-ext-success-msg" class="success-message" style="display: none;">
-              <div class="success-title">✓ Расширение подключено и готово к работе</div>
+              <div class="success-title">✓ Расширение подключено</div>
+              <div class="success-desc">Всё готово. Можно продолжать.</div>
             </div>
 
             <div id="ob-ext-version-warning" class="version-warning" style="display: none;">
-              <span>⚠ Доступно обновление расширения (<span id="ob-ext-current-ver">v0.2.0</span> → <span id="ob-ext-latest-ver">v0.4.0</span>)</span>
+              <span>⚠ Доступно обновление расширения (<span id="ob-ext-current-ver">v0.2.0</span> → <span id="ob-ext-latest-ver">v0.5.0</span>)</span>
               <button id="ob-ext-update-btn" class="inline-btn primary" type="button">Обновить расширение</button>
             </div>
           </div>
 
-          <!-- 6. Recovery Help Section -->
-          <div id="ob-recovery-box" class="ob-recovery-card">
+          <!-- 5. Recovery Help Section (Compact, hidden until timeout or problem) -->
+          <div id="ob-recovery-box" class="ob-recovery-card" style="display: none;">
             <div class="ob-recovery-title">
-              <span id="ob-recovery-title-text">❓ Расширение установлено, но приложение пока его не видит?</span>
+              <span id="ob-recovery-title-text">Расширение не подключилось?</span>
             </div>
             <div class="ob-recovery-content">
-              <ul id="ob-recovery-list" class="ob-recovery-list">
-                <li>Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).</li>
-                <li>Убедитесь, что переключатель расширения включён на странице <code id="ob-recovery-url" class="ob-code-pill">brave://extensions</code>.</li>
-                <li>Нажмите значок перезагрузки (🔄) на карточке расширения в браузере.</li>
-                <li>Затем вернитесь сюда и нажмите «Проверить снова».</li>
-              </ul>
+              <ol id="ob-recovery-list" class="ob-recovery-list">
+                <li>Убедитесь, что расширение включено на странице расширений.</li>
+                <li>Обновите вкладку со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).</li>
+                <li>Нажмите «Проверить снова».</li>
+              </ol>
               <div class="ob-recovery-actions">
-                <button id="ob-recovery-recheck-btn" class="secondary btn-sm" type="button">Проверить снова</button>
+                <button id="ob-recovery-open-ext-btn" class="secondary btn-sm" type="button">
+                  🌐 Открыть расширения
+                </button>
+                <button id="ob-recovery-recheck-btn" class="secondary btn-sm" type="button">
+                  🔄 Проверить снова
+                </button>
               </div>
             </div>
           </div>
@@ -310,12 +427,24 @@
         </div>
 
         <div class="card">
-          <div class="status-box">
-            <div id="ob-obs-status-badge" class="badge pending">
-              <span class="badge-dot"></span> <span id="ob-obs-status-text">OBS не подключён</span>
+          <div id="ob-obs-status-box" class="status-box ob-obs-status-box">
+            <div class="ob-obs-status-header">
+              <div id="ob-obs-status-badge" class="badge pending">
+                <span class="badge-dot"></span> <span id="ob-obs-status-text">OBS пока не обнаружен</span>
+              </div>
+              <div id="ob-obs-status-actions" class="actions ob-obs-status-actions">
+                <button id="ob-refresh-obs-btn" class="primary obs-refresh-btn obs-refresh-attention" type="button" title="Проверить подключение к OBS и наличие источника" aria-label="Проверить снова">
+                  <span id="ob-refresh-obs-icon" class="obs-refresh-icon" aria-hidden="true">↻</span>
+                  <span id="ob-refresh-obs-label">Проверить снова</span>
+                </button>
+                <div id="ob-obs-launch-container" class="actions">
+                  <button id="ob-launch-obs-btn" class="secondary" type="button">Запустить OBS Studio</button>
+                </div>
+              </div>
             </div>
-            <div id="ob-obs-launch-container" class="actions center-actions">
-              <button id="ob-launch-obs-btn" class="secondary">Запустить OBS Studio</button>
+            <div id="ob-obs-waiting-hint" class="ob-obs-waiting-hint">
+              <strong id="ob-obs-waiting-lead">OBS уже запущен? Нажмите «Проверить снова».</strong>
+              <span id="ob-obs-waiting-sub">Если OBS уже запущен или источник добавлен — нажмите «Проверить снова».</span>
             </div>
           </div>
 
@@ -340,12 +469,10 @@
             <div class="field-group" style="margin-top: 14px;">
               <label for="ob-obs-scene-select" class="field-label">Сцена OBS Studio</label>
               <div class="actions">
-                <select id="ob-obs-scene-select" aria-label="Сцена OBS"></select>
-                <button id="ob-add-obs-btn" class="primary">Добавить чат</button>
-                <button id="ob-refresh-obs-btn" class="secondary" title="Обновить список сцен" aria-label="Обновить список сцен">
-                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg>
-                  <span>Обновить</span>
-                </button>
+                <select id="ob-obs-scene-select" aria-label="Сцена OBS" disabled>
+                  <option value="">Запустите OBS Studio…</option>
+                </select>
+                <button id="ob-add-obs-btn" class="secondary" type="button" disabled>Добавить чат</button>
               </div>
             </div>
             <div id="ob-obs-auth-alert" class="obs-auth-alert" style="display: none;">

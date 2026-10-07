@@ -1332,6 +1332,165 @@ async function runVisualQa() {
     statesChecked.push('onboarding');
     console.log('✓ Onboarding view verified -> onboarding.png');
 
+    // Onboarding at 800x650 (CTA visibility verification per ТЗ section 16)
+    await bw.evaluate((b) => b.setContentSize(800, 650));
+    await win.setViewportSize({ width: 800, height: 650 });
+    await win.waitForTimeout(300);
+    await captureScreenshot('onboarding-800x650.png');
+    await captureScreenshot('tutorial-v2-09-compact-800x650.png');
+
+    // Verify Step 1 CTA button is visible in first viewport without scrolling
+    const ctaBox = await win.evaluate(() => {
+      const btn = document.querySelector('#ob-open-ext-page-btn');
+      if (!btn) return null;
+      const rect = btn.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, height: rect.height, innerHeight: window.innerHeight };
+    });
+    if (ctaBox && ctaBox.bottom > 650) {
+      layoutIssues.push(`[Viewport 800x650] Step 1 CTA button bottom (${Math.round(ctaBox.bottom)}px) overflows first viewport 650px`);
+    } else {
+      console.log(`✓ Step 1 CTA visible without scroll on 800x650 (bottom: ${Math.round(ctaBox?.bottom || 0)}px <= 650px)`);
+    }
+
+    await bw.evaluate((b) => b.setContentSize(1280, 850));
+    await win.setViewportSize({ width: 1280, height: 850 });
+    await win.waitForTimeout(300);
+
+    // Tutorial Mini-Lesson v2 QA sequence (tutorial-v2-01 to tutorial-v2-10 per ТЗ section 27)
+    // 1. Address focus & click (Scene 1: ~0.6s)
+    await win.evaluate(() => {
+      const vid = document.querySelector('#ob-tutorial-video');
+      if (vid) {
+        vid.pause();
+        vid.currentTime = 0.6;
+      }
+    });
+    await win.waitForTimeout(300);
+    await captureScreenshot('tutorial-v2-01-address-focus.png');
+    await captureScreenshot('tutorial-01-video-start.png');
+
+    // 2. URL typewriter typing (Scene 1: ~1.2s)
+    await win.evaluate(() => {
+      const vid = document.querySelector('#ob-tutorial-video');
+      if (vid) vid.currentTime = 1.2;
+    });
+    await win.waitForTimeout(300);
+    await captureScreenshot('tutorial-v2-02-url-typing.png');
+
+    // 3. Dev Mode toggle click (Scene 2: ~3.75s)
+    await win.evaluate(() => {
+      const vid = document.querySelector('#ob-tutorial-video');
+      if (vid) vid.currentTime = 3.75;
+    });
+    await win.waitForTimeout(300);
+    await captureScreenshot('tutorial-v2-03-toggle-click.png');
+    await captureScreenshot('tutorial-02-developer-mode.png');
+
+    // 4. File manager origin window (Scene 3: ~5.5s)
+    await win.evaluate(() => {
+      const vid = document.querySelector('#ob-tutorial-video');
+      if (vid) vid.currentTime = 5.5;
+    });
+    await win.waitForTimeout(300);
+    await captureScreenshot('tutorial-v2-04-file-manager.png');
+    await captureScreenshot('tutorial-v3-01-extension-folder-visible.png');
+
+    // 5. Folder grab with lift shadow (Scene 3: ~6.4s)
+    await win.evaluate(() => {
+      const vid = document.querySelector('#ob-tutorial-video');
+      if (vid) vid.currentTime = 6.4;
+    });
+    await win.waitForTimeout(300);
+    await captureScreenshot('tutorial-v2-05-folder-grab.png');
+    await captureScreenshot('tutorial-v3-02-extension-folder-grab.png');
+
+    // 6. Continuous folder drag to browser (Scene 3: ~7.8s)
+    await win.evaluate(() => {
+      const vid = document.querySelector('#ob-tutorial-video');
+      if (vid) vid.currentTime = 7.8;
+    });
+    await win.waitForTimeout(300);
+    await captureScreenshot('tutorial-v2-06-folder-drag.png');
+    await captureScreenshot('tutorial-v3-03-extension-folder-drag.png');
+    await captureScreenshot('tutorial-03-drag-folder.png');
+
+    // 7. Drop in browser (Scene 3: ~8.8s)
+    await win.evaluate(() => {
+      const vid = document.querySelector('#ob-tutorial-video');
+      if (vid) vid.currentTime = 8.8;
+    });
+    await win.waitForTimeout(300);
+    await captureScreenshot('tutorial-v2-07-drop.png');
+
+    // 8. Completed installed extension card & ✓ Готово (Scene 3: ~10.5s)
+    await win.evaluate(() => {
+      const vid = document.querySelector('#ob-tutorial-video');
+      if (vid) vid.currentTime = 10.5;
+    });
+    await win.waitForTimeout(300);
+    await captureScreenshot('tutorial-v2-08-complete.png');
+    await captureScreenshot('tutorial-v3-04-extension-folder-drop.png');
+    await captureScreenshot('tutorial-04-complete.png');
+
+    // v3-05: Text guide showing Step 3 with `extension` folder opened hint
+    await win.evaluate(() => {
+      const hint = document.querySelector('#ob-folder-opened-hint');
+      if (hint) hint.style.display = 'inline-flex';
+      const step3Card = document.querySelector('.ob-step-card[data-step="3"]');
+      if (step3Card) step3Card.scrollIntoView({ behavior: 'instant', block: 'center' });
+    });
+    await win.waitForTimeout(200);
+    await captureScreenshot('tutorial-v3-05-text-guide-extension.png');
+
+    // v3-06: Manual fallback accordion opened showing `extension` instructions and path
+    await win.evaluate(() => {
+      const details = document.querySelector('#ob-manual-fallback');
+      if (details) {
+        details.open = true;
+        details.scrollIntoView({ behavior: 'instant', block: 'center' });
+      }
+    });
+    await win.waitForTimeout(200);
+    await captureScreenshot('tutorial-v3-06-manual-fallback-extension.png');
+
+    // Reset scroll & fallback accordion
+    await win.evaluate(() => {
+      const details = document.querySelector('#ob-manual-fallback');
+      if (details) details.open = false;
+      const hint = document.querySelector('#ob-folder-opened-hint');
+      if (hint) hint.style.display = 'none';
+      const step1 = document.querySelector('#step-1');
+      if (step1) step1.scrollTop = 0;
+      window.scrollTo(0, 0);
+    });
+    await win.waitForTimeout(150);
+
+    // Reduced Motion state
+    await win.evaluate(() => {
+      const rmOverlay = document.querySelector('#ob-tutorial-rm-overlay');
+      if (rmOverlay) rmOverlay.style.display = 'flex';
+    });
+    await win.waitForTimeout(200);
+    await captureScreenshot('tutorial-05-reduced-motion.png');
+    await win.evaluate(() => {
+      const rmOverlay = document.querySelector('#ob-tutorial-rm-overlay');
+      if (rmOverlay) rmOverlay.style.display = 'none';
+    });
+
+    // Static Fallback / Diagram state
+    await win.evaluate(() => {
+      const schemeBtn = document.querySelector('#ob-tutorial-scheme-btn');
+      if (schemeBtn) schemeBtn.click();
+    });
+    await win.waitForTimeout(200);
+    await captureScreenshot('tutorial-v2-10-static-fallback.png');
+    await captureScreenshot('tutorial-v3-07-static-fallback-extension.png');
+    await captureScreenshot('tutorial-06-video-fallback.png');
+    await win.evaluate(() => {
+      const schemeBtn = document.querySelector('#ob-tutorial-scheme-btn');
+      if (schemeBtn) schemeBtn.click(); // revert
+    });
+
     await applyState({
       view: 'onboarding',
       step: 3,
@@ -1347,6 +1506,137 @@ async function runVisualQa() {
     await captureScreenshot('onboarding-step3-auth-failed.png');
     statesChecked.push('onboarding-step3-auth-failed');
     console.log('✓ Onboarding Step 3 Auth Failed verified -> onboarding-step3-auth-failed.png');
+
+    // =========================================================================
+    // 5.2.5 Onboarding OBS Refresh CTA UX (ТЗ: ONBOARDING OBS — СДЕЛАТЬ КНОПКУ «ОБНОВИТЬ» ОЧЕВИДНОЙ И ЗАМЕТНОЙ)
+    // =========================================================================
+    console.log('\n--- Onboarding OBS Refresh CTA UX Verification ---');
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1280, h: 850 });
+    await win.setViewportSize({ width: 1280, height: 850 });
+    await win.waitForTimeout(80);
+
+    // 1. obs-refresh-01-waiting.png: OBS not yet detected (calm waiting state)
+    await applyState({
+      view: 'onboarding',
+      step: 3,
+      isObsRefreshChecking: false,
+      obsResultText: '',
+      obs: {
+        ok: true,
+        connected: false,
+        authFailed: false,
+        scenes: [],
+      },
+    });
+    await verifyLayout('obs-refresh-01-waiting');
+    await captureScreenshot('obs-refresh-01-waiting.png');
+    statesChecked.push('obs-refresh-01-waiting');
+
+    // 2. obs-refresh-02-primary-cta.png: Primary CTA hover/focus highlight
+    await win.hover('#ob-refresh-obs-btn');
+    await win.waitForTimeout(100);
+    await captureScreenshot('obs-refresh-02-primary-cta.png');
+    await win.mouse.move(0, 0);
+    statesChecked.push('obs-refresh-02-primary-cta');
+
+    // 3. obs-refresh-03-checking.png: Checking state (↻ Проверяем…, disabled)
+    await applyState({
+      view: 'onboarding',
+      step: 3,
+      isObsRefreshChecking: true,
+      obsResultText: '',
+      obs: {
+        ok: true,
+        connected: false,
+        authFailed: false,
+        scenes: [],
+      },
+    });
+    await verifyLayout('obs-refresh-03-checking');
+    await captureScreenshot('obs-refresh-03-checking.png');
+    statesChecked.push('obs-refresh-03-checking');
+
+    // 4. obs-refresh-05-source-waiting.png: OBS connected, waiting for source
+    await applyState({
+      view: 'onboarding',
+      step: 3,
+      isObsRefreshChecking: false,
+      obsResultText: '✓ OBS обнаружен. Добавьте источник чата в сцену или проверьте снова.',
+      obs: {
+        ok: true,
+        connected: true,
+        authFailed: false,
+        currentProgramSceneName: 'Стрим Boosty',
+        scenes: [
+          { sceneId: 'scene-1', sceneName: 'Стрим Boosty', isCurrentProgram: true, hasChat: false },
+          { sceneId: 'scene-2', sceneName: 'Пауза', isCurrentProgram: false, hasChat: false },
+        ],
+      },
+    });
+    await verifyLayout('obs-refresh-05-source-waiting');
+    await captureScreenshot('obs-refresh-05-source-waiting.png');
+    statesChecked.push('obs-refresh-05-source-waiting');
+
+    // 5. obs-refresh-04-detected.png: OBS + Source detected (refresh lowered to secondary, add button disabled with ✓ Источник уже добавлен)
+    await applyState({
+      view: 'onboarding',
+      step: 3,
+      isObsRefreshChecking: false,
+      obsResultText: '✓ OBS обнаружен · ✓ Источник найден',
+      obs: {
+        ok: true,
+        connected: true,
+        authFailed: false,
+        addedSceneName: 'Стрим Boosty',
+        currentProgramSceneName: 'Стрим Boosty',
+        scenes: [
+          { sceneId: 'scene-1', sceneName: 'Стрим Boosty', isCurrentProgram: true, hasChat: true },
+          { sceneId: 'scene-2', sceneName: 'Пауза', isCurrentProgram: false, hasChat: false },
+        ],
+      },
+    });
+    await verifyLayout('obs-refresh-04-detected');
+    await captureScreenshot('obs-refresh-04-detected.png');
+    statesChecked.push('obs-refresh-04-detected');
+
+    // 6. obs-refresh-06-800x650.png: Compact 800x650 viewport waiting state (above the fold check)
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 800, h: 650 });
+    await win.setViewportSize({ width: 800, height: 650 });
+    await applyState({
+      view: 'onboarding',
+      step: 3,
+      isObsRefreshChecking: false,
+      obsResultText: '',
+      obs: {
+        ok: true,
+        connected: false,
+        authFailed: false,
+        scenes: [],
+      },
+    });
+    await win.waitForTimeout(100);
+    await verifyLayout('obs-refresh-06-800x650');
+    const foldCheck800 = await win.evaluate(() => {
+      const btn = document.querySelector('#ob-refresh-obs-btn');
+      const hint = document.querySelector('#ob-obs-waiting-hint');
+      const btnRect = btn ? btn.getBoundingClientRect() : null;
+      const hintRect = hint ? hint.getBoundingClientRect() : null;
+      return {
+        btnBottom: btnRect ? Math.round(btnRect.bottom) : 9999,
+        hintBottom: hintRect ? Math.round(hintRect.bottom) : 9999,
+      };
+    });
+    if (foldCheck800.btnBottom > 650 || foldCheck800.hintBottom > 650) {
+      layoutIssues.push(`[obs-refresh-06-800x650] Refresh CTA or waiting hint pushed below 650px fold (btnBottom=${foldCheck800.btnBottom}, hintBottom=${foldCheck800.hintBottom})`);
+    }
+    await captureScreenshot('obs-refresh-06-800x650.png');
+    statesChecked.push('obs-refresh-06-800x650');
+    console.log(`✓ Onboarding OBS Refresh CTA UX verified (800x650 fold: btn=${foldCheck800.btnBottom}px, hint=${foldCheck800.hintBottom}px)`);
+
+    // Restore 1280x850 before returning to dashboard
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1280, h: 850 });
+    await win.setViewportSize({ width: 1280, height: 850 });
+    await win.waitForTimeout(60);
 
     // Return to dashboard
     await applyState({ view: 'dashboard' });

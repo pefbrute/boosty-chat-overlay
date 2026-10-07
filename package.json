@@ -1,6 +1,6 @@
 {
   "name": "boosty-chat-overlay",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Local Boosty chat overlay for OBS",
   "author": {
@@ -23,7 +23,7 @@
     "test:model": "node --test test/message-model.test.js",
     "test:core": "node --test test/config.test.js test/health-tracker.test.js test/message-history.test.js test/dedup.test.js test/sse-hub.test.js test/positioning.test.js test/profiles.test.js test/size-presets.test.js test/ui-string-audit.test.js",
     "test:obs": "node --test test/obs-config.test.js test/obs-client.test.js test/obs-scenes.test.js test/obs-service.test.js test/obs-transform.test.js",
-    "test:desktop": "node --test test/browser-manager.test.js test/ipc.test.js test/status-hub.test.js test/connectivity-lifecycle.test.js test/extension-id.test.js test/extension-deployer.test.js test/update-checker.test.js test/single-instance.test.js test/chat-monitor-state.test.js test/chat-monitor-manager.test.js test/chat-monitor-dom.test.js test/technical-issues.test.js test/message-lab.test.js test/app-variant.test.js test/fresh-variant.test.js test/onboarding-extension-ux.test.js",
+    "test:desktop": "node --test test/browser-manager.test.js test/ipc.test.js test/status-hub.test.js test/connectivity-lifecycle.test.js test/extension-id.test.js test/extension-deployer.test.js test/update-checker.test.js test/single-instance.test.js test/chat-monitor-state.test.js test/chat-monitor-manager.test.js test/chat-monitor-dom.test.js test/technical-issues.test.js test/message-lab.test.js test/app-variant.test.js test/fresh-variant.test.js test/onboarding-extension-ux.test.js test/tutorial-v2-accuracy.test.js",
     "test:fresh": "node --test test/fresh-variant.test.js",
     "test:server": "node scripts/test-server.js && node --test test/message-pipeline.test.js",
     "test:helpers": "node --test test/live-sanitizer.test.js test/live-obs.test.js test/live-stream-guardrails.test.js",
@@ -43,7 +43,9 @@
     "test:yandex:visual": "node scripts/visual-test-yandex.js",
     "test:connectivity:stress": "node scripts/stress-test-connectivity.js",
     "test:live": "node scripts/live-e2e.js",
-    "test:live:full": "node scripts/live-e2e-full.js"
+    "test:live:full": "node scripts/live-e2e-full.js",
+    "tutorial:preview": "npm --prefix tools/tutorial-video run preview",
+    "tutorial:render:yandex": "npm --prefix tools/tutorial-video run render:yandex"
   },
   "dependencies": {
     "obs-websocket-js": "^5.0.8",

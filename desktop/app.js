@@ -184,6 +184,12 @@ function setWizardStep(step) {
     el.classList.toggle('active', index + 1 === currentStep);
   });
 
+  if (currentStep === 1) {
+    initTutorialVideo();
+  } else {
+    pauseTutorialVideo();
+  }
+
   if (currentStep === 3) {
     loadObsScenes();
   } else if (currentStep === 4) {
@@ -191,8 +197,148 @@ function setWizardStep(step) {
   }
 }
 
+// --- Tutorial Mini-Lesson Controller ---
+let tutorialVideoLoaded = false;
+let tutorialVideoForcedDiagram = false;
+
+function initTutorialVideo() {
+  const video = document.querySelector('#ob-tutorial-video');
+  const rmOverlay = document.querySelector('#ob-tutorial-rm-overlay');
+  const toggleBtn = document.querySelector('#ob-tutorial-toggle-btn');
+  const pauseIcon = document.querySelector('#ob-tutorial-pause-icon');
+  const playIcon = document.querySelector('#ob-tutorial-play-icon');
+  const ctrlText = document.querySelector('#ob-tutorial-ctrl-text');
+  const schemeBtn = document.querySelector('#ob-tutorial-scheme-btn');
+  const schemeText = document.querySelector('#ob-tutorial-scheme-text');
+  const staticFallback = document.querySelector('#ob-tutorial-static-fallback');
+  const rmPlayBtn = document.querySelector('#ob-tutorial-rm-play-btn');
+  const expandBtn = document.querySelector('#ob-tutorial-expand-btn');
+  const lightbox = document.querySelector('#ob-tutorial-lightbox');
+  const lightboxVideo = document.querySelector('#ob-tutorial-lightbox-video');
+  const lightboxClose = document.querySelector('#ob-tutorial-lightbox-close');
+  const lightboxBackdrop = document.querySelector('#ob-tutorial-lightbox-backdrop');
+
+  if (!video) return;
+
+  const updatePlayPauseUi = (isPaused) => {
+    if (pauseIcon) pauseIcon.style.display = isPaused ? 'none' : 'inline';
+    if (playIcon) playIcon.style.display = isPaused ? 'inline' : 'none';
+    if (ctrlText) ctrlText.textContent = isPaused ? 'Воспроизвести' : 'Пауза';
+  };
+
+  const closeLightbox = () => {
+    if (!lightbox) return;
+    lightbox.style.display = 'none';
+    if (lightboxVideo && !lightboxVideo.paused) {
+      lightboxVideo.pause();
+    }
+  };
+
+  const openLightbox = () => {
+    if (!lightbox) return;
+    lightbox.style.display = 'flex';
+    if (lightboxVideo) {
+      const src = video.dataset.src || video.src || 'assets/tutorials/yandex-extension-install.webm';
+      if (!lightboxVideo.src || lightboxVideo.src !== video.src) {
+        lightboxVideo.src = src;
+      }
+      try {
+        lightboxVideo.currentTime = video.currentTime || 0;
+      } catch (_) {}
+      lightboxVideo.play().catch(() => {});
+    }
+  };
+
+  const prefersReducedMotion = typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!tutorialVideoLoaded) {
+    tutorialVideoLoaded = true;
+    const targetSrc = video.dataset.src || 'assets/tutorials/yandex-extension-install.webm';
+    video.src = targetSrc;
+
+    video.addEventListener('error', () => {
+      if (staticFallback) staticFallback.style.display = 'flex';
+      video.style.display = 'none';
+      if (toggleBtn) toggleBtn.style.display = 'none';
+      if (schemeBtn) schemeBtn.style.display = 'none';
+      if (expandBtn) expandBtn.style.display = 'none';
+    });
+
+    video.addEventListener('play', () => updatePlayPauseUi(false));
+    video.addEventListener('pause', () => updatePlayPauseUi(true));
+
+    toggleBtn?.addEventListener('click', () => {
+      if (video.paused) {
+        video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    });
+
+    schemeBtn?.addEventListener('click', () => {
+      tutorialVideoForcedDiagram = !tutorialVideoForcedDiagram;
+      if (tutorialVideoForcedDiagram) {
+        video.pause();
+        video.style.display = 'none';
+        if (staticFallback) staticFallback.style.display = 'flex';
+        if (schemeText) schemeText.textContent = 'Видео';
+        if (toggleBtn) toggleBtn.style.display = 'none';
+      } else {
+        if (staticFallback) staticFallback.style.display = 'none';
+        video.style.display = 'block';
+        if (schemeText) schemeText.textContent = 'Схема';
+        if (toggleBtn) toggleBtn.style.display = 'inline-flex';
+        if (!prefersReducedMotion) {
+          video.play().catch(() => {});
+        }
+      }
+    });
+
+    rmPlayBtn?.addEventListener('click', () => {
+      if (rmOverlay) rmOverlay.style.display = 'none';
+      video.play().catch(() => {});
+    });
+
+    expandBtn?.addEventListener('click', openLightbox);
+    lightboxClose?.addEventListener('click', closeLightbox);
+    lightboxBackdrop?.addEventListener('click', closeLightbox);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && lightbox && lightbox.style.display === 'flex') {
+        closeLightbox();
+      }
+    });
+  }
+
+  if (tutorialVideoForcedDiagram) return;
+
+  if (prefersReducedMotion) {
+    if (rmOverlay) rmOverlay.style.display = 'flex';
+    updatePlayPauseUi(true);
+  } else {
+    if (rmOverlay) rmOverlay.style.display = 'none';
+    video.play().catch(() => {});
+  }
+}
+
+function pauseTutorialVideo() {
+  const video = document.querySelector('#ob-tutorial-video');
+  if (video && !video.paused) {
+    video.pause();
+  }
+  const lightboxVideo = document.querySelector('#ob-tutorial-lightbox-video');
+  if (lightboxVideo && !lightboxVideo.paused) {
+    lightboxVideo.pause();
+  }
+}
+
 // --- Browser Selection ---
 let availableBrowsers = [];
+let obStep1EnteredAt = Date.now();
+let obInitialExtConnected = null;
+let obManualShowInstructions = false;
 
 async function renderBrowserSelection() {
   const obContainer = document.querySelector('#ob-browser-options');
@@ -280,29 +426,16 @@ function updateBrowserActionButtons() {
   if (setupOpenBrowser) setDomText(setupOpenBrowser, meta.openBrowserBtnText || `🌐 Открыть ${name}`);
 
   const obOpenExtPage = document.querySelector('#ob-open-ext-page-btn');
-  if (obOpenExtPage) setDomText(obOpenExtPage, meta.openExtensionsBtnText || `🌐 Открыть страницу расширений (${name})`);
+  if (obOpenExtPage) setDomText(obOpenExtPage, meta.openExtensionsBtnText || `🌐 Открыть расширения ${name}`);
 
-  // Render guide title and steps dynamically based on selected browser metadata
-  const obGuideTitle = document.querySelector('#ob-guide-title');
-  if (obGuideTitle && meta.guideTitle) {
-    setDomText(obGuideTitle, meta.guideTitle);
+  const obHeroTitle = document.querySelector('#ob-hero-title');
+  if (obHeroTitle && meta.guideTitle) {
+    setDomText(obHeroTitle, meta.guideTitle);
   }
 
-  const obGuideSteps = document.querySelector('#ob-guide-steps');
-  if (obGuideSteps && Array.isArray(meta.guideSteps)) {
-    obGuideSteps.innerHTML = '';
-    for (const step of meta.guideSteps) {
-      const stepEl = document.createElement('div');
-      stepEl.className = 'ob-guide-step';
-      stepEl.innerHTML = `
-        <span class="ob-step-num">${step.num}</span>
-        <div class="ob-step-body">
-          <div class="ob-step-title">${step.title}</div>
-          <div class="ob-step-desc">${step.desc}</div>
-        </div>
-      `;
-      obGuideSteps.appendChild(stepEl);
-    }
+  const obHeroSubtitle = document.querySelector('#ob-hero-subtitle');
+  if (obHeroSubtitle && meta.guideSubtitle) {
+    setDomText(obHeroSubtitle, meta.guideSubtitle);
   }
 
   // Update URL code pills if rendered
@@ -310,13 +443,48 @@ function updateBrowserActionButtons() {
   const obExtUrlCode = document.querySelector('#ob-ext-url-code');
   if (obExtUrlCode) setDomText(obExtUrlCode, extUrlDisplay);
 
+  const obStep1Desc = document.querySelector('#ob-step1-desc');
+  if (obStep1Desc && meta.guideSteps?.[0]?.desc) {
+    setDomText(obStep1Desc, meta.guideSteps[0].desc);
+  }
+
+  const obStep2Desc = document.querySelector('#ob-step2-desc');
+  if (obStep2Desc) {
+    setDomText(obStep2Desc, meta.devModeHint || meta.guideSteps?.[1]?.desc || 'Переключатель находится в правом верхнем углу страницы расширений.');
+  }
+
+  const obStep3Title = document.querySelector('#ob-step3-title');
+  if (obStep3Title && meta.guideSteps?.[2]?.title) {
+    setDomText(obStep3Title, meta.guideSteps[2].title);
+  }
+
+  const obStep3Desc = document.querySelector('#ob-step3-desc');
+  if (obStep3Desc && meta.guideSteps?.[2]?.desc) {
+    setDomText(obStep3Desc, meta.guideSteps[2].desc);
+  }
+
+  const obOpenFolderBtn = document.querySelector('#ob-open-ext-folder-btn');
+  if (obOpenFolderBtn && meta.guideSteps?.[2]?.ctaText) {
+    setDomText(obOpenFolderBtn, meta.guideSteps[2].ctaText);
+  }
+
+  const obDndText = document.querySelector('#ob-drag-drop-hint .ob-dnd-text');
+  if (obDndText && meta.guideSteps?.[2]?.dndHint) {
+    setDomText(obDndText, meta.guideSteps[2].dndHint);
+  }
+
+  // Recovery title, URL, buttons, and steps
   const obRecoveryUrl = document.querySelector('#ob-recovery-url');
   if (obRecoveryUrl) setDomText(obRecoveryUrl, extUrlDisplay);
 
-  // Render recovery title and steps dynamically
   const obRecoveryTitle = document.querySelector('#ob-recovery-title-text');
   if (obRecoveryTitle && meta.recoveryCardTitle) {
     setDomText(obRecoveryTitle, meta.recoveryCardTitle);
+  }
+
+  const obRecoveryOpenExtBtn = document.querySelector('#ob-recovery-open-ext-btn');
+  if (obRecoveryOpenExtBtn) {
+    setDomText(obRecoveryOpenExtBtn, meta.openExtensionsBtnText || `🌐 Открыть расширения ${name}`);
   }
 
   const obRecoveryList = document.querySelector('#ob-recovery-list');
@@ -331,6 +499,11 @@ function updateBrowserActionButtons() {
 }
 
 // --- OBS Integration ---
+function getSceneKey(s) {
+  if (!s) return '';
+  return s.sceneUuid || s.sceneId || s.sceneName || '';
+}
+
 function areObsScenesEqual(a, b) {
   if (a === b) return true;
   if (!Array.isArray(a) || !Array.isArray(b)) return false;
@@ -339,7 +512,7 @@ function areObsScenesEqual(a, b) {
     const s1 = a[i];
     const s2 = b[i];
     if (
-      s1.sceneUuid !== s2.sceneUuid ||
+      getSceneKey(s1) !== getSceneKey(s2) ||
       s1.sceneName !== s2.sceneName ||
       Boolean(s1.hasChat) !== Boolean(s2.hasChat) ||
       Boolean(s1.sceneItemEnabled) !== Boolean(s2.sceneItemEnabled)
@@ -355,22 +528,31 @@ function updateObsActionButton(selectId, btnId) {
   const btn = document.querySelector(btnId);
   if (!select || !btn) return;
 
-  const selectedSceneUuid = select.value;
-  const currentScene = latestObsScenes.find(s => s.sceneUuid === selectedSceneUuid);
+  const isConnected = Boolean(latestObsStatus && latestObsStatus.ok && latestObsStatus.connected);
+  const selectedSceneKey = select.value || select.querySelector('option[selected]')?.getAttribute('value') || select.querySelector('option')?.getAttribute('value') || '';
+  const currentScene = latestObsScenes.find(s => getSceneKey(s) === selectedSceneKey);
 
   if (btnId === '#ob-add-obs-btn') {
-    // In onboarding Step 3, we guide the user to add the chat source to the chosen scene
-    if (currentScene && currentScene.hasChat) {
-      setDomText(btn, 'Чат уже добавлен');
+    if (!isConnected) {
+      setDomText(btn, 'Добавить чат');
       setDomClass(btn, 'secondary');
+      btn.disabled = true;
+      return;
+    }
+    // In onboarding Step 3, if the source already exists, do not offer adding a second duplicate source
+    if (currentScene && currentScene.hasChat) {
+      setDomText(btn, '✓ Источник уже добавлен');
+      setDomClass(btn, 'secondary');
+      btn.disabled = true;
     } else {
       setDomText(btn, 'Добавить чат');
       setDomClass(btn, 'primary');
+      btn.disabled = false;
     }
     return;
   }
 
-  if (!selectedSceneUuid || !currentScene) {
+  if (!selectedSceneKey || !currentScene) {
     setDomText(btn, 'Добавить в сцену');
     setDomClass(btn, 'primary');
     return;
@@ -546,7 +728,7 @@ function renderObsUi(result) {
       if (dashTargetsHint) setDomText(dashTargetsHint, 'OBS найден, но не удалось авторизоваться. Проверьте пароль WebSocket в OBS и в настройках приложения.');
     } else {
       if (obBadge) setDomClass(obBadge, 'badge pending');
-      if (obBadgeText) setDomText(obBadgeText, 'OBS не подключён');
+      if (obBadgeText) setDomText(obBadgeText, 'OBS пока не обнаружен');
       if (dashBadge) {
         setDomClass(dashBadge, 'badge pending');
         setDomText(dashBadge, 'OBS не подключён');
@@ -580,7 +762,7 @@ function renderObsUi(result) {
   if (dashAuthAlert) setDomDisplay(dashAuthAlert, 'none');
   if (launchContainer) setDomDisplay(launchContainer, 'none');
   if (obBadge) setDomClass(obBadge, 'badge connected');
-  if (obBadgeText) setDomText(obBadgeText, 'OBS Studio подключён');
+  if (obBadgeText) setDomText(obBadgeText, '✓ OBS обнаружен');
   if (dashBadge) {
     setDomClass(dashBadge, 'badge connected');
     setDomText(dashBadge, 'OBS подключён');
@@ -602,19 +784,27 @@ function renderObsUi(result) {
 
       for (const scene of latestObsScenes) {
         const opt = document.createElement('option');
-        opt.value = scene.sceneUuid;
+        const key = getSceneKey(scene);
+        opt.value = key;
+        opt.setAttribute('value', key);
         const mark = scene.hasChat ? ' (чат добавлен)' : '';
         opt.textContent = `${scene.sceneName}${mark}`;
         select.append(opt);
       }
 
-      const hasPrev = latestObsScenes.some(s => s.sceneUuid === prevVal);
-      if (hasPrev) {
-        select.value = prevVal;
-      } else {
-        const withChat = latestObsScenes.find(s => s.hasChat);
-        select.value = withChat ? withChat.sceneUuid : latestObsScenes[0].sceneUuid;
-      }
+      const hasPrev = Boolean(prevVal && latestObsScenes.some(s => getSceneKey(s) === prevVal));
+      const withChat = latestObsScenes.find(s => s.hasChat);
+      const targetVal = hasPrev
+        ? prevVal
+        : (withChat ? getSceneKey(withChat) : getSceneKey(latestObsScenes[0]));
+      select.value = targetVal;
+      select.querySelectorAll('option').forEach(opt => {
+        if (opt.getAttribute('value') === targetVal) {
+          opt.setAttribute('selected', 'selected');
+        } else {
+          opt.removeAttribute('selected');
+        }
+      });
     });
   }
 
@@ -700,12 +890,79 @@ function updateObsCanvasStatusUi(result) {
   }
 }
 
+let isObsRefreshChecking = false;
+
 function updateObsStep3State() {
   const step3Btn = document.querySelector('#ob-step3-next-btn');
   const step3Reason = document.querySelector('#ob-step3-reason');
+  const refreshBtn = document.querySelector('#ob-refresh-obs-btn');
+  const refreshIcon = document.querySelector('#ob-refresh-obs-icon');
+  const refreshLabel = document.querySelector('#ob-refresh-obs-label');
+  const waitingHint = document.querySelector('#ob-obs-waiting-hint');
+  const waitingLead = document.querySelector('#ob-obs-waiting-lead');
+  const waitingSub = document.querySelector('#ob-obs-waiting-sub');
+  const obBadge = document.querySelector('#ob-obs-status-badge');
+  const obBadgeText = document.querySelector('#ob-obs-status-text');
+
   const isConnected = Boolean(latestObsStatus && latestObsStatus.ok && latestObsStatus.connected);
   const isAuthFailed = Boolean(latestObsStatus && latestObsStatus.authFailed);
   const hasChatInAnyScene = isConnected && Boolean(addedSceneName || (Array.isArray(latestObsScenes) && latestObsScenes.some(s => s.hasChat)));
+
+  if (isConnected) {
+    if (obBadge) setDomClass(obBadge, 'badge connected');
+    if (obBadgeText) {
+      setDomText(obBadgeText, hasChatInAnyScene ? '✓ OBS обнаружен · ✓ Источник найден' : '✓ OBS обнаружен');
+    }
+  } else if (!isAuthFailed) {
+    if (obBadge) setDomClass(obBadge, 'badge pending');
+    if (obBadgeText) setDomText(obBadgeText, 'OBS пока не обнаружен');
+  }
+
+  if (refreshBtn) {
+    if (isObsRefreshChecking) {
+      refreshBtn.disabled = true;
+      setDomClass(refreshBtn, 'primary obs-refresh-btn is-checking');
+      if (refreshIcon) {
+        setDomText(refreshIcon, '↻');
+        setDomClass(refreshIcon, 'obs-refresh-icon obs-refresh-spinning');
+      }
+      if (refreshLabel) setDomText(refreshLabel, 'Проверяем…');
+    } else if (hasChatInAnyScene) {
+      refreshBtn.disabled = false;
+      setDomClass(refreshBtn, 'secondary obs-refresh-btn is-detected');
+      if (refreshIcon) {
+        setDomText(refreshIcon, '↻');
+        setDomClass(refreshIcon, 'obs-refresh-icon');
+      }
+      if (refreshLabel) setDomText(refreshLabel, 'Проверить снова');
+    } else {
+      refreshBtn.disabled = false;
+      setDomClass(refreshBtn, 'primary obs-refresh-btn obs-refresh-attention');
+      if (refreshIcon) {
+        setDomText(refreshIcon, '↻');
+        setDomClass(refreshIcon, 'obs-refresh-icon');
+      }
+      if (refreshLabel) setDomText(refreshLabel, 'Проверить снова');
+    }
+  }
+
+  if (waitingHint) {
+    if (hasChatInAnyScene) {
+      setDomDisplay(waitingHint, 'none');
+    } else {
+      setDomDisplay(waitingHint, 'flex');
+      if (isConnected) {
+        if (waitingLead) setDomText(waitingLead, 'Источник уже добавлен? Нажмите «Проверить снова».');
+        if (waitingSub) setDomText(waitingSub, 'Если OBS уже запущен или источник добавлен — нажмите «Проверить снова».');
+      } else if (isAuthFailed) {
+        if (waitingLead) setDomText(waitingLead, 'Пароль введён или отключён в OBS? Нажмите «Проверить снова».');
+        if (waitingSub) setDomText(waitingSub, 'Если OBS уже запущен или источник добавлен — нажмите «Проверить снова».');
+      } else {
+        if (waitingLead) setDomText(waitingLead, 'OBS уже запущен? Нажмите «Проверить снова».');
+        if (waitingSub) setDomText(waitingSub, 'Если OBS уже запущен или источник добавлен — нажмите «Проверить снова».');
+      }
+    }
+  }
 
   if (step3Btn) {
     step3Btn.disabled = !hasChatInAnyScene;
@@ -2626,16 +2883,38 @@ function setupEventListeners() {
   document.querySelector('#ob-open-ext-page-btn')?.addEventListener('click', async () => {
     checkGraceDeadline = Date.now() + 8000;
     await extensionFlow.openExtensionsPage(selectedBrowser);
-    await extensionFlow.openFolder();
     refreshStatus();
   });
 
-  document.querySelector('#ob-open-ext-folder-btn')?.addEventListener('click', async () => {
+  const onOpenFolderClick = async () => {
     await extensionFlow.openFolder();
+    const hint = document.querySelector('#ob-folder-opened-hint');
+    if (hint) {
+      setDomDisplay(hint, 'inline-flex');
+    }
+  };
+
+  document.querySelector('#ob-open-ext-folder-btn')?.addEventListener('click', onOpenFolderClick);
+  document.querySelector('#ob-manual-open-folder-btn')?.addEventListener('click', onOpenFolderClick);
+  document.querySelector('#ob-reopen-folder-btn')?.addEventListener('click', onOpenFolderClick);
+
+  document.querySelector('#ob-recovery-open-ext-btn')?.addEventListener('click', async () => {
+    checkGraceDeadline = Date.now() + 8000;
+    await extensionFlow.openExtensionsPage(selectedBrowser);
+    refreshStatus();
   });
 
-  document.querySelector('#ob-reopen-folder-btn')?.addEventListener('click', async () => {
-    await extensionFlow.openFolder();
+  document.querySelector('#ob-show-instructions-btn')?.addEventListener('click', () => {
+    obManualShowInstructions = true;
+    const obThreeSteps = document.querySelector('#ob-three-steps-container');
+    const obAlreadyBanner = document.querySelector('#ob-ext-already-connected-banner');
+    if (obThreeSteps) {
+      setDomDisplay(obThreeSteps, 'flex');
+      obThreeSteps.classList.remove('ob-steps-completed');
+    }
+    if (obAlreadyBanner) {
+      setDomDisplay(obAlreadyBanner, 'none');
+    }
   });
 
   document.querySelector('#ob-copy-ext-path-btn')?.addEventListener('click', async () => {
@@ -2707,15 +2986,29 @@ function setupEventListeners() {
   });
 
   document.querySelector('#ob-refresh-obs-btn')?.addEventListener('click', async () => {
-    const btn = document.querySelector('#ob-refresh-obs-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg><span>Обновляем…</span>';
+    if (isObsRefreshChecking) return;
+    isObsRefreshChecking = true;
+    updateObsStep3State();
+    const resultNode = document.querySelector('#ob-obs-result');
     try {
       await saveObsConnectionConfig('ob');
-      await loadObsScenes('ob');
+      const res = await loadObsScenes('ob');
+      const isConnected = Boolean(res && res.ok && res.connected);
+      const hasChat = isConnected && Boolean(addedSceneName || (Array.isArray(res?.scenes) && res.scenes.some(s => s.hasChat)));
+      if (resultNode) {
+        if (hasChat) {
+          resultNode.textContent = '✓ OBS обнаружен · ✓ Источник найден';
+        } else if (isConnected) {
+          resultNode.textContent = '✓ OBS обнаружен. Добавьте источник чата в сцену или проверьте снова.';
+        } else if (res && res.authFailed) {
+          resultNode.textContent = 'Ошибка авторизации OBS WebSocket. Проверьте пароль.';
+        } else {
+          resultNode.textContent = 'OBS пока не обнаружен. Запустите OBS Studio и нажмите «Проверить снова».';
+        }
+      }
     } finally {
-      btn.innerHTML = '<svg class="icon-svg" aria-hidden="true"><use href="#icon-refresh"/></svg><span>Обновить</span>';
-      btn.disabled = false;
+      isObsRefreshChecking = false;
+      updateObsStep3State();
     }
   });
 
@@ -2725,6 +3018,13 @@ function setupEventListeners() {
     const sceneId = select.value;
     if (!sceneId) {
       if (resultNode) resultNode.textContent = 'Сначала выберите сцену из списка.';
+      return;
+    }
+
+    const currentScene = latestObsScenes.find(s => s.sceneId === sceneId || s.sceneName === sceneId);
+    if (currentScene && currentScene.hasChat) {
+      updateObsActionButton('#ob-obs-scene-select', '#ob-add-obs-btn');
+      updateObsStep3State();
       return;
     }
 
@@ -3063,39 +3363,46 @@ async function refreshStatus() {
     const obExtText = document.querySelector('#ob-ext-status-text');
     const obExtHint = document.querySelector('#ob-ext-hint');
     const obExtSuccess = document.querySelector('#ob-ext-success-msg');
-    const obExtBoostySub = document.querySelector('#ob-ext-boosty-substatus');
-    const obExtWarning = document.querySelector('#ob-ext-version-warning');
     const obRecoveryBox = document.querySelector('#ob-recovery-box');
     const obConnectedActions = document.querySelector('#ob-connected-actions');
+    const obThreeSteps = document.querySelector('#ob-three-steps-container');
+    const obAlreadyBanner = document.querySelector('#ob-ext-already-connected-banner');
+
+    if (obInitialExtConnected === null && health) {
+      obInitialExtConnected = isExtActive;
+    }
 
     if (obExtBadge) {
-      if (extLifecycle === 'connected') {
+      if (isExtActive) {
         setDomClass(obExtBadge, 'badge connected');
         const verStr = health.extension?.version || health.extensionVersion;
         const connectedText = verStr ? `✓ Расширение подключено (v${verStr})` : '✓ Расширение подключено';
         setDomText(obExtText, connectedText);
-        if (obExtHint) setDomText(obExtHint, 'Связь с браузером установлена. Можно переходить к следующему шагу.');
+        if (obExtHint) setDomText(obExtHint, 'Всё готово. Можно продолжать.');
         setDomDisplay(obExtSuccess, 'block');
         setDomDisplay(obRecoveryBox, 'none');
         setDomDisplay(obConnectedActions, isBoostyActive ? 'none' : 'flex');
-      } else if (extLifecycle === 'checking' || isChecking) {
-        setDomClass(obExtBadge, 'badge checking');
-        setDomText(obExtText, 'Ожидание подключения…');
-        if (obExtHint) setDomText(obExtHint, 'Проверяем связь с браузером…');
-        setDomDisplay(obExtSuccess, 'none');
-        setDomDisplay(obRecoveryBox, 'block');
-      } else if (health.extensionMigrationRequired) {
-        setDomClass(obExtBadge, 'badge warning');
-        setDomText(obExtText, 'Расширение устарело');
-        if (obExtHint) setDomText(obExtHint, 'Установлена устаревшая версия расширения. Обновите его по шагам выше.');
-        setDomDisplay(obExtSuccess, 'none');
-        setDomDisplay(obRecoveryBox, 'block');
+
+        if (obInitialExtConnected && !obManualShowInstructions) {
+          setDomDisplay(obAlreadyBanner, 'flex');
+          setDomDisplay(obThreeSteps, 'none');
+        } else {
+          setDomDisplay(obAlreadyBanner, 'none');
+          setDomDisplay(obThreeSteps, 'flex');
+          obThreeSteps?.classList.add('ob-steps-completed');
+        }
       } else {
-        setDomClass(obExtBadge, 'badge pending');
-        setDomText(obExtText, 'Расширение не подключено');
-        if (obExtHint) setDomText(obExtHint, 'Выполните шаги выше, чтобы загрузить расширение в браузер.');
+        setDomDisplay(obAlreadyBanner, 'none');
+        setDomDisplay(obThreeSteps, 'flex');
+        obThreeSteps?.classList.remove('ob-steps-completed');
         setDomDisplay(obExtSuccess, 'none');
-        setDomDisplay(obRecoveryBox, 'block');
+        setDomClass(obExtBadge, 'badge checking');
+        setDomText(obExtText, 'Ожидаем подключение…');
+        if (obExtHint) setDomText(obExtHint, 'Связь установится автоматически, как только вы перетащите папку extension в браузер.');
+
+        const elapsedSec = (Date.now() - obStep1EnteredAt) / 1000;
+        const showRecovery = elapsedSec >= 15 || window.__BOOSTY_FORCE_RECOVERY__;
+        setDomDisplay(obRecoveryBox, showRecovery ? 'block' : 'none');
       }
     }
 
@@ -3426,7 +3733,14 @@ if (window.boostyAudit) {
       await refreshStatus();
     }
 
+    if (typeof mock.isObsRefreshChecking === 'boolean') {
+      isObsRefreshChecking = mock.isObsRefreshChecking;
+    } else {
+      isObsRefreshChecking = false;
+    }
+
     if (mock.obs) {
+      addedSceneName = mock.obs.addedSceneName || null;
       renderObsUi(mock.obs);
     }
 
@@ -3453,8 +3767,14 @@ if (window.boostyAudit) {
       }
       if (mock.obs) {
         await new Promise(r => setTimeout(r, 50));
+        addedSceneName = mock.obs.addedSceneName || null;
         renderObsUi(mock.obs);
       }
+    }
+
+    if (mock.obsResultText !== undefined) {
+      const resultNode = document.querySelector('#ob-obs-result');
+      if (resultNode) resultNode.textContent = mock.obsResultText;
     }
 
     if (mock.config) {

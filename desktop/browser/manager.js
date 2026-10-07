@@ -325,7 +325,15 @@ function createBrowserManager(options = {}) {
 
     openExtensionFolder() {
       const extensionDir = getExtensionDir();
-      if (shellMod && typeof shellMod.openPath === 'function') {
+      if (shellMod && typeof shellMod.showItemInFolder === 'function') {
+        try {
+          shellMod.showItemInFolder(extensionDir);
+        } catch {
+          if (typeof shellMod.openPath === 'function') {
+            shellMod.openPath(extensionDir);
+          }
+        }
+      } else if (shellMod && typeof shellMod.openPath === 'function') {
         shellMod.openPath(extensionDir);
       }
       return { ok: true, extensionDir };
