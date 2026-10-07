@@ -92,6 +92,10 @@ function createHealthTracker(options = {}) {
     return entry;
   }
 
+  if (serverStartedAt !== null) {
+    recordTrace('server_init', { appVersion, bundledExtensionVersion });
+  }
+
   // Active tabs registry: key -> { tabId, url, hasChat, isStream, title, lastSeenAt }
   const activeTabs = new Map();
 
@@ -356,6 +360,16 @@ function createHealthTracker(options = {}) {
         if (incomingVer && typeof incomingVer === 'string') {
           extensionVersion = incomingVer;
         }
+        if (data.extensionId && typeof data.extensionId === 'string') {
+          extensionId = data.extensionId;
+        }
+
+        recordTrace('extension_http_heartbeat', {
+          source: data.source || 'unknown',
+          version: incomingVer,
+          extensionId: data.extensionId || null,
+          url: data.url || null,
+        });
 
         // Direct content_tab heartbeat
         if (data.source === 'content_tab') {
@@ -511,6 +525,15 @@ function createHealthTracker(options = {}) {
       const isLegacyExtension = Boolean(isExtensionConnected && !hasCanonicalConn && hasLegacyConn);
       const extensionMigrationRequired = isLegacyExtension;
 
+      // Check if open tab might be a stale content script (e.g. extension was reloaded without tab refresh)
+      let staleTabScript = false;
+      if (isExtensionConnected && liveTabs.length > 0) {
+        const latestTabSeen = Math.max(...liveTabs.map(t => t.lastSeenAt || 0));
+        if (latestTabSeen > 0 && (now - latestTabSeen > 35_000)) {
+          staleTabScript = true;
+        }
+      }
+
       return {
         ok: true,
         appVersion,
@@ -552,6 +575,7 @@ function createHealthTracker(options = {}) {
           lastSeenAt: boostyLastSeenAt,
           lastSeenSecondsAgo: boostySecAgo,
           activeTabsCount: liveTabs.length,
+          staleTabScript,
         },
         // Backward compatibility properties
         connectorConnected: isConnectorConnected,

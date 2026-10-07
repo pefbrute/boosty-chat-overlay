@@ -106,10 +106,29 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
     },
   };
 
+  const mockChatMonitorManager = {
+    openWindow() {
+      calls.chatMonitor = calls.chatMonitor || [];
+      calls.chatMonitor.push({ method: 'openWindow' });
+      return { id: 1 };
+    },
+    getState() {
+      calls.chatMonitor = calls.chatMonitor || [];
+      calls.chatMonitor.push({ method: 'getState' });
+      return { width: 380, height: 600, alwaysOnTop: true };
+    },
+    setAlwaysOnTop(val) {
+      calls.chatMonitor = calls.chatMonitor || [];
+      calls.chatMonitor.push({ method: 'setAlwaysOnTop', val });
+      return { ok: true, alwaysOnTop: val };
+    },
+  };
+
   registerIpcHandlers({
     ipcMain: mockIpcMain,
     browserManager: mockBrowserManager,
     obsService: mockObsService,
+    chatMonitorManager: mockChatMonitorManager,
     clipboard: mockClipboard,
     app: mockApp,
     overlayUrl: 'http://127.0.0.1:17369/overlay/',
@@ -140,11 +159,30 @@ test('registerIpcHandlers registers all required channels and routes calls', asy
     'get-update-status',
     'check-for-updates',
     'open-release-url',
+    'open-chat-monitor',
+    'monitor-get-state',
+    'monitor-set-always-on-top',
   ];
 
   for (const ch of expectedChannels) {
     assert.ok(handlers.has(ch), `Channel ${ch} should be registered`);
   }
+
+  // Test Chat Monitor channels
+  const openMonitorHandler = handlers.get('open-chat-monitor');
+  const openRes = await openMonitorHandler({});
+  assert.equal(openRes.ok, true);
+  assert.equal(calls.chatMonitor[0].method, 'openWindow');
+
+  const getMonitorStateHandler = handlers.get('monitor-get-state');
+  const stateRes = await getMonitorStateHandler({});
+  assert.equal(stateRes.width, 380);
+  assert.equal(stateRes.alwaysOnTop, true);
+
+  const setAotHandler = handlers.get('monitor-set-always-on-top');
+  const aotRes = await setAotHandler({}, true);
+  assert.equal(aotRes.ok, true);
+  assert.equal(aotRes.alwaysOnTop, true);
 
   // Test open-url with valid URL
   const openUrlHandler = handlers.get('open-url');

@@ -28,8 +28,9 @@ function getBundledExtensionVersion() {
 }
 const bundledExtensionVersion = getBundledExtensionVersion();
 
+const serverStartedAt = Date.now();
 const configStore = createConfigStore({ configFile });
-const healthTracker = createHealthTracker({ appVersion, bundledExtensionVersion });
+const healthTracker = createHealthTracker({ appVersion, bundledExtensionVersion, serverStartedAt });
 const messageHistory = createMessageHistory({ maxHistory: 50 });
 const messageDedup = createMessageDedup({ ttlMs: 5000 });
 const sseHub = createSseHub();
@@ -391,6 +392,7 @@ wss.on('connection', (ws, request) => {
 });
 
 server.listen(port, host, () => {
+  healthTracker.recordTrace('server_listen_ready', { host, port });
   console.log(`Boosty overlay: http://${host}:${port}/overlay/`);
   console.log(`Test message:  http://${host}:${port}/test`);
 });

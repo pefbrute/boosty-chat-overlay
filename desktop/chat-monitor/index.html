@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boosty Chat Monitor</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="monitor-layout">
+    <!-- Header Controls -->
+    <header class="monitor-header">
+      <div class="header-left">
+        <div class="brand">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span class="brand-title">Boosty Chat</span>
+        </div>
+        <div id="monitor-status" class="status-badge status-waiting" role="status" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="monitor-status-text" class="status-text">Ожидание сообщений</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-always-on-top" class="header-btn" type="button" title="Закрепить поверх других окон" aria-pressed="false" aria-label="Поверх окон">
+          <svg class="btn-icon icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="17" x2="12" y2="22"/>
+            <path d="M5 17h14v-1.8a2 2 0 0 0-1.1-1.8l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1h1v3.7a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2Z"/>
+          </svg>
+          <span class="btn-label">Поверх окон</span>
+        </button>
+
+        <button id="btn-pause" class="header-btn" type="button" title="Приостановить визуальное обновление чата" aria-pressed="false" aria-label="Пауза">
+          <svg class="btn-icon icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="4" width="3.5" height="16" rx="1"/>
+            <rect x="14.5" y="4" width="3.5" height="16" rx="1"/>
+          </svg>
+          <svg class="btn-icon icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display: none;">
+            <polygon points="6 4 20 12 6 20 6 4"/>
+          </svg>
+          <span id="btn-pause-label" class="btn-label">Пауза</span>
+        </button>
+
+        <button id="btn-clear" class="header-btn" type="button" title="Очистить текущий вид чата" aria-label="Очистить окно">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          <span class="btn-label">Очистить</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Paused Stream Notification Banner -->
+    <div id="pause-banner" class="pause-banner" style="display: none;">
+      <div class="pause-banner-content">
+        <span class="pause-pulse-dot"></span>
+        <span>Чат на паузе • Накоплено: <strong id="paused-count">0</strong></span>
+      </div>
+      <button id="btn-resume-banner" class="banner-resume-btn" type="button">Возобновить</button>
+    </div>
+
+    <!-- Main Message Container -->
+    <main id="chat-container" class="chat-container" tabindex="0" aria-label="Сообщения чата">
+      <div id="empty-state" class="empty-state">
+        <div class="empty-icon">💬</div>
+        <div class="empty-title">Сообщений пока нет</div>
+        <div class="empty-desc">Сообщения из стрим-чата Boosty появятся здесь</div>
+      </div>
+
+      <div id="messages-list" class="messages-list"></div>
+
+      <!-- Floating Scroll to Bottom Indicator -->
+      <button id="btn-scroll-bottom" class="scroll-bottom-btn" type="button" style="display: none;" aria-label="Прокрутить к новым сообщениям">
+        <span>Новые сообщения</span>
+        <span id="unread-count-badge" class="unread-badge" style="display: none;">0</span>
+        <span class="arrow-down" aria-hidden="true">↓</span>
+      </button>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

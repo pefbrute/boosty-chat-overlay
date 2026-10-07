@@ -13,8 +13,10 @@ let reconnectTimer = null;
 let pingTimer = null;
 let retryAttempt = 0;
 
+const backgroundStartTime = Date.now();
+
 function getExtensionVersion() {
-  return (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.0';
+  return (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.1';
 }
 
 function getExtensionId() {
@@ -43,9 +45,10 @@ function saveTabsToSession() {
   }
 }
 
-function loadTabsFromSession() {
+async function loadTabsFromSession() {
   if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-    chrome.storage.session.get('activeBoostyTabs', (items) => {
+    try {
+      const items = await chrome.storage.session.get('activeBoostyTabs');
       if (Array.isArray(items?.activeBoostyTabs)) {
         for (const t of items.activeBoostyTabs) {
           if (t && t.tabId && !activeBoostyTabs.has(t.tabId)) {
@@ -53,12 +56,34 @@ function loadTabsFromSession() {
           }
         }
       }
-    });
+    } catch {}
   }
 }
 
-// Initial session load
-loadTabsFromSession();
+async function reinjectContentScripts() {
+  if (typeof chrome === 'undefined' || !chrome.tabs?.query || !chrome.scripting?.executeScript) {
+    return;
+  }
+  try {
+    const tabs = await chrome.tabs.query({ url: '*://boosty.to/*' });
+    if (!Array.isArray(tabs) || tabs.length === 0) return;
+    for (const tab of tabs) {
+      if (tab.id) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['parser.js', 'content.js'],
+          });
+          console.info(`[Boosty Background] Reinjected content script into tab ${tab.id}`);
+        } catch (err) {
+          console.debug(`[Boosty Background] Reinject into tab ${tab.id} skipped:`, err?.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.debug('[Boosty Background] Tab query for reinjection skipped:', err?.message);
+  }
+}
 
 // --- WebSocket Connection Management ---
 
@@ -98,7 +123,12 @@ function connectWs() {
     if (currentGen !== clientGeneration) return;
     isConnected = true;
     retryAttempt = 0;
-    console.info(`[Boosty Background] WebSocket connected (generation ${currentGen})`);
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    const elapsedMs = Date.now() - backgroundStartTime;
+    console.info(`[Boosty Background] WebSocket connected (generation ${currentGen}, elapsed ${elapsedMs}ms)`);
 
     // Immediate Handshake with server
     const handshake = {
@@ -109,6 +139,8 @@ function connectWs() {
       extensionId: getExtensionId(),
       tabs: getActiveTabsPayload(),
       generation: currentGen,
+      backgroundElapsedMs: elapsedMs,
+      timestamp: Date.now(),
     };
     try {
       ws.send(JSON.stringify(handshake));
@@ -128,13 +160,13 @@ function connectWs() {
     } catch {}
   };
 
-  ws.onclose = (event) => {
+  ws.onclose = () => {
     if (currentGen !== clientGeneration) return;
     cleanupSocket(currentGen);
     scheduleReconnect();
   };
 
-  ws.onerror = (err) => {
+  ws.onerror = () => {
     if (currentGen !== clientGeneration) return;
     cleanupSocket(currentGen);
     scheduleReconnect();
@@ -179,11 +211,13 @@ function scheduleReconnect() {
   if (reconnectTimer) return; // Single-flight coordinator
 
   retryAttempt++;
-  // Jittered backoff: 50ms, 250ms, 500ms, 1000ms, 2000ms, capped at 3000ms + random 0-500ms
-  const backoffs = [50, 250, 500, 1000, 2000, 3000];
+  // Bounded backoff: 250ms -> 500ms -> 1000ms -> 1500ms max cap
+  const backoffs = [250, 500, 1000, 1500];
   const baseDelay = backoffs[Math.min(retryAttempt - 1, backoffs.length - 1)];
-  const jitter = Math.floor(Math.random() * 500);
+  const jitter = Math.floor(Math.random() * 200);
   const delay = baseDelay + jitter;
+
+  console.debug(`[Boosty Background] Connector unavailable, retry in ${delay}ms (attempt ${retryAttempt})`);
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -191,11 +225,22 @@ function scheduleReconnect() {
   }, delay);
 }
 
-// Initial connect
-connectWs();
+// Initial bootstrap
+let isInitialized = false;
+
+async function bootstrap() {
+  if (isInitialized) return;
+  isInitialized = true;
+  await loadTabsFromSession();
+  await reinjectContentScripts();
+  connectWs();
+}
+
+bootstrap();
 
 if (typeof chrome !== 'undefined' && chrome.runtime?.onInstalled) {
   chrome.runtime.onInstalled.addListener(() => {
+    reinjectContentScripts();
     connectWs();
   });
 }

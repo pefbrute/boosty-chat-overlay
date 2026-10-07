@@ -264,8 +264,23 @@ function deriveSystemStatus(state = {}) {
 
   let streamItem;
 
-  // Sequential dependency: If extension is not yet connected, Boosty card shows "Ожидаем расширение"
-  if (extLifecycle === 'checking') {
+  const isStaleTabScript = Boolean(health.boosty?.staleTabScript);
+
+  if (isStaleTabScript && extLifecycle === 'connected') {
+    streamItem = {
+      key: 'stream',
+      status: 'reload-tab-required',
+      badgeClass: 'warning',
+      title: 'Boosty',
+      text: 'Обновите вкладку (Ctrl+R)',
+      detail: cleanUrl ? `${cleanUrl} · Обновите страницу (Ctrl+R)` : 'Обновите страницу Boosty (Ctrl+R)',
+      action: {
+        id: 'open-boosty',
+        label: 'Перейти к вкладке',
+        primary: true,
+      },
+    };
+  } else if (extLifecycle === 'checking') {
     streamItem = {
       key: 'stream',
       status: 'checking',
@@ -511,12 +526,12 @@ function deriveSystemStatus(state = {}) {
       desc: 'Проверьте браузер или установите расширение',
       progress,
     };
-  } else if (!isHealthyBoosty) {
+  } else if (!isHealthyBoosty || isStaleTabScript) {
     overall = {
       ready: false,
       status: 'setup-required',
-      title: 'Вкладка Boosty не найдена',
-      desc: 'Откройте страницу со стримом в браузере',
+      title: isStaleTabScript ? 'Требуется обновить страницу Boosty' : 'Вкладка Boosty не найдена',
+      desc: isStaleTabScript ? 'Нажмите Ctrl+R во вкладке Boosty для восстановления связи' : 'Откройте страницу со стримом в браузере',
       progress,
     };
   } else if (!isObsConnected) {

@@ -55,6 +55,27 @@ async function checkHealth() {
   });
 }
 
+async function checkDiagnostic() {
+  return new Promise(resolve => {
+    const req = http.get(`http://127.0.0.1:${port}/diagnostic`, res => {
+      let data = '';
+      res.on('data', chunk => (data += chunk));
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(400, () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+
 function cleanupPort() {
   try {
     const pids = execSync(`lsof -ti:${port} || true`).toString().trim();
@@ -129,6 +150,9 @@ async function measureSingleRun(runIndex, totalRuns) {
     await new Promise(r => setTimeout(r, pollIntervalMs));
   }
 
+  // Fetch detailed diagnostic trace before terminating
+  const diagnostic = await checkDiagnostic();
+
   // Graceful kill
   appProc.kill('SIGTERM');
   await new Promise(r => setTimeout(r, 500));
@@ -141,12 +165,20 @@ async function measureSingleRun(runIndex, totalRuns) {
     t3: t3 ? t3 - t0 : null,
     t4: t4 ? t4 - t0 : null,
     t5: t5 ? t5 - t0 : null,
+    trace: diagnostic?.trace || [],
   };
 
   console.log(`  T1 (Server ready):  +${res.t1 ?? 'TIMEOUT'} ms`);
   console.log(`  T2 (Extension):     +${res.t2 ?? 'TIMEOUT'} ms`);
   console.log(`  T3 (Boosty tab):    +${res.t3 ?? 'TIMEOUT'} ms`);
   console.log(`  T5 (UI Ready):      +${res.t5 ?? 'TIMEOUT'} ms`);
+
+  if (res.trace.length > 0) {
+    console.log(`  --- Diagnostic Trace Events (${res.trace.length} events) ---`);
+    for (const tr of res.trace.slice(-8)) {
+      console.log(`    +${tr.t.toString().padStart(5)} ms | ${tr.event.padEnd(26)} | ${JSON.stringify(tr).slice(0, 70)}`);
+    }
+  }
 
   return res;
 }

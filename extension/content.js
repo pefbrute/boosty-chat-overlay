@@ -1,3 +1,85 @@
+// Idempotency guard and clean replacement hook
+const instanceId = 'connector_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+
+if (typeof window !== 'undefined' && typeof window.__BOOSTY_CHAT_CONNECTOR_CLEANUP__ === 'function') {
+  try {
+    window.__BOOSTY_CHAT_CONNECTOR_CLEANUP__();
+  } catch (err) {
+    console.warn('[Boosty Chat Connector] Error during previous cleanup:', err.message);
+  }
+}
+
+let isDestroyed = false;
+let bgPort = null;
+let portReconnectTimer = null;
+let currentChatContainer = null;
+let chatObserver = null;
+let discoveryObserver = null;
+let heartbeatTimer = null;
+
+if (typeof window !== 'undefined') {
+  window.__BOOSTY_CHAT_CONNECTOR_ACTIVE__ = instanceId;
+  window.__BOOSTY_CHAT_CONNECTOR_CLEANUP__ = () => {
+    destroyContentScript('Instance superseded');
+  };
+}
+
+function isContextInvalidatedError(err) {
+  if (!err) return false;
+  const msg = String(err?.message || err);
+  return msg.includes('Extension context invalidated') ||
+         msg.includes('context invalidated') ||
+         msg.includes('context was invalidated');
+}
+
+function checkContextValid() {
+  if (isDestroyed) return false;
+  try {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
+      destroyContentScript('Runtime ID missing');
+      return false;
+    }
+  } catch (err) {
+    if (isContextInvalidatedError(err)) {
+      destroyContentScript('Context invalidated check');
+      return false;
+    }
+  }
+  return true;
+}
+
+function destroyContentScript(reason = 'invalidated') {
+  if (isDestroyed) return;
+  isDestroyed = true;
+  console.info(`[Boosty Chat Connector] Teardown (${reason})`);
+
+  if (chatObserver) {
+    try { chatObserver.disconnect(); } catch {}
+    chatObserver = null;
+  }
+  if (discoveryObserver) {
+    try { discoveryObserver.disconnect(); } catch {}
+    discoveryObserver = null;
+  }
+  if (heartbeatTimer) {
+    clearTimeout(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+  if (portReconnectTimer) {
+    clearTimeout(portReconnectTimer);
+    portReconnectTimer = null;
+  }
+  if (bgPort) {
+    try { bgPort.disconnect(); } catch {}
+    bgPort = null;
+  }
+  currentChatContainer = null;
+
+  if (typeof window !== 'undefined' && window.__BOOSTY_CHAT_CONNECTOR_ACTIVE__ === instanceId) {
+    window.__BOOSTY_CHAT_CONNECTOR_ACTIVE__ = null;
+  }
+}
+
 const endpoint = 'http://127.0.0.1:17369/message';
 const connectorEndpoint = 'http://127.0.0.1:17369/connector';
 const processed = new WeakSet();
@@ -52,20 +134,38 @@ queryRootElements(document).forEach(root => {
   processed.add(root);
 });
 
-// Port to background service worker for reliable event-driven messaging
-let bgPort = null;
-
 function getBackgroundPort() {
+  if (isDestroyed || !checkContextValid()) return null;
   if (bgPort) return bgPort;
-  if (typeof chrome !== 'undefined' && chrome.runtime?.connect) {
-    try {
-      bgPort = chrome.runtime.connect({ name: 'boosty_tab' });
-      bgPort.onDisconnect.addListener(() => {
-        bgPort = null;
-        setTimeout(getBackgroundPort, 1500);
-      });
-    } catch {
+
+  try {
+    bgPort = chrome.runtime.connect({ name: 'boosty_tab' });
+    bgPort.onDisconnect.addListener(() => {
       bgPort = null;
+      if (isDestroyed) return;
+
+      const lastErr = chrome.runtime?.lastError;
+      if (lastErr && isContextInvalidatedError(lastErr)) {
+        destroyContentScript('Port disconnected due to context invalidation');
+        return;
+      }
+      if (!checkContextValid()) {
+        destroyContentScript('Context invalidated on port disconnect');
+        return;
+      }
+
+      if (!portReconnectTimer) {
+        portReconnectTimer = setTimeout(() => {
+          portReconnectTimer = null;
+          getBackgroundPort();
+        }, 1500);
+      }
+    });
+  } catch (err) {
+    bgPort = null;
+    if (isContextInvalidatedError(err)) {
+      destroyContentScript('runtime.connect threw context invalidated');
+      return null;
     }
   }
   return bgPort;
@@ -76,31 +176,50 @@ getBackgroundPort();
 
 // Dual transport: try background port/service worker first, then fallback to direct fetch
 async function transportSend(type, payload, fallbackUrl) {
+  if (isDestroyed || !checkContextValid()) return false;
+
   const port = getBackgroundPort();
   if (port) {
     try {
       port.postMessage({ type, payload });
       return true;
-    } catch {
+    } catch (err) {
       bgPort = null;
+      if (isContextInvalidatedError(err)) {
+        destroyContentScript('port.postMessage context invalidated');
+        return false;
+      }
     }
   }
 
-  if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+  if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage && checkContextValid()) {
     try {
-      const res = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ type, payload }, response => {
-          if (chrome.runtime.lastError) {
-            return reject(new Error(chrome.runtime.lastError.message));
+      const res = await new Promise((resolve) => {
+        try {
+          chrome.runtime.sendMessage({ type, payload }, response => {
+            const err = chrome.runtime?.lastError;
+            if (err) {
+              if (isContextInvalidatedError(err)) {
+                destroyContentScript('runtime.sendMessage lastError context invalidated');
+              }
+              return resolve(null);
+            }
+            resolve(response);
+          });
+        } catch (callErr) {
+          if (isContextInvalidatedError(callErr)) {
+            destroyContentScript('runtime.sendMessage call context invalidated');
           }
-          resolve(response);
-        });
+          resolve(null);
+        }
       });
       if (res?.ok) return true;
     } catch {
-      // Fallback to direct fetch
+      // Fallback to fetch
     }
   }
+
+  if (isDestroyed) return false;
 
   try {
     const response = await fetch(fallbackUrl, {
@@ -109,14 +228,13 @@ async function transportSend(type, payload, fallbackUrl) {
       body: JSON.stringify(payload),
     });
     return response.ok;
-  } catch (err) {
-    console.warn('[Boosty Chat Connector] transport failed:', err.message);
+  } catch {
     return false;
   }
 }
 
 async function forward(root) {
-  if (processed.has(root)) return;
+  if (isDestroyed || processed.has(root)) return;
 
   const parsed = parser ? parser.parseBoostyMessage(root, { pathname: location.pathname }) : null;
   const author = parsed ? parsed.author : extractAuthor(root);
@@ -125,7 +243,7 @@ async function forward(root) {
 
   processed.add(root);
 
-  const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.0';
+  const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.1';
   const messageId = parsed?.id || `${location.pathname}|${author}|${text}|${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
   const message = {
@@ -152,10 +270,6 @@ async function forward(root) {
   }
 }
 
-let currentChatContainer = null;
-let chatObserver = null;
-let discoveryObserver = null;
-
 function findChatContainer() {
   const sample = document.querySelector(
     '[data-test-id="CHATMESSAGE:root"], [class*="ChatMessage-scss--module_root"], [class*="ChatMessage_root"], [data-test-id*="CHATMESSAGE"]'
@@ -180,7 +294,7 @@ function findChatContainer() {
 }
 
 function processMessageNode(node) {
-  if (!(node instanceof Element)) return;
+  if (isDestroyed || !(node instanceof Element)) return;
   if (node.matches('[data-test-id="CHATMESSAGE:root"], [data-test-id*="CHATMESSAGE"], [class*="ChatMessage"]')) {
     forward(node);
     return;
@@ -192,11 +306,12 @@ function processMessageNode(node) {
 }
 
 function attachChatObserver(container) {
-  if (!container || currentChatContainer === container) return;
+  if (isDestroyed || !container || currentChatContainer === container) return;
   if (chatObserver) chatObserver.disconnect();
   currentChatContainer = container;
 
   chatObserver = new MutationObserver(records => {
+    if (isDestroyed) return;
     if (!container.isConnected) {
       detachChatObserver();
       startDiscovery();
@@ -227,12 +342,13 @@ function detachChatObserver() {
     chatObserver = null;
   }
   currentChatContainer = null;
-  immediateAnnounce();
+  if (!isDestroyed) {
+    immediateAnnounce();
+  }
 }
 
 function startDiscovery() {
-  if (currentChatContainer?.isConnected) return;
-  if (discoveryObserver) return;
+  if (isDestroyed || currentChatContainer?.isConnected || discoveryObserver) return;
 
   const container = findChatContainer();
   if (container) {
@@ -241,6 +357,7 @@ function startDiscovery() {
   }
 
   discoveryObserver = new MutationObserver(records => {
+    if (isDestroyed) return;
     for (const record of records) {
       for (const node of record.addedNodes) {
         if (!(node instanceof Element)) continue;
@@ -266,10 +383,10 @@ console.info('[Boosty Chat Connector] active');
 const tabSessionId = 'tab_' + Math.random().toString(36).slice(2, 9);
 let isConnected = false;
 let retryAttempt = 0;
-let heartbeatTimer = null;
 
 function buildPayload() {
-  const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.0';
+  const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.1';
+  const extensionId = (typeof chrome !== 'undefined' && chrome.runtime?.id) || '';
   const hasChat = Boolean(currentChatContainer && currentChatContainer.isConnected);
   const isStream = location.pathname.includes('/streams/') ||
                    location.pathname.includes('/stream') ||
@@ -278,6 +395,7 @@ function buildPayload() {
     source: 'content_tab',
     tabSessionId,
     extensionVersion,
+    extensionId,
     version: extensionVersion,
     url: location.href,
     title: document.title,
@@ -288,6 +406,7 @@ function buildPayload() {
 }
 
 async function heartbeat() {
+  if (isDestroyed) return;
   if (heartbeatTimer) {
     clearTimeout(heartbeatTimer);
     heartbeatTimer = null;
@@ -295,6 +414,7 @@ async function heartbeat() {
 
   const payload = buildPayload();
   const ok = await transportSend('TAB_STATE', payload, connectorEndpoint);
+  if (isDestroyed) return;
 
   if (ok) {
     isConnected = true;
@@ -304,15 +424,17 @@ async function heartbeat() {
   } else {
     isConnected = false;
     retryAttempt++;
-    // Reconnect backoff: 1s, 2s, 3s, 5s...
-    const backoffDelays = [1000, 2000, 3000, 5000];
+    // Reconnect backoff: 500ms, 1s, 2s, 3s...
+    const backoffDelays = [500, 1000, 2000, 3000];
     const delay = backoffDelays[Math.min(retryAttempt - 1, backoffDelays.length - 1)];
     heartbeatTimer = setTimeout(heartbeat, delay);
   }
 }
 
 function immediateAnnounce() {
-  heartbeat();
+  if (!isDestroyed) {
+    heartbeat();
+  }
 }
 
 // Initial announce

@@ -4,6 +4,7 @@ const path = require('node:path');
 const { createObsService } = require('./obs/service.js');
 const { createBrowserManager } = require('./browser/manager.js');
 const { createUpdateChecker } = require('./main/update-checker.js');
+const { createChatMonitorManager } = require('./chat-monitor/manager.js');
 const { registerIpcHandlers } = require('./main/ipc.js');
 
 if (process.env.BOOSTY_OVERLAY_USER_DATA) {
@@ -82,6 +83,12 @@ if (!gotSingleInstanceLock) {
       currentVersion: app.getVersion(),
     });
 
+    const chatMonitorManager = createChatMonitorManager({
+      BrowserWindow,
+      screen: require('electron').screen,
+      app,
+    });
+
     const serverModule = require('../server.js');
     localServer = serverModule.server;
     localSseHub = serverModule.sseHub;
@@ -109,6 +116,7 @@ if (!gotSingleInstanceLock) {
       browserManager,
       obsService,
       updateChecker,
+      chatMonitorManager,
       app,
       clipboard,
       overlayUrl: `http://127.0.0.1:${process.env.BOOSTY_OVERLAY_PORT || 17369}/overlay/`,

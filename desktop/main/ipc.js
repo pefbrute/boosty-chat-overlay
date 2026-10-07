@@ -16,6 +16,7 @@ function registerIpcHandlers(deps = {}) {
     browserManager,
     obsService,
     app,
+    chatMonitorManager = deps.chatMonitorManager || null,
     clipboard = require('electron').clipboard,
     overlayUrl = 'http://127.0.0.1:17369/overlay/',
   } = deps;
@@ -132,6 +133,29 @@ function registerIpcHandlers(deps = {}) {
       return { ok: true };
     }
     return { ok: false, error: 'Shell module unavailable' };
+  });
+
+  // --- Chat Monitor Channels ---
+  ipcMain.handle('open-chat-monitor', () => {
+    if (chatMonitorManager && typeof chatMonitorManager.openWindow === 'function') {
+      chatMonitorManager.openWindow();
+      return { ok: true };
+    }
+    return { ok: false, error: 'Chat monitor manager unavailable' };
+  });
+
+  ipcMain.handle('monitor-get-state', () => {
+    if (chatMonitorManager && typeof chatMonitorManager.getState === 'function') {
+      return chatMonitorManager.getState();
+    }
+    return { ok: false, error: 'Chat monitor manager unavailable' };
+  });
+
+  ipcMain.handle('monitor-set-always-on-top', (_event, enabled) => {
+    if (chatMonitorManager && typeof chatMonitorManager.setAlwaysOnTop === 'function') {
+      return chatMonitorManager.setAlwaysOnTop(enabled);
+    }
+    return { ok: false, error: 'Chat monitor manager unavailable' };
   });
 
   // --- OBS Studio Management ---

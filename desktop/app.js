@@ -1941,6 +1941,12 @@ function setupEventListeners() {
   });
 
   // Action card shortcuts
+  document.querySelector('#dash-open-chat-monitor-btn')?.addEventListener('click', () => {
+    if (window.boostyOverlay && typeof window.boostyOverlay.openChatMonitor === 'function') {
+      window.boostyOverlay.openChatMonitor().catch(err => console.error('Failed to open chat monitor:', err));
+    }
+  });
+
   document.querySelector('#action-btn-preview')?.addEventListener('click', () => {
     showView('appearance');
   });
@@ -2891,7 +2897,10 @@ async function refreshStatus() {
     }
 
     if (setupBoostyBadge) {
-      if (boostyLifecycle === 'chat-detected') {
+      if (health.boosty?.staleTabScript) {
+        setDomClass(setupBoostyBadge, 'badge warning');
+        setDomText(setupBoostyBadge, 'Обновите (Ctrl+R)');
+      } else if (boostyLifecycle === 'chat-detected') {
         setDomClass(setupBoostyBadge, 'badge connected');
         setDomText(setupBoostyBadge, 'Чат подключён');
       } else if (boostyLifecycle === 'tab-detected') {
