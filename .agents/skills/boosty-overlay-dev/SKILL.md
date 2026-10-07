@@ -434,6 +434,19 @@ git diff --check
 ./scripts/local/winda.sh restore-clean
 ```
 
+### 2.34. Windows NSIS Clean Installation & Uninstaller Invariants (`build/installer.nsh`)
+- **Stale AppData Trap:** If a user uninstalls a previous build and reinstalls "from scratch", standard NSIS uninstallers leave `%APPDATA%\boosty-chat-overlay` intact. On subsequent launch, Chromium reads `localStorage.getItem('onboardingCompleted') === 'true'` and silently skips the Onboarding Wizard!
+- **`customInit` Hook:** In `build/installer.nsh`, when `UninstallString == ""` (clean install or install after uninstall, NOT an in-place upgrade), the installer automatically purges leftover `%APPDATA%\${APP_FILENAME}` and `%LOCALAPPDATA%\${APP_FILENAME}` prior to unpacking.
+- **`customUnInstall` Hook & `deleteAppDataOnUninstall: true`:** When the user uninstalls via Windows Settings (`${ifNot} ${isUpdated}`), both `%APPDATA%` and `%LOCALAPPDATA%` are completely cleaned up.
+- **In-Place Upgrade Invariant:** When `UninstallString` exists, user settings, window bounds, and extension states are strictly preserved.
+
+### 2.35. Onboarding OBS Step 3 "Check Again" CTA Invariant (`desktop/app.js`, `desktop/index.html`)
+- **Waiting State Primary Action:** When Onboarding Step 3 is waiting for OBS Studio to launch or for the Browser Source to appear, the refresh button changes its label to `↻ Проверить снова` and transitions to a prominent primary action style with a contextual tip:
+  *"Если OBS уже запущен или источник добавлен — нажмите «Проверить снова»."*
+- **Auto-Hide upon Detection:** Once the source is detected, the button returns to calm secondary state and the contextual tip is hidden.
+
+---
+
 ### Файлы Windows QA инфраструктуры:
 
 | Файл | Назначение |
@@ -451,3 +464,4 @@ git diff --check
 - **OBS Safe Mode (.sentinel):** Всегда удалять `$env:APPDATA\obs-studio\.sentinel` перед стартом OBS, иначе obs-websocket (порт 4455) блокируется.
 - **Brave Profile Stale Locks:** При ошибке `#32770` в Brave — убить процессы `brave` и очистить `*lock*` файлы в `Brave-Browser\User Data`.
 - **NSIS Silent Uninstall Lock:** Перед вызовом деинсталлятора всегда выполнять `taskkill /F /IM "Boosty Chat Overlay.exe" /T`, иначе uninstaller тихо оставит залоченные бинарники.
+- **NSIS AppData Cleanup Verification:** Всегда проверять, что после чистой установки запускается именно Onboarding Wizard на Шаге 1, а не главное окно с пустым статусом.
