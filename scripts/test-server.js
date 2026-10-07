@@ -123,24 +123,25 @@ async function runTests() {
   assert.strictEqual(healthState.extensionConnected, true, 'extensionConnected should be true after background heartbeat');
   assert.strictEqual(healthState.boostyConnected, false, 'boostyConnected should be false before content_tab heartbeat');
   assert.strictEqual(healthState.extensionVersion, '0.3.9', 'extensionVersion should be 0.3.9');
-  assert.strictEqual(healthState.bundledExtensionVersion, '0.4.1', 'bundledExtensionVersion should be 0.4.1');
-  assert.strictEqual(healthState.isOutdated, true, 'isOutdated should be true for 0.3.9 < 0.4.1');
+  const manifestVersion = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'extension', 'manifest.json'), 'utf8')).version;
+  assert.strictEqual(healthState.bundledExtensionVersion, manifestVersion, `bundledExtensionVersion should be ${manifestVersion}`);
+  assert.strictEqual(healthState.isOutdated, true, `isOutdated should be true for 0.3.9 < ${manifestVersion}`);
   console.log('✔ POST /connector (outdated check) passed');
 
   const updateConnectorRes = await request(
     { path: '/connector', method: 'POST', headers: { 'Content-Type': 'application/json' } },
-    JSON.stringify({ source: 'background', extensionVersion: '0.4.1', timestamp: Date.now() })
+    JSON.stringify({ source: 'background', extensionVersion: manifestVersion, timestamp: Date.now() })
   );
   assert.strictEqual(updateConnectorRes.status, 200, 'POST /connector update should return 200');
 
   checkHealth = await request({ path: '/health', method: 'GET' });
   healthState = JSON.parse(checkHealth.body);
-  assert.strictEqual(healthState.extensionVersion, '0.4.1', 'extensionVersion should be 0.4.1');
-  assert.strictEqual(healthState.isOutdated, false, 'isOutdated should be false for 0.4.1');
+  assert.strictEqual(healthState.extensionVersion, manifestVersion, `extensionVersion should be ${manifestVersion}`);
+  assert.strictEqual(healthState.isOutdated, false, `isOutdated should be false for ${manifestVersion}`);
 
   const tabConnectorRes = await request(
     { path: '/connector', method: 'POST', headers: { 'Content-Type': 'application/json' } },
-    JSON.stringify({ source: 'content_tab', extensionVersion: '0.4.1', url: 'https://boosty.to/stream', timestamp: Date.now() })
+    JSON.stringify({ source: 'content_tab', extensionVersion: manifestVersion, url: 'https://boosty.to/stream', timestamp: Date.now() })
   );
   assert.strictEqual(tabConnectorRes.status, 200, 'POST /connector content_tab should return 200');
 

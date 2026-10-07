@@ -1826,9 +1826,15 @@
         }
       }
 
-      if (isLab) {
+      if (appVariant?.badge) {
         if (badgeLab) {
+          badgeLab.textContent = appVariant.badge;
           badgeLab.style.display = 'inline-flex';
+          if (appVariant.isFresh) {
+            badgeLab.classList.add('badge-fresh');
+          } else {
+            badgeLab.classList.remove('badge-fresh');
+          }
         }
         if (documentObj) {
           documentObj.title = monitorBaseTitle;

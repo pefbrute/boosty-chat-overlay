@@ -128,6 +128,12 @@ body {
   text-transform: uppercase;
 }
 
+.brand-lab-badge.badge-fresh {
+  background: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
 .brand-subtitle {
   font-size: 11px;
   color: var(--text-muted);
@@ -140,25 +146,52 @@ body {
 }
 
 .nav-item {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 24px 1fr 16px;
   align-items: center;
+  justify-content: stretch;
+  column-gap: 10px;
+  width: 100%;
+  height: 40px;
+  padding: 0 8px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
   color: var(--text-secondary);
   cursor: pointer;
-  display: flex;
   font-size: 13px;
   font-weight: 500;
-  gap: 10px;
-  padding: 9px 12px;
+  line-height: 1.25;
   text-align: left;
-  transition: background 0.15s ease, color 0.15s ease;
-  width: 100%;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .nav-item .nav-icon {
-  font-size: 16px;
+  grid-column: 1;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
   line-height: 1;
+}
+
+.nav-item .nav-icon .icon-svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.nav-item .nav-label {
+  grid-column: 2;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 1.25;
 }
 
 .nav-item:hover {
@@ -180,7 +213,8 @@ body {
 .nav-divider {
   background: var(--border-card);
   height: 1px;
-  margin: 12px 6px;
+  margin: 8px 0;
+  width: 100%;
 }
 
 .nav-item-subordinated {
@@ -190,6 +224,30 @@ body {
 
 .nav-item-subordinated:hover {
   opacity: 1;
+}
+
+.nav-item-action {
+  position: relative;
+}
+
+.nav-external-icon {
+  grid-column: 3;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.55;
+  color: var(--text-muted);
+  transition: opacity 0.15s ease, color 0.15s ease;
+  user-select: none;
+}
+
+.nav-item-action:hover .nav-external-icon {
+  opacity: 1;
+  color: var(--text-main);
 }
 
 /* Common SVG Icon System */
@@ -2362,6 +2420,11 @@ select:focus, input:focus {
   margin-top: 24px;
 }
 
+.wizard-actions.center-actions {
+  justify-content: center;
+  gap: 12px;
+}
+
 .status-box {
   background: var(--bg-card-alt);
   border: 1px solid var(--border-card);
@@ -2430,6 +2493,195 @@ kbd {
   font-family: inherit;
   font-size: 11px;
   padding: 2px 6px;
+}
+
+/* --- Onboarding Step 1 Rich Sections --- */
+.ob-section {
+  margin-bottom: 20px;
+}
+
+.ob-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ob-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(239, 120, 41, 0.16);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ob-section-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.ob-guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.ob-guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ob-step-num {
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+.ob-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+
+.ob-step-title {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.ob-step-desc {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.ob-code-pill {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  padding: 2px 8px;
+  color: #38bdf8;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  user-select: all;
+}
+
+.ob-folder-section {
+  margin-bottom: 20px;
+}
+
+.ob-folder-header {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ob-folder-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: #0c0d12;
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.ob-folder-path-wrap {
+  flex: 1;
+  min-width: 220px;
+  overflow: hidden;
+}
+
+.ob-folder-path {
+  color: #e2e8f0;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  word-break: break-all;
+  user-select: all;
+  line-height: 1.4;
+}
+
+.ob-folder-btns {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ob-actions-section {
+  margin-bottom: 20px;
+}
+
+.ob-primary-actions-grid {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ob-status-card {
+  margin-bottom: 20px;
+}
+
+.ob-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ob-recovery-card {
+  background: rgba(26, 28, 38, 0.55);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+
+.ob-recovery-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ob-recovery-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ob-recovery-actions {
+  margin-top: 12px;
 }
 
 .summary-list {
@@ -2631,7 +2883,7 @@ kbd {
   .app-shell {
     grid-template-columns: 68px 1fr;
   }
-  .brand-text, .nav-label {
+  .brand-text, .nav-label, .nav-external-icon {
     display: none;
   }
   .sidebar-header {
@@ -2639,8 +2891,16 @@ kbd {
     padding: 0;
   }
   .nav-item {
-    justify-content: center;
-    padding: 12px 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    place-items: center;
+    padding: 0;
+    height: 40px;
+    column-gap: 0;
+  }
+  .nav-item .nav-icon {
+    grid-column: 1;
+    margin: 0;
   }
   .appearance-grid {
     grid-template-columns: 1fr;

@@ -140,6 +140,7 @@ function normalizeConfig(input, current = defaultConfig) {
     obsHost: hostVal(input?.obsHost, base.obsHost ?? '127.0.0.1'),
     obsPort: portVal(input?.obsPort, base.obsPort ?? 4455),
     obsPassword: passwordVal(input?.obsPassword, base.obsPassword ?? ''),
+    autoOpenChatMonitor: bool(input?.autoOpenChatMonitor, base.autoOpenChatMonitor ?? false),
   };
 }
 

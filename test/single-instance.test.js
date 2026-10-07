@@ -13,6 +13,7 @@ test('single instance lock prevents duplicate app processes and port collision',
 
   const env = {
     ...process.env,
+    BOOSTY_OVERLAY_USER_DATA: tmpUserData,
     BOOSTY_OVERLAY_PORT: testPort,
     BOOSTY_OVERLAY_UI_TEST: '1',
   };

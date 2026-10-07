@@ -18,6 +18,17 @@ if (process.env.BOOSTY_OVERLAY_USER_DATA) {
   app.setPath('sessionData', path.join(customUserData, 'sessionData'));
 }
 
+// In Fresh mode on cold start, ensure reset is executed before lock and settings load
+if (appVariant.isFresh && !process.env.BOOSTY_FRESH_RESET_DONE && !process.env.BOOSTY_FRESH_KEEP_STATE) {
+  const { resetFreshUserData } = require('./main/fresh-reset.js');
+  try {
+    const currentUD = app.getPath('userData');
+    resetFreshUserData(currentUD);
+  } catch (err) {
+    console.error('[Fresh QA] Warning: cold start reset failed in main.js:', err.message);
+  }
+}
+
 let mainWindow;
 let localServer;
 let localSseHub;
@@ -41,7 +52,7 @@ if (!gotSingleInstanceLock) {
   });
 
   const obsService = createObsService({
-    appVersion: app.isReady() ? app.getVersion() : '0.4.1',
+    appVersion: app.isReady() ? app.getVersion() : '0.5.0',
     overlayPort: Number(process.env.BOOSTY_OVERLAY_PORT || 17369),
     isServerReady: () => Boolean(localServer && localServer.listening),
     getOverlayClients: () => (localSseHub ? localSseHub.clientCount() : 0),
@@ -128,6 +139,17 @@ if (!gotSingleInstanceLock) {
       clipboard,
       overlayUrl: `http://127.0.0.1:${process.env.BOOSTY_OVERLAY_PORT || 17369}/overlay/`,
     });
+
+    if (process.env.BOOSTY_OVERLAY_UI_TEST !== '1' || process.env.BOOSTY_OVERLAY_TEST_AUTO_OPEN === '1') {
+      try {
+        const startupConfig = serverModule.configStore?.get?.();
+        if (startupConfig?.autoOpenChatMonitor) {
+          chatMonitorManager.openWindow();
+        }
+      } catch (err) {
+        console.error('[Boosty Overlay] Failed to auto-open chat monitor:', err);
+      }
+    }
 
     if (process.env.BOOSTY_OVERLAY_UI_TEST !== '1') {
       if (localServer && !localServer.listening) {

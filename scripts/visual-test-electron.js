@@ -17,6 +17,8 @@ const projectRoot = path.resolve(__dirname, '..');
 const artifactsDir = path.join(projectRoot, 'artifacts', 'ui');
 const testPort = 17397;
 const tmpConfigFile = path.join('/tmp', `boosty-visual-qa-${process.pid}.json`);
+const tmpUserData = path.join('/tmp', `boosty-visual-qa-user-data-${process.pid}`);
+fs.mkdirSync(tmpUserData, { recursive: true });
 
 // Clean initial config
 fs.writeFileSync(tmpConfigFile, JSON.stringify({
@@ -61,6 +63,7 @@ async function runVisualQa() {
       ],
       env: {
         ...process.env,
+        BOOSTY_OVERLAY_USER_DATA: tmpUserData,
         BOOSTY_OVERLAY_PORT: String(testPort),
         BOOSTY_OVERLAY_CONFIG: tmpConfigFile,
         BOOSTY_OVERLAY_UI_TEST: '1',
@@ -269,6 +272,94 @@ async function runVisualQa() {
     }
 
     // Return to standard 1280x850 for state tests
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1280, h: 850 });
+    await win.setViewportSize({ width: 1280, height: 850 });
+    await win.waitForTimeout(60);
+
+    // =========================================================================
+    // 2.1 Sidebar Alignment & Polish Verification (ТЗ: SIDEBAR ALIGNMENT POLISH v1)
+    // =========================================================================
+    console.log('\n--- Sidebar Alignment & Polish Verification ---');
+
+    async function verifySidebarPixelAlignment(scenarioName) {
+      const alignment = await win.evaluate(() => {
+        const items = Array.from(document.querySelectorAll('.sidebar-nav .nav-item'));
+        return items.map(el => {
+          const icon = el.querySelector('.nav-icon');
+          const label = el.querySelector('.nav-label');
+          const ext = el.querySelector('.nav-external-icon');
+          return {
+            id: el.id,
+            text: label ? label.textContent.trim() : '',
+            iconLeft: icon ? icon.getBoundingClientRect().left : null,
+            iconWidth: icon ? icon.getBoundingClientRect().width : null,
+            labelLeft: (label && window.getComputedStyle(label).display !== 'none') ? label.getBoundingClientRect().left : null,
+            extLeft: (ext && window.getComputedStyle(ext).display !== 'none') ? ext.getBoundingClientRect().left : null,
+            height: el.getBoundingClientRect().height,
+          };
+        });
+      });
+
+      const firstIconLeft = alignment[0]?.iconLeft;
+      const visibleLabels = alignment.filter(a => a.labelLeft !== null);
+      const firstLabelLeft = visibleLabels[0]?.labelLeft;
+
+      for (const item of alignment) {
+        if (Math.abs(item.iconLeft - firstIconLeft) > 1) {
+          layoutIssues.push(`[${scenarioName}] Icon left alignment mismatch for ${item.id}: expected ~${firstIconLeft}px, got ${item.iconLeft}px`);
+        }
+        if (Math.abs(item.height - 40) > 1) {
+          layoutIssues.push(`[${scenarioName}] Nav item height mismatch for ${item.id}: expected 40px, got ${item.height}px`);
+        }
+      }
+
+      for (const item of visibleLabels) {
+        if (Math.abs(item.labelLeft - firstLabelLeft) > 1) {
+          layoutIssues.push(`[${scenarioName}] Label left alignment mismatch for ${item.id}: expected ~${firstLabelLeft}px, got ${item.labelLeft}px`);
+        }
+      }
+
+      return alignment;
+    }
+
+    // 1. sidebar-align-01-default.png (1280x850, Dashboard active)
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1280, h: 850 });
+    await win.setViewportSize({ width: 1280, height: 850 });
+    await win.waitForTimeout(60);
+    await verifySidebarPixelAlignment('default-1280x850');
+    await captureScreenshot('sidebar-align-01-default.png');
+    statesChecked.push('sidebar-align-default');
+    console.log('✓ sidebar-align-01-default.png captured and pixel-checked');
+
+    // 2. sidebar-align-02-chat-item.png (Hover on Чат, trailing ↗ inspection)
+    await win.hover('#nav-chat');
+    await win.waitForTimeout(80);
+    await verifySidebarPixelAlignment('hover-chat-item');
+    await captureScreenshot('sidebar-align-02-chat-item.png');
+    statesChecked.push('sidebar-align-chat');
+    console.log('✓ sidebar-align-02-chat-item.png captured and pixel-checked');
+    await win.mouse.move(0, 0); // unhover
+
+    // 3. sidebar-align-03-active-states.png (Switching active items, zero geometry jump)
+    await applyState({ view: 'setup' });
+    await win.waitForTimeout(60);
+    await verifySidebarPixelAlignment('active-state-setup');
+    await captureScreenshot('sidebar-align-03-active-states.png');
+    statesChecked.push('sidebar-align-active');
+    console.log('✓ sidebar-align-03-active-states.png captured and pixel-checked');
+    await applyState({ view: 'dashboard' }); // restore dashboard
+    await win.waitForTimeout(60);
+
+    // 4. sidebar-align-04-compact.png (800x650 compact mode)
+    await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 800, h: 650 });
+    await win.setViewportSize({ width: 800, height: 650 });
+    await win.waitForTimeout(100);
+    await verifySidebarPixelAlignment('compact-800x650');
+    await captureScreenshot('sidebar-align-04-compact.png');
+    statesChecked.push('sidebar-align-compact');
+    console.log('✓ sidebar-align-04-compact.png captured and pixel-checked');
+
+    // Restore standard 1280x850 for following tests
     await bw.evaluate((b, { w, h }) => b.setContentSize(w, h), { w: 1280, h: 850 });
     await win.setViewportSize({ width: 1280, height: 850 });
     await win.waitForTimeout(60);
@@ -1364,6 +1455,9 @@ async function runVisualQa() {
     }
     try {
       fs.unlinkSync(tmpConfigFile);
+    } catch {}
+    try {
+      fs.rmSync(tmpUserData, { recursive: true, force: true });
     } catch {}
   }
 }

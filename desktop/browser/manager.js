@@ -7,6 +7,32 @@ const {
   readExtensionManifest,
 } = require('./extension-deployer.js');
 
+const {
+  SUPPORTED_BROWSERS,
+  getBrowserMetadata,
+  getExtensionsUrlForBrowser,
+} = require('./metadata.js');
+
+function extractExecFromDesktopFile(filePath, fsModule) {
+  try {
+    if (!fsModule || typeof fsModule.existsSync !== 'function' || !fsModule.existsSync(filePath)) {
+      return null;
+    }
+    if (typeof fsModule.readFileSync !== 'function') return null;
+    const content = fsModule.readFileSync(filePath, 'utf8');
+    const match = content.match(/^Exec=([^\n\r]+)/m);
+    if (!match) return null;
+    let cmd = match[1].trim();
+    cmd = cmd.replace(/%[a-zA-Z]/g, '').trim();
+    const parts = cmd.split(/\s+/);
+    const exe = parts[0];
+    if (exe && fsModule.existsSync(exe)) {
+      return exe;
+    }
+  } catch {}
+  return null;
+}
+
 /**
  * Creates Browser Manager managing installed browser discovery,
  * opening URLs, and preparing the Boosty browser extension.
@@ -55,39 +81,93 @@ function createBrowserManager(options = {}) {
   })();
 
   function getBrowserCandidates() {
+    const candidates = [];
+    const home = env.HOME || env.USERPROFILE || '';
+
+    // Order of priority: Yandex as first-class, followed by Brave, Chrome, Edge, Chromium
+    const browserKeys = ['yandex', 'brave', 'chrome', 'edge', 'chromium'];
+
     if (platform === 'win32') {
       const pathWin = path.win32 || path;
       const local = env.LOCALAPPDATA || '';
       const programFiles = env.PROGRAMFILES || '';
       const programFilesX86 = env['PROGRAMFILES(X86)'] || '';
-      return [
-        { id: 'brave', name: 'Brave', command: pathWin.join(local, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'), extensionsUrl: 'brave://extensions/' },
-        { id: 'brave', name: 'Brave', command: pathWin.join(programFiles, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'), extensionsUrl: 'brave://extensions/' },
-        { id: 'brave', name: 'Brave', command: pathWin.join(programFilesX86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'), extensionsUrl: 'brave://extensions/' },
-        { id: 'chrome', name: 'Chrome', command: pathWin.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe'), extensionsUrl: 'chrome://extensions/' },
-        { id: 'chrome', name: 'Chrome', command: pathWin.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'), extensionsUrl: 'chrome://extensions/' },
-        { id: 'chrome', name: 'Chrome', command: pathWin.join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'), extensionsUrl: 'chrome://extensions/' },
-        { id: 'edge', name: 'Edge', command: pathWin.join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), extensionsUrl: 'edge://extensions/' },
-        { id: 'edge', name: 'Edge', command: pathWin.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), extensionsUrl: 'edge://extensions/' },
-        { id: 'yandex', name: 'Yandex', command: pathWin.join(local, 'Yandex', 'YandexBrowser', 'Application', 'browser.exe'), extensionsUrl: 'browser://extensions/' },
-      ];
+      const envMap = {
+        LOCALAPPDATA: local,
+        PROGRAMFILES: programFiles,
+        'PROGRAMFILES(X86)': programFilesX86,
+      };
+
+      for (const key of browserKeys) {
+        const meta = SUPPORTED_BROWSERS[key];
+        if (!meta) continue;
+        for (const winEntry of meta.winCandidates || []) {
+          const base = envMap[winEntry.envKey];
+          if (base) {
+            candidates.push({
+              id: meta.id,
+              name: meta.name,
+              command: pathWin.join(base, ...winEntry.subpath),
+              extensionsUrl: meta.extensionsUrl,
+            });
+          }
+        }
+      }
+      return candidates;
     }
 
     if (platform === 'darwin') {
-      return [
-        { id: 'brave', name: 'Brave', command: '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser', extensionsUrl: 'brave://extensions/' },
-        { id: 'chrome', name: 'Chrome', command: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', extensionsUrl: 'chrome://extensions/' },
-        { id: 'chromium', name: 'Chromium', command: '/Applications/Chromium.app/Contents/MacOS/Chromium', extensionsUrl: 'chrome://extensions/' },
-      ];
+      for (const key of browserKeys) {
+        const meta = SUPPORTED_BROWSERS[key];
+        if (!meta) continue;
+        for (const appPath of meta.darwinCandidates || []) {
+          candidates.push({
+            id: meta.id,
+            name: meta.name,
+            command: appPath,
+            extensionsUrl: meta.extensionsUrl,
+          });
+        }
+      }
+      return candidates;
     }
 
-    return [
-      { id: 'brave', name: 'Brave', command: '/usr/bin/brave-browser', extensionsUrl: 'brave://extensions/' },
-      { id: 'brave', name: 'Brave', command: '/usr/bin/brave', extensionsUrl: 'brave://extensions/' },
-      { id: 'chrome', name: 'Chrome', command: '/usr/bin/google-chrome', extensionsUrl: 'chrome://extensions/' },
-      { id: 'chromium', name: 'Chromium', command: '/usr/bin/chromium', extensionsUrl: 'chrome://extensions/' },
-      { id: 'chromium', name: 'Chromium', command: '/usr/bin/chromium-browser', extensionsUrl: 'chrome://extensions/' },
-    ];
+    // Linux & other Unix platforms
+    for (const key of browserKeys) {
+      const meta = SUPPORTED_BROWSERS[key];
+      if (!meta) continue;
+
+      // 1. Check known binary commands
+      for (const cmd of meta.linuxCandidates || []) {
+        candidates.push({
+          id: meta.id,
+          name: meta.name,
+          command: cmd,
+          extensionsUrl: meta.extensionsUrl,
+        });
+      }
+
+      // 2. Check desktop file entries for custom installs / flatpak / package managers
+      const desktopCandidates = [...(meta.linuxDesktopEntries || [])];
+      if (home) {
+        desktopCandidates.push(path.join(home, '.local', 'share', 'applications', `${meta.id}-browser.desktop`));
+        desktopCandidates.push(path.join(home, '.local', 'share', 'applications', `${meta.id}.desktop`));
+      }
+
+      for (const desktopPath of desktopCandidates) {
+        const resolvedExe = extractExecFromDesktopFile(desktopPath, fsMod);
+        if (resolvedExe) {
+          candidates.push({
+            id: meta.id,
+            name: meta.name,
+            command: resolvedExe,
+            extensionsUrl: meta.extensionsUrl,
+          });
+        }
+      }
+    }
+
+    return candidates;
   }
 
   function getInstalledBrowsers() {
@@ -270,7 +350,7 @@ function createBrowserManager(options = {}) {
 
     copyExtensionsUrl(browserId) {
       const browser = getInstalledBrowsers().find(candidate => candidate.id === browserId);
-      const url = browser?.extensionsUrl || 'chrome://extensions/';
+      const url = browser?.extensionsUrl || getExtensionsUrlForBrowser(browserId) || 'chrome://extensions/';
       if (clipboardMod && typeof clipboardMod.writeText === 'function') {
         clipboardMod.writeText(url);
       }

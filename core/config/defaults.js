@@ -31,6 +31,7 @@ const defaultConfig = {
   obsHost: '127.0.0.1',
   obsPort: 4455,
   obsPassword: '',
+  autoOpenChatMonitor: false,
 };
 
 module.exports = {

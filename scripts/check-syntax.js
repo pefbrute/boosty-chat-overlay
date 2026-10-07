@@ -7,6 +7,7 @@ const files = [
   'desktop/app.js',
   'desktop/ui/status-hub.js',
   'desktop/browser/manager.js',
+  'desktop/browser/metadata.js',
   'desktop/main/ipc.js',
   'desktop/main/app-variant.js',
   'desktop/chat-monitor/state.js',

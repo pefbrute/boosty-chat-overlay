@@ -159,4 +159,23 @@ test('normalizeConfig OBS connection fields and backward compatibility', () => {
   assert.equal(normalizedOld.obsHost, '127.0.0.1');
   assert.equal(normalizedOld.obsPort, 4455);
   assert.equal(normalizedOld.obsPassword, '');
+  assert.equal(normalizedOld.autoOpenChatMonitor, false);
+});
+
+test('normalizeConfig autoOpenChatMonitor field and backward compatibility', () => {
+  // 1. Defaults to false
+  const def = normalizeConfig({});
+  assert.equal(def.autoOpenChatMonitor, false);
+
+  // 2. Explicit true
+  const enabled = normalizeConfig({ autoOpenChatMonitor: true });
+  assert.equal(enabled.autoOpenChatMonitor, true);
+
+  // 3. Explicit false
+  const disabled = normalizeConfig({ autoOpenChatMonitor: false });
+  assert.equal(disabled.autoOpenChatMonitor, false);
+
+  // 4. Fallback on invalid / undefined uses base
+  const fromBaseTrue = normalizeConfig({ autoOpenChatMonitor: undefined }, { ...defaultConfig, autoOpenChatMonitor: true });
+  assert.equal(fromBaseTrue.autoOpenChatMonitor, true);
 });

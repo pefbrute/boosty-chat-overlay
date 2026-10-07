@@ -249,13 +249,85 @@ async function renderBrowserSelection() {
   updateBrowserActionButtons();
 }
 
+function getExtensionsUrlForBrowser(browserId) {
+  if (browserId === 'brave') return 'brave://extensions';
+  if (browserId === 'edge') return 'edge://extensions';
+  if (browserId === 'yandex') return 'browser://extensions';
+  return 'chrome://extensions';
+}
+
+function getBrowserMeta(browserId) {
+  if (globalThis.BoostyBrowserMetadata?.getBrowserMetadata) {
+    return globalThis.BoostyBrowserMetadata.getBrowserMetadata(browserId);
+  }
+  return {
+    id: browserId,
+    name: browserId === 'yandex' ? 'Яндекс Браузер' : (browserId === 'brave' ? 'Brave' : (browserId === 'edge' ? 'Edge' : 'Chrome')),
+    extensionsUrl: getExtensionsUrlForBrowser(browserId),
+    openExtensionsBtnText: browserId === 'yandex' ? '🌐 Открыть расширения Яндекс Браузера' : '🌐 Открыть страницу расширений',
+  };
+}
+
 function updateBrowserActionButtons() {
   const current = availableBrowsers.find(b => b.id === selectedBrowser) || availableBrowsers[0];
-  const name = current ? current.name : 'браузер';
+  const meta = getBrowserMeta(selectedBrowser);
+  const name = current ? current.name : (meta.name || 'браузер');
+  const extUrl = meta.extensionsUrl || getExtensionsUrlForBrowser(selectedBrowser);
+
   const obOpenBrowser = document.querySelector('#ob-open-browser-btn');
   const setupOpenBrowser = document.querySelector('#setup-open-browser-btn');
-  if (obOpenBrowser) setDomText(obOpenBrowser, `🌐 Открыть ${name}`);
-  if (setupOpenBrowser) setDomText(setupOpenBrowser, `🌐 Открыть ${name}`);
+  if (obOpenBrowser) setDomText(obOpenBrowser, meta.openBrowserBtnText || `🌐 Открыть ${name}`);
+  if (setupOpenBrowser) setDomText(setupOpenBrowser, meta.openBrowserBtnText || `🌐 Открыть ${name}`);
+
+  const obOpenExtPage = document.querySelector('#ob-open-ext-page-btn');
+  if (obOpenExtPage) setDomText(obOpenExtPage, meta.openExtensionsBtnText || `🌐 Открыть страницу расширений (${name})`);
+
+  // Render guide title and steps dynamically based on selected browser metadata
+  const obGuideTitle = document.querySelector('#ob-guide-title');
+  if (obGuideTitle && meta.guideTitle) {
+    setDomText(obGuideTitle, meta.guideTitle);
+  }
+
+  const obGuideSteps = document.querySelector('#ob-guide-steps');
+  if (obGuideSteps && Array.isArray(meta.guideSteps)) {
+    obGuideSteps.innerHTML = '';
+    for (const step of meta.guideSteps) {
+      const stepEl = document.createElement('div');
+      stepEl.className = 'ob-guide-step';
+      stepEl.innerHTML = `
+        <span class="ob-step-num">${step.num}</span>
+        <div class="ob-step-body">
+          <div class="ob-step-title">${step.title}</div>
+          <div class="ob-step-desc">${step.desc}</div>
+        </div>
+      `;
+      obGuideSteps.appendChild(stepEl);
+    }
+  }
+
+  // Update URL code pills if rendered
+  const extUrlDisplay = meta.extensionsUrlDisplay || extUrl.replace(/\/$/, '');
+  const obExtUrlCode = document.querySelector('#ob-ext-url-code');
+  if (obExtUrlCode) setDomText(obExtUrlCode, extUrlDisplay);
+
+  const obRecoveryUrl = document.querySelector('#ob-recovery-url');
+  if (obRecoveryUrl) setDomText(obRecoveryUrl, extUrlDisplay);
+
+  // Render recovery title and steps dynamically
+  const obRecoveryTitle = document.querySelector('#ob-recovery-title-text');
+  if (obRecoveryTitle && meta.recoveryCardTitle) {
+    setDomText(obRecoveryTitle, meta.recoveryCardTitle);
+  }
+
+  const obRecoveryList = document.querySelector('#ob-recovery-list');
+  if (obRecoveryList && Array.isArray(meta.recoverySteps)) {
+    obRecoveryList.innerHTML = '';
+    for (const stepText of meta.recoverySteps) {
+      const li = document.createElement('li');
+      li.innerHTML = stepText;
+      obRecoveryList.appendChild(li);
+    }
+  }
 }
 
 // --- OBS Integration ---
@@ -938,7 +1010,7 @@ function updateContextualActionCard() {
 
     const testBtn = document.createElement('button');
     testBtn.className = 'secondary';
-    testBtn.innerHTML = '<svg class="icon-svg" aria-hidden="true"><use href="#icon-chat"/></svg> <span>Тестовое сообщение</span>';
+    testBtn.innerHTML = '<svg class="icon-svg" aria-hidden="true"><use href="#icon-send"/></svg> <span>Тестовое сообщение</span>';
     testBtn.addEventListener('click', () => {
       fetch(`${getApiOrigin()}/test`).catch(() => {});
     });
@@ -1766,6 +1838,11 @@ function syncInputsFromConfig(config) {
     appearanceInputs.shadow.checked = Boolean(config.shadow);
   }
 
+  const autoOpenChatEl = document.querySelector('#setting-auto-open-chat');
+  if (autoOpenChatEl && config.autoOpenChatMonitor !== undefined) {
+    autoOpenChatEl.checked = Boolean(config.autoOpenChatMonitor);
+  }
+
   if (config.horizontalAnchor || config.verticalAnchor) {
     const cornerKey = `${config.horizontalAnchor || 'left'}-${config.verticalAnchor || 'bottom'}`;
     document.querySelectorAll('.corner-btn').forEach(btn => {
@@ -1940,10 +2017,23 @@ function setupEventListeners() {
     });
   });
 
-  // Action card shortcuts
-  document.querySelector('#dash-open-chat-monitor-btn')?.addEventListener('click', () => {
+  // Dedicated Sidebar Chat action
+  document.querySelector('#nav-chat')?.addEventListener('click', () => {
     if (window.boostyOverlay && typeof window.boostyOverlay.openChatMonitor === 'function') {
       window.boostyOverlay.openChatMonitor().catch(err => console.error('Failed to open chat monitor:', err));
+    }
+  });
+
+  // Streamer Chat Settings
+  document.querySelector('#setting-auto-open-chat')?.addEventListener('change', async e => {
+    try {
+      await fetch(`${getApiOrigin()}/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoOpenChatMonitor: Boolean(e.target.checked) }),
+      });
+    } catch (err) {
+      console.error('Failed to save autoOpenChatMonitor setting:', err);
     }
   });
 
@@ -2522,30 +2612,26 @@ function setupEventListeners() {
     refreshStatus();
   });
 
-  // Onboarding Wizard Actions (Preserved)
+  // Onboarding Wizard Actions
   document.querySelector('#ob-recheck-btn')?.addEventListener('click', () => {
     checkGraceDeadline = Date.now() + 6000;
     refreshStatus();
   });
 
-  document.querySelector('#ob-open-setup-btn')?.addEventListener('click', async () => {
-    const guideBox = document.querySelector('#ob-guide-box');
-    setDomDisplay(guideBox, 'block');
-    checkGraceDeadline = Date.now() + 8000;
-    await extensionFlow.startInstall(selectedBrowser);
+  document.querySelector('#ob-recovery-recheck-btn')?.addEventListener('click', () => {
+    checkGraceDeadline = Date.now() + 6000;
     refreshStatus();
   });
 
-  document.querySelector('#ob-open-browser-btn')?.addEventListener('click', () => {
-    window.boostyOverlay.openUrl('https://boosty.to/', selectedBrowser);
+  document.querySelector('#ob-open-ext-page-btn')?.addEventListener('click', async () => {
+    checkGraceDeadline = Date.now() + 8000;
+    await extensionFlow.openExtensionsPage(selectedBrowser);
+    await extensionFlow.openFolder();
+    refreshStatus();
   });
 
-  document.querySelector('#ob-copy-url-again-btn')?.addEventListener('click', async () => {
-    await extensionFlow.copyUrl(selectedBrowser);
-    const btn = document.querySelector('#ob-copy-url-again-btn');
-    const orig = btn.textContent;
-    btn.textContent = '✓ Скопировано!';
-    setTimeout(() => { btn.textContent = orig; }, 1500);
+  document.querySelector('#ob-open-ext-folder-btn')?.addEventListener('click', async () => {
+    await extensionFlow.openFolder();
   });
 
   document.querySelector('#ob-reopen-folder-btn')?.addEventListener('click', async () => {
@@ -2562,13 +2648,31 @@ function setupEventListeners() {
     }
   });
 
+  document.querySelector('#ob-open-setup-btn')?.addEventListener('click', async () => {
+    checkGraceDeadline = Date.now() + 8000;
+    await extensionFlow.startInstall(selectedBrowser);
+    refreshStatus();
+  });
+
+  document.querySelector('#ob-open-browser-btn')?.addEventListener('click', () => {
+    window.boostyOverlay.openUrl('https://boosty.to/', selectedBrowser);
+  });
+
+  document.querySelector('#ob-copy-url-again-btn')?.addEventListener('click', async () => {
+    await extensionFlow.copyUrl(selectedBrowser);
+    const btn = document.querySelector('#ob-copy-url-again-btn');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Скопировано!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  });
+
   document.querySelector('#ob-reopen-browser-btn')?.addEventListener('click', async () => {
     await extensionFlow.openExtensionsPage(selectedBrowser);
   });
 
   document.querySelector('#ob-ext-update-btn')?.addEventListener('click', async () => {
-    const guideBox = document.querySelector('#ob-guide-box');
-    setDomDisplay(guideBox, 'block');
     checkGraceDeadline = Date.now() + 8000;
     await extensionFlow.startInstall(selectedBrowser);
     refreshStatus();
@@ -2668,13 +2772,28 @@ function setupEventListeners() {
     fetch(`${getApiOrigin()}/test`).catch(() => {});
   });
 
-  document.querySelector('#ob-finish-btn')?.addEventListener('click', async () => {
+  async function completeOnboarding() {
     await saveObsConnectionConfig('ob');
     localStorage.setItem('onboardingCompleted', 'true');
     onboardingCompleted = true;
     showView('dashboard');
     await refreshStatus();
     await loadObsScenes('dash');
+  }
+
+  document.querySelector('#ob-open-chat-btn')?.addEventListener('click', async () => {
+    if (window.boostyOverlay && typeof window.boostyOverlay.openChatMonitor === 'function') {
+      try {
+        await window.boostyOverlay.openChatMonitor();
+      } catch (err) {
+        console.error('Failed to open chat monitor from onboarding:', err);
+      }
+    }
+    await completeOnboarding();
+  });
+
+  document.querySelector('#ob-finish-btn')?.addEventListener('click', async () => {
+    await completeOnboarding();
   });
 
   // Modal actions
@@ -2946,29 +3065,37 @@ async function refreshStatus() {
     const obExtSuccess = document.querySelector('#ob-ext-success-msg');
     const obExtBoostySub = document.querySelector('#ob-ext-boosty-substatus');
     const obExtWarning = document.querySelector('#ob-ext-version-warning');
-    const obNotDetectedBox = document.querySelector('#ob-not-detected-box');
-    const obGuideBox = document.querySelector('#ob-guide-box');
+    const obRecoveryBox = document.querySelector('#ob-recovery-box');
     const obConnectedActions = document.querySelector('#ob-connected-actions');
 
     if (obExtBadge) {
       if (extLifecycle === 'connected') {
         setDomClass(obExtBadge, 'badge connected');
-        setDomText(obExtText, health.extension?.version || health.extensionVersion ? `Расширение подключено (v${health.extension?.version || health.extensionVersion})` : 'Расширение подключено');
+        const verStr = health.extension?.version || health.extensionVersion;
+        const connectedText = verStr ? `✓ Расширение подключено (v${verStr})` : '✓ Расширение подключено';
+        setDomText(obExtText, connectedText);
+        if (obExtHint) setDomText(obExtHint, 'Связь с браузером установлена. Можно переходить к следующему шагу.');
         setDomDisplay(obExtSuccess, 'block');
-        setDomDisplay(obNotDetectedBox, 'none');
-        setDomDisplay(obGuideBox, 'none');
+        setDomDisplay(obRecoveryBox, 'none');
         setDomDisplay(obConnectedActions, isBoostyActive ? 'none' : 'flex');
       } else if (extLifecycle === 'checking' || isChecking) {
         setDomClass(obExtBadge, 'badge checking');
-        setDomText(obExtText, 'Проверяем расширение…');
+        setDomText(obExtText, 'Ожидание подключения…');
+        if (obExtHint) setDomText(obExtHint, 'Проверяем связь с браузером…');
         setDomDisplay(obExtSuccess, 'none');
-        setDomDisplay(obNotDetectedBox, 'none');
-        setDomDisplay(obGuideBox, 'none');
+        setDomDisplay(obRecoveryBox, 'block');
+      } else if (health.extensionMigrationRequired) {
+        setDomClass(obExtBadge, 'badge warning');
+        setDomText(obExtText, 'Расширение устарело');
+        if (obExtHint) setDomText(obExtHint, 'Установлена устаревшая версия расширения. Обновите его по шагам выше.');
+        setDomDisplay(obExtSuccess, 'none');
+        setDomDisplay(obRecoveryBox, 'block');
       } else {
         setDomClass(obExtBadge, 'badge pending');
-        setDomText(obExtText, 'Расширение не обнаружено');
+        setDomText(obExtText, 'Расширение не подключено');
+        if (obExtHint) setDomText(obExtHint, 'Выполните шаги выше, чтобы загрузить расширение в браузер.');
         setDomDisplay(obExtSuccess, 'none');
-        setDomDisplay(obNotDetectedBox, 'block');
+        setDomDisplay(obRecoveryBox, 'block');
       }
     }
 
@@ -3182,12 +3309,28 @@ async function init() {
       if (window.boostyOverlay?.getAppVariant) {
         try {
           const variant = await window.boostyOverlay.getAppVariant();
-          if (variant?.isLab) {
-            document.title = variant.mainWindowTitle || 'Boosty Chat Overlay Lab';
+          if (variant?.badge) {
+            document.title = variant.mainWindowTitle || document.title;
             const mainBadge = document.querySelector('#main-lab-badge');
-            if (mainBadge) mainBadge.style.display = 'inline-flex';
+            if (mainBadge) {
+              mainBadge.textContent = variant.badge;
+              mainBadge.style.display = 'inline-flex';
+              if (variant.isFresh) {
+                mainBadge.classList.add('badge-fresh');
+              } else {
+                mainBadge.classList.remove('badge-fresh');
+              }
+            }
             const obBadge = document.querySelector('#onboarding-lab-badge');
-            if (obBadge) obBadge.style.display = 'inline-flex';
+            if (obBadge) {
+              obBadge.textContent = variant.badge;
+              obBadge.style.display = 'inline-flex';
+              if (variant.isFresh) {
+                obBadge.classList.add('badge-fresh');
+              } else {
+                obBadge.classList.remove('badge-fresh');
+              }
+            }
           }
         } catch {
           // Fallback if test fixture does not register IPC handler
@@ -3201,6 +3344,10 @@ async function init() {
         const techExtPath = document.querySelector('#tech-ext-path');
         if (techExtPath && extInfo?.persistentPath) {
           techExtPath.textContent = extInfo.persistentPath;
+        }
+        const obExtPath = document.querySelector('#ob-ext-folder-path');
+        if (obExtPath && extInfo?.persistentPath) {
+          obExtPath.textContent = extInfo.persistentPath;
         }
       }
     } catch {}

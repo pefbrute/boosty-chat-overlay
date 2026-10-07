@@ -78,6 +78,10 @@
         <symbol id="icon-chat" viewBox="0 0 24 24">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
+        <symbol id="icon-send" viewBox="0 0 24 24">
+          <line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
         <symbol id="icon-gamepad" viewBox="0 0 24 24">
           <rect x="2" y="6" width="20" height="12" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
           <path d="M6 12h4M8 10v4M15 13h.01M18 11h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -133,84 +137,140 @@
       <!-- Step 1: Browser & Extension -->
       <section id="step-1" class="wizard-panel active">
         <div class="card-hero">
-          <h2>Подключение расширения</h2>
-          <p>Оно передаёт сообщения из открытой вкладки Boosty в приложение.</p>
+          <h2>Подключите расширение Boosty Chat Overlay</h2>
+          <p>Расширение передаёт сообщения из Boosty в приложение.</p>
         </div>
 
         <div class="card">
-          <!-- Status Banner Box -->
-          <div class="status-box">
-            <div id="ob-ext-status-badge" class="badge checking">
-              <span class="badge-dot"></span> <span id="ob-ext-status-text">Проверяем расширение…</span>
+          <!-- 1. Browser Choice Section -->
+          <div class="ob-section ob-browser-section">
+            <div class="ob-section-header">
+              <span class="ob-step-badge">1</span>
+              <span id="ob-browser-prompt" class="ob-section-title">В каком браузере вы открываете Boosty?</span>
+            </div>
+            <div id="ob-browser-options" class="browser-choice-grid"></div>
+          </div>
+
+          <!-- 2. Step-by-Step Instructions -->
+          <div class="ob-section ob-guide-section">
+            <div class="ob-section-header">
+              <span class="ob-step-badge">2</span>
+              <span id="ob-guide-title" class="ob-section-title">Пошаговая установка расширения</span>
+            </div>
+            <div id="ob-guide-steps" class="ob-guide-steps">
+              <div class="ob-guide-step">
+                <span class="ob-step-num">①</span>
+                <div class="ob-step-body">
+                  <div class="ob-step-title">Откройте страницу расширений в браузере</div>
+                  <div class="ob-step-desc">
+                    Перейдите по адресу: <code id="ob-ext-url-code" class="ob-code-pill">brave://extensions</code>
+                  </div>
+                </div>
+              </div>
+              <div class="ob-guide-step">
+                <span class="ob-step-num">②</span>
+                <div class="ob-step-body">
+                  <div class="ob-step-title">Включите «Режим разработчика»</div>
+                  <div class="ob-step-desc">Переключатель находится в правом верхнем углу страницы расширений.</div>
+                </div>
+              </div>
+              <div class="ob-guide-step">
+                <span class="ob-step-num">③</span>
+                <div class="ob-step-body">
+                  <div class="ob-step-title">Нажмите «Загрузить распакованное расширение»</div>
+                  <div class="ob-step-desc">Кнопка «Load unpacked» появится в верхней панели инструментов.</div>
+                </div>
+              </div>
+              <div class="ob-guide-step">
+                <span class="ob-step-num">④</span>
+                <div class="ob-step-body">
+                  <div class="ob-step-title">Выберите папку расширения</div>
+                  <div class="ob-step-desc">Укажите распакованную папку расширения из блока ниже.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Extension Folder Block -->
+          <div class="ob-section ob-folder-section">
+            <div class="ob-folder-header">
+              <span class="ob-folder-label">Папка расширения</span>
+            </div>
+            <div class="ob-folder-box">
+              <div class="ob-folder-path-wrap">
+                <code id="ob-ext-folder-path" class="ob-folder-path">Определяем путь…</code>
+              </div>
+              <div class="ob-folder-btns">
+                <button id="ob-open-ext-folder-btn" class="secondary" type="button">
+                  📁 Открыть папку
+                </button>
+                <button id="ob-copy-ext-path-btn" class="secondary" type="button">
+                  📋 Скопировать путь
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Primary Actions (CTAs) -->
+          <div class="ob-section ob-actions-section">
+            <div class="actions ob-primary-actions-grid">
+              <button id="ob-open-ext-page-btn" class="primary btn-large" type="button">
+                🌐 Открыть страницу расширений
+              </button>
+              <button id="ob-reopen-folder-btn" class="secondary btn-large" type="button">
+                📁 Открыть папку расширения
+              </button>
+              <button id="ob-recheck-btn" class="secondary" type="button">
+                🔄 Проверить подключение
+              </button>
+            </div>
+          </div>
+
+          <!-- 5. Status Card -->
+          <div id="ob-ext-status-box" class="status-box ob-status-card">
+            <div class="ob-status-header">
+              <div id="ob-ext-status-badge" class="badge checking">
+                <span class="badge-dot"></span> <span id="ob-ext-status-text">Проверяем расширение…</span>
+              </div>
             </div>
             <div id="ob-ext-hint" class="hint-text">Ищем связь с браузером…</div>
 
+            <div id="ob-ext-success-msg" class="success-message" style="display: none;">
+              <div class="success-title">✓ Расширение подключено и готово к работе</div>
+            </div>
+
             <div id="ob-ext-version-warning" class="version-warning" style="display: none;">
               <span>⚠ Доступно обновление расширения (<span id="ob-ext-current-ver">v0.2.0</span> → <span id="ob-ext-latest-ver">v0.4.0</span>)</span>
-              <button id="ob-ext-update-btn" class="inline-btn primary">Обновить расширение</button>
-            </div>
-
-            <div id="ob-ext-success-msg" class="success-message" style="display: none;">
-              <div class="success-title">✓ Отлично! Расширение подключено и работает.</div>
+              <button id="ob-ext-update-btn" class="inline-btn primary" type="button">Обновить расширение</button>
             </div>
           </div>
 
-          <!-- Actions & Browser Choice when NOT DETECTED or CHECKING -->
-          <div id="ob-not-detected-box" class="not-detected-box" style="display: none;">
-            <div id="ob-browser-prompt" class="prompt-text">В каком браузере вы открываете Boosty?</div>
-            <div id="ob-browser-options" class="browser-choice-grid"></div>
-
-            <div class="actions center-actions">
-              <button id="ob-open-setup-btn" class="primary btn-large">Настроить расширение</button>
-              <button id="ob-recheck-btn" class="secondary">Проверить снова</button>
-              <button id="ob-open-browser-btn" class="secondary">Открыть браузер</button>
+          <!-- 6. Recovery Help Section -->
+          <div id="ob-recovery-box" class="ob-recovery-card">
+            <div class="ob-recovery-title">
+              <span id="ob-recovery-title-text">❓ Расширение установлено, но приложение пока его не видит?</span>
             </div>
-          </div>
-
-          <!-- 4-step Visual Installation Card -->
-          <div id="ob-guide-box" class="guide-box" style="display: none;">
-            <div class="guide-title">4 простых шага для подключения:</div>
-            <div class="guide-steps">
-              <div class="guide-step-item">
-                <span class="guide-num">①</span>
-                <div class="guide-text">
-                  <strong>Откройте страницу расширений</strong>
-                  <div class="shortcut-badge">
-                    <kbd>Ctrl</kbd> + <kbd>L</kbd> <span class="shortcut-arrow">→</span>
-                    <kbd>Ctrl</kbd> + <kbd>V</kbd> <span class="shortcut-arrow">→</span>
-                    <kbd>Enter</kbd>
-                  </div>
-                  <span class="subtext">Адрес уже скопирован в буфер обмена.</span>
-                </div>
+            <div class="ob-recovery-content">
+              <ul id="ob-recovery-list" class="ob-recovery-list">
+                <li>Обновите страницу со стримом Boosty (<kbd>Ctrl</kbd> + <kbd>R</kbd> или <kbd>F5</kbd>).</li>
+                <li>Убедитесь, что переключатель расширения включён на странице <code id="ob-recovery-url" class="ob-code-pill">brave://extensions</code>.</li>
+                <li>Нажмите значок перезагрузки (🔄) на карточке расширения в браузере.</li>
+                <li>Затем вернитесь сюда и нажмите «Проверить снова».</li>
+              </ul>
+              <div class="ob-recovery-actions">
+                <button id="ob-recovery-recheck-btn" class="secondary btn-sm" type="button">Проверить снова</button>
               </div>
-              <div class="guide-step-item">
-                <span class="guide-num">②</span>
-                <div class="guide-text">Включите переключатель <strong>«Режим разработчика»</strong> (в правом верхнем углу страницы)</div>
-              </div>
-              <div class="guide-step-item">
-                <span class="guide-num">③</span>
-                <div class="guide-text">Нажмите кнопку <strong>«Загрузить распакованное расширение»</strong></div>
-              </div>
-              <div class="guide-step-item">
-                <span class="guide-num">④</span>
-                <div class="guide-text">Выберите открытую папку <strong>extension</strong></div>
-              </div>
-            </div>
-            <div class="actions helper-actions">
-              <button id="ob-copy-url-again-btn" class="secondary">Скопировать адрес ещё раз</button>
-              <button id="ob-reopen-folder-btn" class="secondary">Открыть папку расширения</button>
-              <button id="ob-copy-ext-path-btn" class="secondary">Скопировать путь к папке</button>
-              <button id="ob-reopen-browser-btn" class="secondary">Открыть браузер</button>
             </div>
           </div>
 
           <!-- Connected quick action for Boosty if boosty not opened -->
           <div id="ob-connected-actions" class="actions center-actions" style="display: none; margin-top: 14px;">
-            <button id="ob-quick-open-boosty-btn" class="secondary">Открыть Boosty</button>
+            <button id="ob-quick-open-boosty-btn" class="secondary" type="button">Открыть Boosty</button>
           </div>
 
+          <!-- Wizard Bottom Navigation -->
           <div class="wizard-actions">
-            <span id="ob-step1-reason" class="wizard-hint-reason">Сначала подключите расширение</span>
+            <span id="ob-step1-reason" class="wizard-hint-reason">Сначала подключите расширение.</span>
             <button id="ob-step1-next-btn" class="primary" disabled>Продолжить →</button>
           </div>
         </div>
@@ -349,11 +409,18 @@
           </div>
 
           <div class="actions center-actions">
-            <button id="ob-test-btn" class="secondary">Отправить тестовое сообщение</button>
+            <button id="ob-test-btn" class="secondary">
+              <svg class="icon-svg" aria-hidden="true"><use href="#icon-send"/></svg>
+              <span>Отправить тестовое сообщение</span>
+            </button>
           </div>
 
           <div class="wizard-actions center-actions">
-            <button id="ob-finish-btn" class="primary btn-large">Перейти на главную</button>
+            <button id="ob-open-chat-btn" class="primary">
+              <svg class="icon-svg" aria-hidden="true"><use href="#icon-chat"/></svg>
+              <span>Открыть чат</span>
+            </button>
+            <button id="ob-finish-btn" class="secondary">Перейти на главную</button>
           </div>
         </div>
       </section>
@@ -377,22 +444,27 @@
         </div>
 
         <nav class="sidebar-nav">
-          <button id="nav-dashboard" class="nav-item active" data-view="dashboard" type="button">
+          <button id="nav-dashboard" class="nav-item active" data-view="dashboard" type="button" title="Главная" aria-label="Главная">
             <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-home"/></svg></span>
             <span class="nav-label">Главная</span>
           </button>
-          <button id="nav-appearance" class="nav-item" data-view="appearance" type="button">
+          <button id="nav-chat" class="nav-item nav-item-action" type="button" title="Открыть чат в отдельном окне" aria-label="Открыть чат в отдельном окне">
+            <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-chat"/></svg></span>
+            <span class="nav-label">Чат</span>
+            <span class="nav-external-icon" aria-hidden="true">↗</span>
+          </button>
+          <button id="nav-appearance" class="nav-item" data-view="appearance" type="button" title="Внешний вид" aria-label="Внешний вид">
             <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-palette"/></svg></span>
             <span class="nav-label">Внешний вид</span>
           </button>
-          <button id="nav-setup" class="nav-item" data-view="setup" type="button">
+          <button id="nav-setup" class="nav-item" data-view="setup" type="button" title="Настройка" aria-label="Настройка">
             <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-setup"/></svg></span>
             <span class="nav-label">Настройка</span>
           </button>
 
           <div class="nav-divider"></div>
 
-          <button id="nav-extra" class="nav-item nav-item-subordinated" data-view="extra" type="button">
+          <button id="nav-extra" class="nav-item nav-item-subordinated" data-view="extra" type="button" title="Дополнительно" aria-label="Дополнительно">
             <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#icon-info"/></svg></span>
             <span class="nav-label">Дополнительно</span>
           </button>
@@ -506,7 +578,7 @@
                   <span>Предпросмотр</span>
                 </button>
                 <button id="dash-test-message-btn" class="secondary">
-                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-chat"/></svg>
+                  <svg class="icon-svg" aria-hidden="true"><use href="#icon-send"/></svg>
                   <span>Тестовое сообщение</span>
                 </button>
               </div>
@@ -518,10 +590,6 @@
 
           <!-- Quick access shortcuts -->
           <div class="dashboard-footer-bar">
-            <button id="dash-open-chat-monitor-btn" class="secondary small-btn">
-              <svg class="icon-svg" aria-hidden="true"><use href="#icon-chat"/></svg>
-              <span>Открыть окно чата</span>
-            </button>
             <button id="dash-open-overlay-btn" class="secondary small-btn">
               <svg class="icon-svg" aria-hidden="true"><use href="#icon-eye"/></svg>
               <span>Открыть оверлей в браузере</span>
@@ -1207,6 +1275,24 @@
               </div>
             </div>
           </div>
+
+          <!-- 4. Streamer Chat Card -->
+          <div class="card setup-card">
+            <div class="card-header">
+              <div>
+                <span class="card-subtitle">Чат</span>
+                <h3 class="card-title">Чат стримера</h3>
+                <p class="card-desc">Отдельное окно для удобного чтения сообщений, упоминаний и технических проблем во время стрима.</p>
+              </div>
+            </div>
+
+            <div class="setup-body">
+              <label class="checkbox-row" for="setting-auto-open-chat">
+                <input id="setting-auto-open-chat" type="checkbox">
+                <span>Открывать чат при запуске приложения</span>
+              </label>
+            </div>
+          </div>
         </section>
 
         <!-- VIEW 4: EXTRA / DIAGNOSTICS -->
@@ -1392,6 +1478,7 @@
     <script src="../core/config/profiles.js"></script>
     <script src="../core/config/size-presets.js"></script>
     <script src="../core/layout/positioning.js"></script>
+    <script src="browser/metadata.js"></script>
     <script src="ui/status-hub.js"></script>
     <script src="app.js"></script>
   </body>

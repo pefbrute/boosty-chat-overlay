@@ -243,7 +243,7 @@ async function forward(root) {
 
   processed.add(root);
 
-  const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.1';
+  const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.5.0';
   const messageId = parsed?.id || `${location.pathname}|${author}|${text}|${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
   const message = {
@@ -385,7 +385,7 @@ let isConnected = false;
 let retryAttempt = 0;
 
 function buildPayload() {
-  const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.4.1';
+  const extensionVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.5.0';
   const extensionId = (typeof chrome !== 'undefined' && chrome.runtime?.id) || '';
   const hasChat = Boolean(currentChatContainer && currentChatContainer.isConnected);
   const isStream = location.pathname.includes('/streams/') ||

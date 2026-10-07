@@ -77,13 +77,13 @@ async function runVisualQa() {
       const dashView = document.querySelector('#view-dashboard');
       if (dashView) dashView.style.display = 'block';
     });
-    await mainWindow.waitForSelector('#dash-open-chat-monitor-btn', { state: 'visible', timeout: 5000 });
-    console.log('✓ Main dashboard ready with chat monitor button');
+    await mainWindow.waitForSelector('#nav-chat', { state: 'visible', timeout: 5000 });
+    console.log('✓ Main dashboard ready with sidebar chat button');
 
-    // Click "Открыть окно чата" on dashboard to test the real integration button!
-    console.log('Opening Chat Monitor window via dashboard button...');
+    // Click "Чат" in sidebar to test the real integration button!
+    console.log('Opening Chat Monitor window via sidebar button...');
     const windowPromise = electronApp.waitForEvent('window', { timeout: 10000 });
-    await mainWindow.click('#dash-open-chat-monitor-btn');
+    await mainWindow.click('#nav-chat');
 
     const monitorWin = await windowPromise;
     console.log('✓ Chat Monitor window opened');

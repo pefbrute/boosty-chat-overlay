@@ -219,3 +219,40 @@ test('ChatMonitorManager: invalid offscreen saved position falls back safely on 
     try { if (fs.existsSync(tmpState)) fs.unlinkSync(tmpState); } catch {}
   }
 });
+
+test('ChatMonitorManager: auto-open logic opens window if config is enabled, ignores if disabled', () => {
+  const { MockBrowserWindow, instances } = createMockBrowserWindow();
+  const tmpState = path.join(os.tmpdir(), `chat-monitor-auto-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+
+  const mockScreen = {
+    getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }],
+    getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }),
+  };
+
+  const manager = createChatMonitorManager({
+    BrowserWindow: MockBrowserWindow,
+    screen: mockScreen,
+    stateFilePath: tmpState,
+  });
+
+  try {
+    // 1. When autoOpenChatMonitor is false (default)
+    const configDisabled = { autoOpenChatMonitor: false };
+    if (configDisabled.autoOpenChatMonitor) {
+      manager.openWindow();
+    }
+    assert.equal(instances.length, 0);
+    assert.equal(manager.getState().isOpen, false);
+
+    // 2. When autoOpenChatMonitor is true
+    const configEnabled = { autoOpenChatMonitor: true };
+    if (configEnabled.autoOpenChatMonitor) {
+      manager.openWindow();
+    }
+    assert.equal(instances.length, 1);
+    assert.equal(manager.getState().isOpen, true);
+  } finally {
+    manager.closeWindow();
+    try { if (fs.existsSync(tmpState)) fs.unlinkSync(tmpState); } catch {}
+  }
+});

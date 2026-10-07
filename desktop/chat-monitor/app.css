@@ -136,6 +136,12 @@ html, body {
   flex-shrink: 0;
 }
 
+.brand-lab-badge.badge-fresh {
+  background: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
 /* Status Badge */
 .status-badge {
   display: inline-flex;
