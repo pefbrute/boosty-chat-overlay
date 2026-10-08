@@ -38,6 +38,7 @@
       avatarSize: 48,
     },
   };
+  SIZE_PRESETS.standard = SIZE_PRESETS.normal;
 
   const SIZE_KEYS = [
     'cardWidth',
@@ -51,7 +52,8 @@
 
   const SIZE_LABELS = {
     compact: 'Компактный',
-    normal: 'Обычный',
+    normal: 'Стандартный',
+    standard: 'Стандартный',
     large: 'Крупный',
   };
 

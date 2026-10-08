@@ -65,6 +65,15 @@ test('Onboarding Extension Setup UX — Static DOM structure contains all requir
   const extUrlCode = document.querySelector('#ob-ext-url-code');
   assert.ok(extUrlCode, 'Extension URL code element must exist');
 
+  const copyUrlBtn = document.querySelector('#ob-copy-url-btn');
+  assert.ok(copyUrlBtn, 'Copy URL button must exist');
+
+  const copyUrlSuccess = document.querySelector('#ob-copy-url-success');
+  assert.ok(copyUrlSuccess, 'Copy URL success indicator must exist');
+
+  const manualHint = document.querySelector('#ob-step1-manual-hint');
+  assert.ok(manualHint, 'Step 1 manual instruction hint must exist');
+
   // Step 2: Dev mode description
   const step2Desc = document.querySelector('#ob-step2-desc');
   assert.ok(step2Desc, 'Step 2 description must exist');
@@ -148,14 +157,15 @@ test('Yandex Browser First-Class Support — Metadata & Copy Invariants', () => 
   assert.equal(yandex.name, 'Яндекс Браузер');
   assert.equal(yandex.label, 'Яндекс Браузер');
   assert.equal(yandex.extensionsUrl, 'browser://extensions/');
-  assert.equal(yandex.openExtensionsBtnText, '🌐 Открыть расширения Яндекс Браузера');
+  assert.equal(yandex.openExtensionsBtnText, 'Попробовать открыть автоматически');
   assert.equal(yandex.guideTitle, 'Установите расширение');
   assert.equal(yandex.guideSubtitle, 'Три простых шага — займёт меньше минуты.');
 
   // Verify exactly 3 steps for Yandex onboarding
   assert.equal(yandex.guideSteps.length, 3, 'Yandex onboarding must have 3 clear steps');
   assert.match(yandex.guideSteps[0].title, /Откройте страницу расширений/);
-  assert.match(yandex.guideSteps[0].desc, /расширений/i);
+  assert.match(yandex.guideSteps[0].desc, /адресную строку/i);
+  assert.match(yandex.guideSteps[0].desc, /Enter/);
   assert.match(yandex.guideSteps[1].title, /Режим разработчика/);
   assert.match(yandex.guideSteps[2].title, /Перетащите папку extension/);
   assert.match(yandex.guideSteps[2].desc, /папку extension/i);
@@ -232,15 +242,15 @@ test('Yandex Browser First-Class Support — Detection & Launch Actions in Brows
   const openRes = mgr.openBrowserExtensionsPage('yandex');
   assert.equal(openRes.ok, true);
   assert.equal(openRes.browser, 'Яндекс Браузер');
-  assert.equal(openRes.managerUrl, 'browser://extensions/');
-  assert.equal(clipboardText, 'browser://extensions/');
+  assert.equal(openRes.managerUrl, 'browser://extensions');
+  assert.equal(clipboardText, 'browser://extensions');
   assert.equal(spawned.cmd, '/usr/bin/yandex-browser');
   assert.deepEqual(spawned.args, ['--new-window', 'browser://extensions/']);
 
   // Copy extensions URL
   const copyRes = mgr.copyExtensionsUrl('yandex');
   assert.equal(copyRes.ok, true);
-  assert.equal(copyRes.url, 'browser://extensions/');
+  assert.equal(copyRes.url, 'browser://extensions');
 });
 
 test('Yandex Browser First-Class Support — Dynamic DOM Rendering & No Text Leakage', () => {
@@ -289,7 +299,7 @@ test('Yandex Browser First-Class Support — Dynamic DOM Rendering & No Text Lea
   }
 
   // Assertions
-  assert.equal(obOpenExtPage.textContent, '🌐 Открыть расширения Яндекс Браузера');
+  assert.equal(obOpenExtPage.textContent, 'Попробовать открыть автоматически');
   assert.equal(obHeroTitle.textContent, 'Установите расширение');
 
   const renderedCards = document.querySelectorAll('#ob-three-steps-container .ob-step-card');
@@ -464,4 +474,181 @@ test('Onboarding OBS Step 3 Refresh CTA — Waiting, Checking, Detected & Duplic
   addBtn.click();
   await new Promise(r => setTimeout(r, 20));
   assert.equal(addObsSceneCalls, 0, 'Add button must not create duplicate source if scene already hasChat');
+});
+
+test('Step 1 Manual Extensions URL Guide — Clean URL mapping for all browsers (ТЗ section 3 & 10)', () => {
+  const { SUPPORTED_BROWSERS, getCleanExtensionsUrlForBrowser, getExtensionsUrlForBrowser } = require('../desktop/browser/metadata.js');
+
+  const expectedUrls = {
+    yandex: 'browser://extensions',
+    chrome: 'chrome://extensions',
+    brave: 'brave://extensions',
+    edge: 'edge://extensions',
+    chromium: 'chrome://extensions',
+  };
+
+  for (const [id, expectedUrl] of Object.entries(expectedUrls)) {
+    const cleanUrl = getCleanExtensionsUrlForBrowser(id);
+    assert.equal(cleanUrl, expectedUrl, `getCleanExtensionsUrlForBrowser("${id}") must be ${expectedUrl}`);
+    assert.equal(SUPPORTED_BROWSERS[id].extensionsUrlDisplay, expectedUrl, `extensionsUrlDisplay for "${id}" must be ${expectedUrl}`);
+    assert.ok(!cleanUrl.endsWith('/'), `Clean URL for "${id}" must NOT have a trailing slash`);
+    assert.ok(!cleanUrl.includes(' '), `Clean URL for "${id}" must not contain whitespace`);
+  }
+
+  // Fallback for unknown browser
+  assert.equal(getCleanExtensionsUrlForBrowser('unknown_browser'), 'chrome://extensions');
+});
+
+test('Step 1 Manual Extensions URL Guide — Clipboard copy correctness (ТЗ section 6 & 10)', () => {
+  const { createBrowserManager } = require('../desktop/browser/manager.js');
+
+  let writtenText = '';
+  const fakeClipboard = {
+    writeText(text) {
+      writtenText = text;
+    },
+  };
+
+  const mgr = createBrowserManager({
+    clipboardModule: fakeClipboard,
+    fsModule: { existsSync: () => true },
+  });
+
+  const testCases = [
+    { browserId: 'yandex', expectedUrl: 'browser://extensions' },
+    { browserId: 'chrome', expectedUrl: 'chrome://extensions' },
+    { browserId: 'brave', expectedUrl: 'brave://extensions' },
+    { browserId: 'edge', expectedUrl: 'edge://extensions' },
+  ];
+
+  for (const tc of testCases) {
+    writtenText = '';
+    const res = mgr.copyExtensionsUrl(tc.browserId);
+    assert.equal(res.ok, true, `copyExtensionsUrl("${tc.browserId}") must succeed`);
+    assert.equal(res.url, tc.expectedUrl, `Returned url for "${tc.browserId}" must match`);
+    assert.equal(writtenText, tc.expectedUrl, `Clipboard text for "${tc.browserId}" must be exactly ${tc.expectedUrl}`);
+    assert.ok(!writtenText.endsWith('/'), 'Copied URL must have no trailing slash');
+    assert.ok(!writtenText.includes(' '), 'Copied URL must have no whitespace');
+  }
+});
+
+test('Step 1 Manual Extensions URL Guide — Browser switching updates DOM cleanly (ТЗ section 2, 3, 5, 10)', () => {
+  const { SUPPORTED_BROWSERS } = require('../desktop/browser/metadata.js');
+  const { parseHTML } = require('linkedom');
+
+  const { document } = parseHTML(indexHtml);
+
+  // Helper simulating updateBrowserActionButtons logic
+  function applyBrowserSelection(browserId) {
+    const meta = SUPPORTED_BROWSERS[browserId];
+    const name = meta.name;
+    const cleanUrl = meta.extensionsUrlDisplay;
+
+    const obExtUrlCode = document.querySelector('#ob-ext-url-code');
+    if (obExtUrlCode) obExtUrlCode.textContent = cleanUrl;
+
+    const obStep1Desc = document.querySelector('#ob-step1-desc');
+    if (obStep1Desc) obStep1Desc.textContent = meta.guideSteps[0].desc;
+
+    const obStep1ManualHint = document.querySelector('#ob-step1-manual-hint');
+    if (obStep1ManualHint) {
+      const hint = meta.guideSteps[0].manualInstruction;
+      obStep1ManualHint.innerHTML = hint.replace(/Enter/g, '<kbd class="ob-kbd">Enter</kbd>');
+    }
+
+    const obOpenExtPage = document.querySelector('#ob-open-ext-page-btn');
+    if (obOpenExtPage) obOpenExtPage.textContent = meta.guideSteps[0].ctaText || 'Попробовать открыть автоматически';
+  }
+
+  // 1. Check Yandex
+  applyBrowserSelection('yandex');
+  assert.equal(document.querySelector('#ob-ext-url-code').textContent, 'browser://extensions');
+  assert.match(document.querySelector('#ob-step1-desc').textContent, /Яндекс Браузера/);
+  assert.match(document.querySelector('#ob-step1-desc').textContent, /Enter/);
+  assert.match(document.querySelector('#ob-step1-manual-hint').textContent, /Откройте Яндекс Браузер → вставьте адрес в верхнюю адресную строку → нажмите Enter/);
+  assert.equal(document.querySelector('#ob-open-ext-page-btn').textContent, 'Попробовать открыть автоматически');
+
+  // Verify no Chrome/Brave/Edge leak in Yandex
+  const yandexHtml = document.querySelector('.ob-step-card[data-step="1"]').innerHTML;
+  assert.ok(!yandexHtml.includes('chrome://extensions'));
+  assert.ok(!yandexHtml.includes('brave://extensions'));
+  assert.ok(!yandexHtml.includes('edge://extensions'));
+
+  // 2. Switch to Chrome
+  applyBrowserSelection('chrome');
+  assert.equal(document.querySelector('#ob-ext-url-code').textContent, 'chrome://extensions');
+  assert.match(document.querySelector('#ob-step1-desc').textContent, /Google Chrome/);
+  assert.match(document.querySelector('#ob-step1-manual-hint').textContent, /Откройте Google Chrome/);
+
+  // 3. Switch to Brave
+  applyBrowserSelection('brave');
+  assert.equal(document.querySelector('#ob-ext-url-code').textContent, 'brave://extensions');
+  assert.match(document.querySelector('#ob-step1-desc').textContent, /Brave/);
+  assert.match(document.querySelector('#ob-step1-manual-hint').textContent, /Откройте Brave/);
+
+  // 4. Switch to Edge
+  applyBrowserSelection('edge');
+  assert.equal(document.querySelector('#ob-ext-url-code').textContent, 'edge://extensions');
+  assert.match(document.querySelector('#ob-step1-desc').textContent, /Microsoft Edge/);
+  assert.match(document.querySelector('#ob-step1-manual-hint').textContent, /Откройте Microsoft Edge/);
+});
+
+test('Step 1 Manual Extensions URL Guide — Honest auto-open status & manual instruction persistence (ТЗ section 4, 5, 10)', () => {
+  const { createBrowserManager } = require('../desktop/browser/manager.js');
+
+  // Case 1: Browser exists and is launched -> returns notice warning, never false success claim
+  const mgr = createBrowserManager({
+    fsModule: { existsSync: () => true },
+    spawnFn: () => ({ unref: () => {} }),
+    clipboardModule: { writeText: () => {} },
+  });
+
+  const res = mgr.openBrowserExtensionsPage('yandex');
+  assert.equal(res.ok, true);
+  assert.ok(res.notice, 'Response must include warning notice informing user about manual paste');
+  assert.match(res.notice, /вставьте скопированный адрес/);
+  assert.ok(!res.notice.includes('успешно открыта'), 'Must not claim the page was opened successfully');
+
+  // Case 2: Browser missing -> returns clean error
+  const mgrMissing = createBrowserManager({
+    fsModule: { existsSync: () => false },
+  });
+  const resMissing = mgrMissing.openBrowserExtensionsPage('yandex');
+  assert.equal(resMissing.ok, false);
+  assert.match(resMissing.error, /не найден/);
+
+  // Case 3: Manual instruction element is always visible in DOM regardless of auto-open
+  const { document } = parseHTML(indexHtml);
+  const manualHint = document.querySelector('#ob-step1-manual-hint');
+  assert.ok(manualHint, 'Manual hint element must always be present in DOM');
+  assert.equal(manualHint.style.display || 'block', 'block', 'Manual hint must not be hidden by default');
+});
+
+test('Step 1 & Step 3 Invariants — Preservation of extension folder step and drag-and-drop (ТЗ section 5 & 10)', () => {
+  const { document } = parseHTML(indexHtml);
+
+  // Step 3 Header & Description
+  const step3Title = document.querySelector('#ob-step3-title');
+  assert.ok(step3Title);
+  assert.equal(step3Title.textContent.trim(), 'Перетащите папку extension');
+
+  const step3Desc = document.querySelector('#ob-step3-desc');
+  assert.ok(step3Desc);
+  assert.match(step3Desc.textContent, /папку extension/);
+
+  // Step 3 Open folder button
+  const openFolderBtn = document.querySelector('#ob-open-ext-folder-btn');
+  assert.ok(openFolderBtn);
+  assert.match(openFolderBtn.textContent, /Открыть папку extension/);
+
+  // Drag & drop visual hint
+  const dndHint = document.querySelector('#ob-drag-drop-hint');
+  assert.ok(dndHint);
+  assert.match(dndHint.textContent, /Зажмите папку extension мышью и перетащите/);
+
+  // Manual fallback accordion
+  const fallback = document.querySelector('#ob-manual-fallback');
+  assert.ok(fallback);
+  const copyPathBtn = document.querySelector('#ob-copy-ext-path-btn');
+  assert.ok(copyPathBtn);
 });

@@ -14,7 +14,10 @@ const testPort = 17399;
 process.env.BOOSTY_OVERLAY_PORT = String(testPort);
 const tmpConfig = path.join(__dirname, '..', 'overlay-settings-reconnect-electron.json');
 process.env.BOOSTY_OVERLAY_CONFIG = tmpConfig;
-try { fs.unlinkSync(tmpConfig); } catch {}
+fs.writeFileSync(tmpConfig, JSON.stringify({ durationSeconds: 20 }));
+const tmpHistory = path.join(__dirname, '..', 'chat-history-reconnect-electron.json');
+process.env.BOOSTY_OVERLAY_HISTORY = tmpHistory;
+try { fs.unlinkSync(tmpHistory); } catch {}
 
 const { server, host } = require('../server.js');
 
@@ -102,6 +105,7 @@ app.whenReady().then(async () => {
     try { if (win && !win.isDestroyed()) win.destroy(); } catch {}
     server.close(() => {
       try { fs.unlinkSync(tmpConfig); } catch {}
+      try { fs.unlinkSync(tmpHistory); } catch {}
       app.quit();
       process.exit(code);
     });

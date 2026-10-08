@@ -275,7 +275,31 @@ desktop/ (Electron Application)
   - **Error Fallback:** If `<video>` fails to load (`onerror`), UI gracefully falls back to the poster image and `.svg` diagram without broken media placeholders.
   - **Manual Mode Toggle:** Streamer can manually switch between video and diagram at any time.
   - **Lazy Mount & Teardown:** Video is mounted/started only upon entering the target onboarding step (e.g. Step 2) and torn down upon step change to eliminate background decoding overhead.
-- **Visual QA Determinism:** In UI visual test mode (`BOOSTY_OVERLAY_UI_TEST=1`), tutorial video is initialized with deterministic playback hooks to prevent flakiness and race conditions in visual diffs.
+### 2.34. Onboarding Manual Browser Extension Guide & Clean URL Invariant (`desktop/browser/metadata.js`)
+- **Chromium WebUI Security Invariant:** External desktop applications cannot reliably command Chromium-based browsers to navigate to internal WebUI schemes (`chrome://`, `browser://`, `edge://`, `brave://`) via command-line arguments or OS link handlers. Chromium intentionally drops these parameters when an existing browser instance is running to prevent local privilege escalation.
+- **Manual Path as Primary UX:** The primary installation path is strictly manual: clear address, prominent «Скопировать адрес» button, immediate confirmation feedback (`✓ Адрес скопирован`), and explicit breadcrumb instructions: `Откройте <Браузер> → вставьте адрес в верхнюю адресную строку → нажмите Enter.`
+- **Clean URL Invariant:** Addresses are strictly clean without trailing slashes (`browser://extensions`, `chrome://extensions`, `brave://extensions`, `edge://extensions`).
+- **Secondary Auto-Open Button:** Any auto-open button is strictly secondary (`Попробовать открыть автоматически`) and gives honest feedback (`ℹ Браузер запущен. Если страница не открылась, вставьте скопированный адрес вручную.`), never promising that the page was opened.
+- **Step 3 Invariant:** Step 3 extension folder opening (`📁 Открыть папку extension`), drag-and-drop guidance, and manual fallback path must remain intact.
+
+### 2.35. Local-First Security Audit & Antivirus QA Gate (`scripts/security/audit.js`)
+- **Ubuntu 22.04 LTS Local Security Stack:**
+  - ClamAV (`clamscan` on installers, EXEs, and unpacks)
+  - Trivy (`trivy fs` for CVEs and misconfigs)
+  - Gitleaks (`gitleaks detect` for git history secret scanning)
+  - YARA (custom pattern rules)
+  - Detect It Easy (`diec` for PE packer analysis)
+  - osslsigncode (Authenticode signature verification)
+  - `npm audit` (dependency vulnerabilities)
+- **Zero Cloud / Local-First Invariant:** All security checks run locally on Ubuntu 22.04 or on the clean Windows VM without sending sensitive binaries to public cloud scanners.
+- **SHA-256 Manifest Invariant:** Machine-readable `artifacts/release-security/checksums.sha256` and human-readable release security summaries accompany every release artifact.
+
+### 2.36. Chat Monitor Technical Issues Classifier (`desktop/chat-monitor/technical-issues.js`)
+- **Classification Rules:** High/Medium/Low keyword matching for stream issues (`audio_missing`, `audio_low`, `audio_high`, `audio_sync`, `video_missing`, `stream_freeze`, `stream_lag`, `quality`).
+- **Aggregation Window Invariant:** Aggregates reports within a sliding 30-second window. Escalates to sticky banners based on unique users (1 user: possible, 2 users: probable, 3 users: critical). Multiple messages from the *same* user do not inflate the unique user count.
+
+### 2.37. Preflight Gate & Verification Automation (`scripts/verify-preflight.js`)
+- **Single Command Verification:** Run `npm run preflight` (`npm run preflight:fast` for quick checks) to execute the complete 5-step checklist before completing any task.
 
 ---
 
@@ -283,6 +307,11 @@ desktop/ (Electron Application)
 
 | Task | Target Files |
 | :--- | :--- |
+| Preflight verification gate | [`scripts/verify-preflight.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/verify-preflight.js) |
+| Windows VM Winda QA helper | [`scripts/qa/winda-sync.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/qa/winda-sync.js) |
+| Local security audit toolchain | [`scripts/security/audit.js`](file:///home/fedor/projects/boosty-chat-overlay/scripts/security/audit.js) |
+| Browser extensions URLs & metadata | [`desktop/browser/metadata.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/browser/metadata.js) |
+| Chat technical issues classifier | [`desktop/chat-monitor/technical-issues.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/chat-monitor/technical-issues.js) |
 | Canonical constants & Extension ID | [`core/constants.js`](file:///home/fedor/projects/boosty-chat-overlay/core/constants.js) |
 | Card size presets (Focus Mode) | [`core/config/size-presets.js`](file:///home/fedor/projects/boosty-chat-overlay/core/config/size-presets.js) |
 | Persistent extension deployer | [`desktop/browser/extension-deployer.js`](file:///home/fedor/projects/boosty-chat-overlay/desktop/browser/extension-deployer.js) |

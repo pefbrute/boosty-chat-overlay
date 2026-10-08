@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('boostyOverlay', {
   },
   openChatMonitor: () => ipcRenderer.invoke('open-chat-monitor'),
   getAppVariant: () => ipcRenderer.invoke('get-app-variant'),
+  exportSettingsFile: (payload, suggestedName) => ipcRenderer.invoke('export-settings-file', payload, suggestedName),
+  importSettingsFile: () => ipcRenderer.invoke('import-settings-file'),
 });
 
 if (process.env.UI_AUDIT_MODE === '1' || process.env.BOOSTY_OVERLAY_UI_TEST === '1') {

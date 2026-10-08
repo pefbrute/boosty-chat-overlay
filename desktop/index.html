@@ -250,16 +250,28 @@
                 <span class="ob-step-card-num">1</span>
                 <div class="ob-step-card-info">
                   <h3 id="ob-step1-title" class="ob-step-card-title">Откройте страницу расширений</h3>
-                  <p id="ob-step1-desc" class="ob-step-card-desc">В браузере откроется страница установленных расширений.</p>
+                  <p id="ob-step1-desc" class="ob-step-card-desc">Вставьте этот адрес в адресную строку Яндекс Браузера и нажмите Enter:</p>
                 </div>
               </div>
               <div class="ob-step-card-action">
-                <button id="ob-open-ext-page-btn" class="primary btn-large" type="button">
-                  🌐 Открыть расширения Яндекс Браузера
-                </button>
-                <div class="ob-step-secondary-url">
-                  <span class="ob-url-label">Адрес:</span>
-                  <code id="ob-ext-url-code" class="ob-code-pill">browser://extensions</code>
+                <div class="ob-url-copy-box">
+                  <code id="ob-ext-url-code" class="ob-code-pill ob-ext-address" title="Нажмите, чтобы выделить адрес">browser://extensions</code>
+                  <button id="ob-copy-url-btn" class="primary btn-copy-url" type="button" aria-label="Скопировать адрес страницы расширений">
+                    <span id="ob-copy-url-icon" class="ob-copy-icon">📋</span>
+                    <span id="ob-copy-url-text">Скопировать адрес</span>
+                  </button>
+                  <span id="ob-copy-url-success" class="ob-copy-url-feedback" style="display: none;" role="status">
+                    ✓ Адрес скопирован
+                  </span>
+                </div>
+                <div id="ob-step1-manual-hint" class="ob-step-instruction-hint">
+                  Откройте Яндекс Браузер → вставьте адрес в верхнюю адресную строку → нажмите <kbd class="ob-kbd">Enter</kbd>.
+                </div>
+                <div class="ob-auto-open-wrap">
+                  <button id="ob-open-ext-page-btn" class="secondary btn-sm ob-auto-open-btn" type="button">
+                    Попробовать открыть автоматически
+                  </button>
+                  <div id="ob-auto-open-status" class="ob-auto-open-status" style="display: none;"></div>
                 </div>
               </div>
             </div>
@@ -839,11 +851,11 @@
                     <span class="card-subtitle">Быстрые пресеты</span>
                     <h3 class="card-title">Стиль отображения</h3>
                   </div>
-                  <span id="preset-status-badge" class="preset-badge">Чистый</span>
+                  <span id="preset-status-badge" class="preset-badge">Стандартный</span>
                 </div>
                 <div class="preset-buttons">
                   <button id="preset-btn-compact" class="preset-btn" data-preset="compact" type="button">Компактный</button>
-                  <button id="preset-btn-clean" class="preset-btn active" data-preset="clean" type="button">Чистый</button>
+                  <button id="preset-btn-clean" class="preset-btn active" data-preset="clean" type="button">Стандартный</button>
                   <button id="preset-btn-large" class="preset-btn" data-preset="large" type="button">Крупный</button>
                   <button id="preset-btn-glass" class="preset-btn" data-preset="glass" type="button">Стекло</button>
                 </div>
@@ -962,7 +974,7 @@
                 </div>
                 <div class="basic-size-buttons" role="radiogroup" aria-label="Размер чата">
                   <button id="size-btn-compact" class="size-preset-btn" data-size="compact" type="button" aria-pressed="false">Компактный</button>
-                  <button id="size-btn-normal" class="size-preset-btn" data-size="normal" type="button" aria-pressed="false">Обычный</button>
+                  <button id="size-btn-normal" class="size-preset-btn" data-size="normal" type="button" aria-pressed="false">Стандартный</button>
                   <button id="size-btn-large" class="size-preset-btn" data-size="large" type="button" aria-pressed="false">Крупный</button>
                 </div>
               </div>
@@ -978,26 +990,39 @@
 
                 <div class="setting-item">
                   <div class="basic-stepper-row">
-                    <label id="basic-max-messages-label" class="basic-stepper-label">Сообщений одновременно</label>
+                    <label id="basic-max-messages-label" class="basic-stepper-label">Сообщений на экране</label>
                     <div class="basic-stepper-controls" role="group" aria-labelledby="basic-max-messages-label">
                       <button id="basic-max-msgs-dec" class="stepper-btn" type="button" aria-label="Уменьшить количество сообщений">−</button>
-                      <span id="basic-max-messages-val" class="stepper-val" aria-live="polite">6</span>
+                      <span id="basic-max-messages-val" class="stepper-val" aria-live="polite">10</span>
                       <button id="basic-max-msgs-inc" class="stepper-btn" type="button" aria-label="Увеличить количество сообщений">+</button>
                     </div>
+                  </div>
+                  <div class="msg-count-pills-row" role="radiogroup" aria-label="Быстрый выбор количества сообщений" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px;">
+                    <button type="button" class="count-pill-btn" data-count="5" aria-pressed="false" title="5 — компактно">5</button>
+                    <button type="button" class="count-pill-btn active" data-count="10" aria-pressed="true" title="10 — стандартно">10</button>
+                    <button type="button" class="count-pill-btn" data-count="20" aria-pressed="false" title="20 — больше истории">20</button>
+                    <button type="button" class="count-pill-btn" data-count="30" aria-pressed="false" title="30 — расширенный вариант">30</button>
                   </div>
                 </div>
 
                 <div class="setting-item" style="margin-top: 14px;">
-                  <div class="setting-label-row">
-                    <label id="basic-duration-label">Время показа</label>
-                    <span id="basic-duration-display" class="setting-val-display font-medium">20 сек.</span>
-                  </div>
-                  <div class="duration-pills-row" role="radiogroup" aria-labelledby="basic-duration-label">
-                    <button type="button" class="duration-pill-btn" data-duration="10" aria-pressed="false">10 сек</button>
-                    <button type="button" class="duration-pill-btn" data-duration="12" aria-pressed="false">12 сек</button>
-                    <button type="button" class="duration-pill-btn" data-duration="15" aria-pressed="false">15 сек</button>
-                    <button type="button" class="duration-pill-btn" data-duration="25" aria-pressed="false">25 сек</button>
-                    <button type="button" class="duration-pill-btn" data-duration="0" aria-pressed="false">Всегда</button>
+                  <label class="checkbox-row">
+                    <input id="basic-auto-hide-toggle" type="checkbox">
+                    <span>Автоматически скрывать сообщения</span>
+                  </label>
+                  <div id="basic-duration-wrap" class="setting-sub-row" style="margin-top: 8px; display: none;">
+                    <div class="setting-label-row">
+                      <label id="basic-duration-label">Время показа</label>
+                      <span id="basic-duration-display" class="setting-val-display font-medium">15 сек.</span>
+                    </div>
+                    <div class="duration-pills-row" role="radiogroup" aria-labelledby="basic-duration-label">
+                      <button type="button" class="duration-pill-btn" data-duration="0" style="display: none;" aria-pressed="false">Всегда</button>
+                      <button type="button" class="duration-pill-btn" data-duration="10" aria-pressed="false">10 сек</button>
+                      <button type="button" class="duration-pill-btn active" data-duration="15" aria-pressed="true">15 сек</button>
+                      <button type="button" class="duration-pill-btn" data-duration="20" aria-pressed="false">20 сек</button>
+                      <button type="button" class="duration-pill-btn" data-duration="30" aria-pressed="false">30 сек</button>
+                      <button type="button" class="duration-pill-btn" data-duration="60" aria-pressed="false">60 сек</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1008,30 +1033,37 @@
                 
                 <div class="setting-item">
                   <label class="checkbox-row">
-                    <input id="always-show" type="checkbox">
-                    <span>Всегда показывать последние сообщения</span>
+                    <input id="auto-hide-messages" type="checkbox">
+                    <span>Автоматически скрывать сообщения</span>
                   </label>
+                  <input id="always-show" type="checkbox" style="display: none;">
                 </div>
 
-                <div id="duration-container" class="setting-item">
+                <div id="duration-container" class="setting-item" style="display: none;">
                   <div class="setting-label-row">
                     <label for="duration">Время отображения</label>
                     <span class="setting-val-display"><span id="duration-val">20</span> сек.</span>
                   </div>
                   <div class="slider-row">
-                    <input id="duration-slider" type="range" min="1" max="120" value="20">
-                    <input id="duration" class="num-input" type="number" min="1" max="120" value="20">
+                    <input id="duration-slider" type="range" min="5" max="120" value="20">
+                    <input id="duration" class="num-input" type="number" min="5" max="120" value="20">
                   </div>
                 </div>
 
                 <div class="setting-item">
                   <div class="setting-label-row">
                     <label for="max-messages">Сообщений на экране</label>
-                    <span class="setting-val-display"><span id="max-messages-val">6</span></span>
+                    <span class="setting-val-display"><span id="max-messages-val">10</span></span>
                   </div>
                   <div class="slider-row">
-                    <input id="max-messages-slider" type="range" min="1" max="20" value="6">
-                    <input id="max-messages" class="num-input" type="number" min="1" max="20" value="6">
+                    <input id="max-messages-slider" type="range" min="1" max="50" value="10">
+                    <input id="max-messages" class="num-input" type="number" min="1" max="50" value="10">
+                  </div>
+                  <div class="msg-count-pills-row" role="radiogroup" aria-label="Быстрый выбор количества сообщений" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px;">
+                    <button type="button" class="count-pill-btn" data-count="5" aria-pressed="false" title="5 — компактно">5</button>
+                    <button type="button" class="count-pill-btn active" data-count="10" aria-pressed="true" title="10 — стандартно">10</button>
+                    <button type="button" class="count-pill-btn" data-count="20" aria-pressed="false" title="20 — больше истории">20</button>
+                    <button type="button" class="count-pill-btn" data-count="30" aria-pressed="false" title="30 — расширенный вариант">30</button>
                   </div>
                 </div>
 
@@ -1244,9 +1276,26 @@
                 </button>
               </div>
 
-              <!-- Footer Bar with Save Feedback and Reset Button -->
+              <!-- Settings Import / Export and Reset Card -->
+              <div class="card settings-transfer-card" style="margin-top: 14px; padding: 12px 14px;">
+                <div class="settings-transfer-header" style="margin-bottom: 8px;">
+                  <span class="card-subtitle">Управление конфигурацией</span>
+                  <h4 style="font-size: 14px; margin: 2px 0 0; color: var(--text-main);">Резервная копия и сброс</h4>
+                </div>
+                <div class="settings-transfer-actions" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+                  <div class="transfer-btn-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button id="btn-export-settings" class="secondary" type="button" title="Экспортировать настройки оформления в файл JSON">Экспортировать настройки</button>
+                    <button id="btn-import-settings" class="secondary" type="button" title="Импортировать настройки оформления из файла JSON">Импортировать настройки</button>
+                    <input type="file" id="import-settings-file-input" style="display: none;" accept=".json">
+                  </div>
+                  <button id="appearance-reset-btn" class="secondary reset-btn" type="button" title="Вернуть все параметры оформления к исходным значениям">Вернуть настройки оформления по умолчанию</button>
+                </div>
+                <div id="transfer-notification" class="transfer-notification" style="display: none; margin-top: 8px; font-size: 13px; border-radius: 6px; padding: 6px 10px;"></div>
+              </div>
+
+              <!-- Footer Bar with Save Feedback -->
               <div class="appearance-footer-actions">
-                <button id="appearance-reset-btn" class="secondary" type="button">Сбросить оформление</button>
+                <div></div>
                 <div class="save-status-wrap">
                   <span id="appearance-save-status" class="save-status-pill">✓ Сохранено</span>
                   <button id="appearance-retry-save-btn" class="retry-save-btn" style="display: none;" type="button">Повторить</button>

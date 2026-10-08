@@ -8,7 +8,7 @@
 (function(root) {
   const MAX_DOM_MESSAGES = 500;
   const BOTTOM_THRESHOLD_PX = 60;
-  const HISTORY_INITIAL_LIMIT = 100;
+  const HISTORY_INITIAL_LIMIT = 1000;
 
   function isSafeEmojiUrl(url) {
     if (typeof url !== 'string') return false;
@@ -636,6 +636,7 @@
     const pausedCountEl = options.pausedCountEl || documentObj.querySelector('#paused-count');
     const btnResumeBanner = options.btnResumeBanner || documentObj.querySelector('#btn-resume-banner');
     const btnClear = options.btnClear || documentObj.querySelector('#btn-clear');
+    const btnDeleteHistory = options.btnDeleteHistory || documentObj.querySelector('#btn-delete-history');
     const btnScrollBottom = options.btnScrollBottom || documentObj.querySelector('#btn-scroll-bottom');
     const unreadCountBadge = options.unreadCountBadge || documentObj.querySelector('#unread-count-badge');
     const appVariant = options.appVariant || monitorIpc?.appVariant || null;
@@ -1175,6 +1176,7 @@
     function clearView() {
       if (messagesList) messagesList.innerHTML = '';
       allMessages.length = 0;
+      seenMessageIds.clear();
       pausedQueue.length = 0;
       pausedTechCountedIds.clear();
       unreadTotal = 0;
@@ -1191,11 +1193,32 @@
       if (btnScrollBottom) btnScrollBottom.style.display = 'none';
       if (pausedCountEl) pausedCountEl.textContent = '0';
       updateBadges();
-      updateEmptyOrNoResultsState(0);
+      if (emptyState) emptyState.style.display = 'flex';
+      if (noResultsState) noResultsState.style.display = 'none';
       setStatus('waiting', 'Ожидание сообщений');
       if (isUserContextOpen()) {
         renderUserContext(true);
       }
+    }
+
+    async function deleteHistory() {
+      const confirmFn = (typeof windowObj?.confirm === 'function')
+        ? windowObj.confirm
+        : (typeof confirm === 'function' ? confirm : null);
+      if (confirmFn && !confirmFn('Удалить сохранённую историю сообщений на сервере? Это действие нельзя отменить.')) {
+        return;
+      }
+      try {
+        const fetchFn = options.fetch || (typeof fetch !== 'undefined' ? fetch : null);
+        if (fetchFn) {
+          await fetchFn(`${apiOrigin}/history`, { method: 'DELETE' });
+        }
+      } catch (err) {
+        console.warn('Failed to delete history on server:', err);
+      }
+      allMessages.length = 0;
+      seenMessageIds.clear();
+      clearView();
     }
 
     async function toggleAlwaysOnTop() {
@@ -1734,6 +1757,10 @@
       btnClear.addEventListener('click', clearView);
     }
 
+    if (btnDeleteHistory) {
+      btnDeleteHistory.addEventListener('click', deleteHistory);
+    }
+
     if (btnAot) {
       btnAot.addEventListener('click', toggleAlwaysOnTop);
     }
@@ -1772,7 +1799,7 @@
       try {
         const fetchFn = options.fetch || (typeof fetch !== 'undefined' ? fetch : null);
         if (fetchFn) {
-          const res = await fetchFn(`${apiOrigin}/history`);
+          const res = await fetchFn(`${apiOrigin}/history?limit=${HISTORY_INITIAL_LIMIT}`);
           if (res && res.ok) {
             const data = await res.json();
             if (Array.isArray(data)) {
@@ -1893,6 +1920,7 @@
       resume,
       togglePause,
       clearView,
+      deleteHistory,
       toggleAlwaysOnTop,
       scrollToBottom,
       openUserContext,

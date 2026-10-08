@@ -9,7 +9,10 @@ const testPort = 17395;
 process.env.BOOSTY_OVERLAY_PORT = String(testPort);
 const tmpConfig = path.join(__dirname, '..', 'overlay-settings-pipeline-test.json');
 process.env.BOOSTY_OVERLAY_CONFIG = tmpConfig;
+const tmpHistory = path.join(__dirname, '..', 'chat-history-pipeline-test.json');
+process.env.BOOSTY_OVERLAY_HISTORY = tmpHistory;
 try { fs.unlinkSync(tmpConfig); } catch {}
+try { fs.unlinkSync(tmpHistory); } catch {}
 
 const { server, host } = require('../server.js');
 
@@ -227,4 +230,5 @@ test('Message Pipeline: Extension WebSocket Data Plane MESSAGE routing', async (
 test.after(() => {
   server.close();
   try { fs.unlinkSync(tmpConfig); } catch {}
+  try { fs.unlinkSync(tmpHistory); } catch {}
 });

@@ -264,6 +264,55 @@ function registerIpcHandlers(deps = {}) {
       return { ok: false, error: err.message };
     }
   });
+
+  // --- Configuration Export & Import Channels ---
+  ipcMain.handle('export-settings-file', async (_event, payloadString, suggestedName = 'boosty-overlay-settings.json') => {
+    const dialog = deps.dialog || (() => {
+      try { return require('electron').dialog; } catch { return null; }
+    })();
+    const fs = require('node:fs');
+    if (!dialog || typeof dialog.showSaveDialog !== 'function') {
+      return { ok: false, error: 'Dialog API unavailable' };
+    }
+    const res = await dialog.showSaveDialog({
+      title: 'Экспорт настроек Boosty Chat Overlay',
+      defaultPath: suggestedName,
+      filters: [{ name: 'JSON настройки', extensions: ['json'] }],
+    });
+    if (res.canceled || !res.filePath) {
+      return { ok: false, canceled: true };
+    }
+    try {
+      fs.writeFileSync(res.filePath, payloadString, 'utf8');
+      return { ok: true, filePath: res.filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('import-settings-file', async () => {
+    const dialog = deps.dialog || (() => {
+      try { return require('electron').dialog; } catch { return null; }
+    })();
+    const fs = require('node:fs');
+    if (!dialog || typeof dialog.showOpenDialog !== 'function') {
+      return { ok: false, error: 'Dialog API unavailable' };
+    }
+    const res = await dialog.showOpenDialog({
+      title: 'Импорт настроек Boosty Chat Overlay',
+      filters: [{ name: 'JSON настройки', extensions: ['json'] }],
+      properties: ['openFile'],
+    });
+    if (res.canceled || !res.filePaths || res.filePaths.length === 0) {
+      return { ok: false, canceled: true };
+    }
+    try {
+      const content = fs.readFileSync(res.filePaths[0], 'utf8');
+      return { ok: true, content, filePath: res.filePaths[0] };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
 }
 
 module.exports = {

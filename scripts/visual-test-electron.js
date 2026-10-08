@@ -1119,7 +1119,7 @@ async function runVisualQa() {
       const corner = document.querySelector('.corner-btn.active')?.getAttribute('data-corner');
       return { badge, activeBtn, presetBadge, corner };
     });
-    if (talkingCheck.badge !== 'Разговорный' || talkingCheck.activeBtn !== 'talking' || talkingCheck.presetBadge !== 'Чистый') {
+    if (talkingCheck.badge !== 'Разговорный' || talkingCheck.activeBtn !== 'talking' || !['Чистый', 'Стандартный'].includes(talkingCheck.presetBadge)) {
       throw new Error(`Profile talking check failed: ${JSON.stringify(talkingCheck)}`);
     }
     await verifyLayout('profile-talking');

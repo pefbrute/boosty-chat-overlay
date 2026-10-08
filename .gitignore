@@ -18,8 +18,12 @@ artifacts/
 # Runtime configuration & local user data
 overlay-settings.json
 obs-target.json
+chat-history-resilience.json
+opportunities.json
 *.local
 .playwright-cli/
+.agents/skills/*
+!.agents/skills/boosty-overlay-dev
 
 # Logs
 *.log

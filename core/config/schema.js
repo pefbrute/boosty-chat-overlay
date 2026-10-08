@@ -112,8 +112,8 @@ function normalizeConfig(input, current = defaultConfig) {
   );
 
   return {
-    durationSeconds: Math.round(number(input?.durationSeconds, 0, 120, base.durationSeconds ?? 20)),
-    maxMessages: Math.round(number(input?.maxMessages, 1, 20, base.maxMessages ?? 6)),
+    durationSeconds: Math.round(number(input?.durationSeconds, 0, 120, base.durationSeconds ?? defaultConfig.durationSeconds ?? 0)),
+    maxMessages: Math.round(number(input?.maxMessages, 1, 50, base.maxMessages ?? defaultConfig.maxMessages ?? 10)),
     fontSize: Math.round(number(input?.fontSize, 12, 48, base.fontSize ?? 21)),
     authorFontSize: Math.round(number(input?.authorFontSize, 12, 28, base.authorFontSize ?? 16)),
     cardWidth: Math.round(number(input?.cardWidth, 280, 760, base.cardWidth ?? 520)),

@@ -14,8 +14,8 @@ if (typeof window !== 'undefined') {
 }
 
 let config = {
-  durationSeconds: 20,
-  maxMessages: 6,
+  durationSeconds: 0,
+  maxMessages: 10,
   fontSize: 21,
   accentColor: '#f15f2c',
   backgroundOpacity: 88,

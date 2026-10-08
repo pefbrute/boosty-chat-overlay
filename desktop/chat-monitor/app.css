@@ -266,6 +266,12 @@ html, body {
   color: #60a5fa;
 }
 
+.header-btn.btn-danger-action:hover {
+  background-color: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
 /* 1.5. ATTENTION TOOLBAR & SEARCH */
 .monitor-toolbar {
   display: flex;
@@ -1072,6 +1078,10 @@ html, body {
   font-weight: 600;
   color: #c0c7d1;
   flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reply-text {
@@ -1409,6 +1419,14 @@ html, body {
   .chat-item {
     padding: 3px 4px;
     gap: 5px;
+  }
+
+  .chat-author {
+    max-width: 110px;
+  }
+
+  .reply-author {
+    max-width: 90px;
   }
 
   :root {

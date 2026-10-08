@@ -103,6 +103,9 @@ const files = [
   'scripts/live-soak-monitor.js',
   'scripts/reproduce-real-lifecycle.js',
   'scripts/security/audit.js',
+  'scripts/verify-preflight.js',
+  'scripts/qa/winda-sync.js',
+  'scripts/visual-test-extension-url.js',
   'test/release-security.test.js',
 ];
 

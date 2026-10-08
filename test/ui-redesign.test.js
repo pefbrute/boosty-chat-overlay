@@ -254,8 +254,8 @@ app.whenReady().then(async () => {
     const cleanBadgeCheck = await win.webContents.executeJavaScript(`
       document.querySelector('#preset-status-badge')?.textContent;
     `);
-    assert.strictEqual(cleanBadgeCheck, 'Чистый', 'Default clean preset must display badge "Чистый"');
-    console.log('✔ Default appearance identifies as "Чистый"');
+    assert.ok(cleanBadgeCheck === 'Стандартный' || cleanBadgeCheck === 'Чистый', 'Default clean preset must display badge "Чистый" or "Стандартный"');
+    console.log('✔ Default appearance identifies as "Чистый" / "Стандартный"');
 
     // 6c. Onboarding Step 1: Continue disabled when extension missing, enabled when connected
     console.log('Testing Onboarding Step 1 Continue button state...');

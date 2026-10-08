@@ -16,7 +16,7 @@ let retryAttempt = 0;
 const backgroundStartTime = Date.now();
 
 function getExtensionVersion() {
-  return (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.5.2';
+  return (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '0.5.3';
 }
 
 function getExtensionId() {

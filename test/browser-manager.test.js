@@ -117,7 +117,7 @@ test('prepareBrowserExtension and copyExtensionsUrl', () => {
   // Copy extensions URL
   const copyRes = mgr.copyExtensionsUrl('brave');
   assert.equal(copyRes.ok, true);
-  assert.equal(copyRes.url, 'brave://extensions/');
+  assert.equal(copyRes.url, 'brave://extensions');
 });
 
 test('openPreferredBrowser falls back to shell.openExternal when no browser found', async () => {

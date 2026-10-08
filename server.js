@@ -15,6 +15,7 @@ const { createSseHub } = require('./core/sse/hub.js');
 const host = '127.0.0.1';
 const port = Number(process.env.BOOSTY_OVERLAY_PORT || 17369);
 const configFile = process.env.BOOSTY_OVERLAY_CONFIG || path.join(__dirname, 'overlay-settings.json');
+const historyFile = process.env.BOOSTY_OVERLAY_HISTORY || path.join(path.dirname(configFile), 'chat-history.json');
 
 function getBundledExtensionVersion() {
   try {
@@ -24,14 +25,15 @@ function getBundledExtensionVersion() {
       if (manifest.version) return manifest.version;
     }
   } catch {}
-  return appVersion || '0.5.2';
+  return appVersion || '0.5.3';
 }
 const bundledExtensionVersion = getBundledExtensionVersion();
 
 const serverStartedAt = Date.now();
 const configStore = createConfigStore({ configFile });
 const healthTracker = createHealthTracker({ appVersion, bundledExtensionVersion, serverStartedAt });
-const messageHistory = createMessageHistory({ maxHistory: 50 });
+const maxHistoryLimit = Number(process.env.BOOSTY_MAX_HISTORY) || 1000;
+const messageHistory = createMessageHistory({ maxHistory: maxHistoryLimit, storageFile: historyFile });
 const messageDedup = createMessageDedup({ ttlMs: 5000 });
 const sseHub = createSseHub();
 
@@ -67,7 +69,7 @@ const server = http.createServer((request, response) => {
   if (request.method === 'OPTIONS') {
     response.writeHead(204, {
       'Access-Control-Allow-Headers': 'Content-Type, Access-Control-Allow-Private-Network',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Private-Network': 'true',
     });
@@ -101,7 +103,14 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/history') {
-    return sendJson(response, 200, messageHistory.getAll());
+    const limitParam = url.searchParams.get('limit');
+    const limit = (limitParam && Number.isFinite(Number(limitParam))) ? Number(limitParam) : null;
+    return sendJson(response, 200, messageHistory.getAll(limit));
+  }
+
+  if (request.method === 'DELETE' && url.pathname === '/history') {
+    messageHistory.clear();
+    return sendJson(response, 200, { ok: true, cleared: true });
   }
 
   if (request.method === 'GET' && url.pathname === '/config') {
@@ -405,6 +414,7 @@ module.exports = {
   sseHub,
   healthTracker,
   configStore,
+  messageHistory,
   defaultConfig,
   normalizeConfig,
   normalizedConfig,

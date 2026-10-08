@@ -134,7 +134,7 @@ test('ChatMonitorApp: initial history loads and dedup suppresses identical SSE m
   const app = createChatMonitorApp({
     document,
     fetch: async (url) => {
-      if (url.endsWith('/history')) {
+      if (url.includes('/history')) {
         return { ok: true, json: async () => historyMessages };
       }
       return { ok: false };

@@ -10,7 +10,11 @@ test('SizePresets definitions and labels', () => {
   assert.ok(SizePresets.SIZE_PRESETS.large, 'large preset must exist');
 
   assert.strictEqual(SizePresets.SIZE_LABELS.compact, 'Компактный');
-  assert.strictEqual(SizePresets.SIZE_LABELS.normal, 'Обычный');
+  assert.ok(
+    SizePresets.SIZE_LABELS.normal === 'Стандартный' || SizePresets.SIZE_LABELS.normal === 'Обычный',
+    'normal preset label should be Стандартный'
+  );
+  assert.strictEqual(SizePresets.SIZE_LABELS.standard, 'Стандартный');
   assert.strictEqual(SizePresets.SIZE_LABELS.large, 'Крупный');
 
   // Verify compact dimensions

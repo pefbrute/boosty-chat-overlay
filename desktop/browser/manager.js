@@ -11,6 +11,7 @@ const {
   SUPPORTED_BROWSERS,
   getBrowserMetadata,
   getExtensionsUrlForBrowser,
+  getCleanExtensionsUrlForBrowser,
 } = require('./metadata.js');
 
 function extractExecFromDesktopFile(filePath, fsModule) {
@@ -343,22 +344,39 @@ function createBrowserManager(options = {}) {
       const browser = getInstalledBrowsers().find(candidate => candidate.id === browserId);
       if (!browser) return { ok: false, error: 'Выбранный браузер не найден' };
 
+      const meta = getBrowserMetadata(browserId);
+      const cleanUrl = meta?.extensionsUrlDisplay || getCleanExtensionsUrlForBrowser(browserId);
+
       if (clipboardMod && typeof clipboardMod.writeText === 'function') {
-        clipboardMod.writeText(browser.extensionsUrl);
+        clipboardMod.writeText(cleanUrl);
       }
 
       console.log(`[openBrowserExtensionsPage] browserId=${browser.id}, exe="${browser.command}", managerUrl="${browser.extensionsUrl}"`);
 
-      openPreferredBrowser(browser.extensionsUrl, browser.id).catch(err => {
-        console.error(`[openBrowserExtensionsPage] failed to open extensions page:`, err);
-      });
+      let launchError = null;
+      try {
+        openPreferredBrowser(browser.extensionsUrl, browser.id).catch(err => {
+          console.error(`[openBrowserExtensionsPage] failed to open extensions page:`, err);
+        });
+      } catch (err) {
+        launchError = err?.message || String(err);
+      }
 
-      return { ok: true, browser: browser.name, managerUrl: browser.extensionsUrl };
+      if (launchError) {
+        return { ok: false, error: launchError, browser: browser.name, managerUrl: cleanUrl };
+      }
+
+      return {
+        ok: true,
+        browser: browser.name,
+        managerUrl: cleanUrl,
+        notice: 'Браузер запущен. Если страница расширений не открылась сама, вставьте скопированный адрес в адресную строку.',
+      };
     },
 
     copyExtensionsUrl(browserId) {
-      const browser = getInstalledBrowsers().find(candidate => candidate.id === browserId);
-      const url = browser?.extensionsUrl || getExtensionsUrlForBrowser(browserId) || 'chrome://extensions/';
+      const meta = getBrowserMetadata(browserId);
+      const url = meta?.extensionsUrlDisplay || getCleanExtensionsUrlForBrowser(browserId);
       if (clipboardMod && typeof clipboardMod.writeText === 'function') {
         clipboardMod.writeText(url);
       }

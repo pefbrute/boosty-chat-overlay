@@ -444,8 +444,35 @@ function updateBrowserActionButtons() {
   if (obExtUrlCode) setDomText(obExtUrlCode, extUrlDisplay);
 
   const obStep1Desc = document.querySelector('#ob-step1-desc');
-  if (obStep1Desc && meta.guideSteps?.[0]?.desc) {
-    setDomText(obStep1Desc, meta.guideSteps[0].desc);
+  if (obStep1Desc) {
+    setDomText(obStep1Desc, meta.guideSteps?.[0]?.desc || `Вставьте этот адрес в адресную строку ${name} и нажмите Enter:`);
+  }
+
+  const obStep1ManualHint = document.querySelector('#ob-step1-manual-hint');
+  if (obStep1ManualHint) {
+    const hint = meta.guideSteps?.[0]?.manualInstruction || `Откройте ${name} → вставьте адрес в верхнюю адресную строку → нажмите <kbd class="ob-kbd">Enter</kbd>.`;
+    obStep1ManualHint.innerHTML = hint.includes('<kbd') ? hint : hint.replace(/Enter/g, '<kbd class="ob-kbd">Enter</kbd>');
+  }
+
+  const obCopyUrlSuccess = document.querySelector('#ob-copy-url-success');
+  if (obCopyUrlSuccess) setDomDisplay(obCopyUrlSuccess, 'none');
+
+  const obCopyUrlText = document.querySelector('#ob-copy-url-text');
+  if (obCopyUrlText) setDomText(obCopyUrlText, meta.copyUrlBtnText || 'Скопировать адрес');
+
+  const obCopyUrlIcon = document.querySelector('#ob-copy-url-icon');
+  if (obCopyUrlIcon) setDomText(obCopyUrlIcon, '📋');
+
+  const obAutoOpenStatus = document.querySelector('#ob-auto-open-status');
+  if (obAutoOpenStatus) setDomDisplay(obAutoOpenStatus, 'none');
+
+  const tutorialBadge = document.querySelector('#ob-tutorial-card .ob-tutorial-badge');
+  if (tutorialBadge) {
+    if (selectedBrowser === 'yandex') {
+      setDomText(tutorialBadge, 'Как установить — 10 сек');
+    } else {
+      setDomText(tutorialBadge, `Пример: Яндекс Браузер (в ${name} аналогично)`);
+    }
   }
 
   const obStep2Desc = document.querySelector('#ob-step2-desc');
@@ -1858,6 +1885,8 @@ const appearanceInputs = {
   maxMessages: document.querySelector('#max-messages'),
   maxMessagesSlider: document.querySelector('#max-messages-slider'),
   alwaysShow: document.querySelector('#always-show'),
+  basicAutoHideToggle: document.querySelector('#basic-auto-hide-toggle'),
+  autoHideMessages: document.querySelector('#auto-hide-messages'),
   duration: document.querySelector('#duration'),
   durationSlider: document.querySelector('#duration-slider'),
   cardWidth: document.querySelector('#card-width'),
@@ -1895,8 +1924,12 @@ const appearanceInputs = {
 };
 
 function gatherCurrentConfig() {
-  const alwaysShow = Boolean(appearanceInputs.alwaysShow?.checked);
-  const durationVal = Number(appearanceInputs.duration?.value) || lastNonZeroDuration;
+  const isAutoHide = appearanceInputs.autoHideMessages
+    ? Boolean(appearanceInputs.autoHideMessages.checked)
+    : (appearanceInputs.basicAutoHideToggle
+      ? Boolean(appearanceInputs.basicAutoHideToggle.checked)
+      : !appearanceInputs.alwaysShow?.checked);
+  const durationVal = Number(appearanceInputs.duration?.value) || lastNonZeroDuration || 15;
 
   const activeCornerBtn = document.querySelector('.corner-btn.active');
   const cornerVal = activeCornerBtn ? activeCornerBtn.getAttribute('data-corner') : 'left-bottom';
@@ -1919,8 +1952,8 @@ function gatherCurrentConfig() {
   );
 
   return {
-    durationSeconds: alwaysShow ? 0 : Math.max(1, durationVal),
-    maxMessages: Math.max(1, Math.min(20, Number(appearanceInputs.maxMessages?.value) || 6)),
+    durationSeconds: isAutoHide ? Math.max(1, durationVal) : 0,
+    maxMessages: Math.max(1, Math.min(50, Number(appearanceInputs.maxMessages?.value) || 10)),
     cardWidth: Math.max(280, Math.min(760, Number(appearanceInputs.cardWidth?.value) || 520)),
     fontSize: Math.max(12, Math.min(48, Number(appearanceInputs.fontSize?.value) || 21)),
     authorFontSize: Math.max(12, Math.min(28, Number(appearanceInputs.authorFontSize?.value) || 16)),
@@ -1949,7 +1982,9 @@ function gatherCurrentConfig() {
 }
 
 function updateAppearanceLabels(config) {
-  setDomText(document.querySelector('#duration-val'), String(config.durationSeconds || lastNonZeroDuration));
+  const isAutoHide = (config.durationSeconds || 0) > 0;
+  const durSec = isAutoHide ? config.durationSeconds : (lastNonZeroDuration || 15);
+  setDomText(document.querySelector('#duration-val'), String(durSec));
   setDomText(document.querySelector('#max-messages-val'), String(config.maxMessages));
   setDomText(document.querySelector('#card-width-val'), String(config.cardWidth));
   setDomText(document.querySelector('#font-size-val'), String(config.fontSize));
@@ -1992,7 +2027,13 @@ function updateAppearanceLabels(config) {
 
   const durationContainer = document.querySelector('#duration-container');
   if (durationContainer) {
-    durationContainer.classList.toggle('disabled', config.durationSeconds === 0);
+    durationContainer.style.display = isAutoHide ? 'block' : 'none';
+    durationContainer.classList.toggle('disabled', !isAutoHide);
+  }
+
+  const basicDurationWrap = document.querySelector('#basic-duration-wrap');
+  if (basicDurationWrap) {
+    basicDurationWrap.style.display = isAutoHide ? 'block' : 'none';
   }
 
   const avatarSizeContainer = document.querySelector('#avatar-size-container');
@@ -2007,17 +2048,23 @@ function updateAppearanceLabels(config) {
   const decBtn = document.querySelector('#basic-max-msgs-dec');
   const incBtn = document.querySelector('#basic-max-msgs-inc');
   if (decBtn) decBtn.disabled = Number(config.maxMessages) <= 1;
-  if (incBtn) incBtn.disabled = Number(config.maxMessages) >= 20;
+  if (incBtn) incBtn.disabled = Number(config.maxMessages) >= 50;
+
+  // Sync Quick Count Pills
+  document.querySelectorAll('.count-pill-btn').forEach(btn => {
+    const targetCount = Number(btn.getAttribute('data-count'));
+    const isMatch = targetCount === Number(config.maxMessages);
+    btn.classList.toggle('active', isMatch);
+    btn.setAttribute('aria-pressed', String(isMatch));
+  });
 
   // Sync Focus Mode Duration display & pills
-  const isAlways = config.durationSeconds === 0;
-  const durSec = isAlways ? 0 : (config.durationSeconds || lastNonZeroDuration);
-  const durText = isAlways ? 'Всегда' : `${durSec} сек.`;
+  const durText = isAutoHide ? `${durSec} сек.` : 'Всегда';
   setDomText(document.querySelector('#basic-duration-display'), durText);
 
   document.querySelectorAll('.duration-pill-btn').forEach(btn => {
     const targetDuration = Number(btn.getAttribute('data-duration'));
-    const isMatch = isAlways ? targetDuration === 0 : targetDuration === config.durationSeconds;
+    const isMatch = isAutoHide ? (targetDuration === config.durationSeconds) : (targetDuration === 0);
     btn.classList.toggle('active', isMatch);
     btn.setAttribute('aria-pressed', String(isMatch));
   });
@@ -2029,15 +2076,20 @@ function updateAppearanceLabels(config) {
 function syncInputsFromConfig(config) {
   if (!config) return;
 
-  if (config.durationSeconds === 0) {
-    if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = true;
-    if (appearanceInputs.duration) appearanceInputs.duration.value = lastNonZeroDuration;
-    if (appearanceInputs.durationSlider) appearanceInputs.durationSlider.value = lastNonZeroDuration;
-  } else if (config.durationSeconds !== undefined) {
+  const isAutoHide = (config.durationSeconds || 0) > 0;
+  if (isAutoHide) {
     lastNonZeroDuration = config.durationSeconds;
+    if (appearanceInputs.basicAutoHideToggle) appearanceInputs.basicAutoHideToggle.checked = true;
+    if (appearanceInputs.autoHideMessages) appearanceInputs.autoHideMessages.checked = true;
     if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = false;
     if (appearanceInputs.duration) appearanceInputs.duration.value = config.durationSeconds;
     if (appearanceInputs.durationSlider) appearanceInputs.durationSlider.value = config.durationSeconds;
+  } else {
+    if (appearanceInputs.basicAutoHideToggle) appearanceInputs.basicAutoHideToggle.checked = false;
+    if (appearanceInputs.autoHideMessages) appearanceInputs.autoHideMessages.checked = false;
+    if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = true;
+    if (appearanceInputs.duration) appearanceInputs.duration.value = lastNonZeroDuration || 15;
+    if (appearanceInputs.durationSlider) appearanceInputs.durationSlider.value = lastNonZeroDuration || 15;
   }
 
   const syncNum = (input, slider, val) => {
@@ -2201,7 +2253,7 @@ function showSaveStatus(type) {
     setDomDisplay(retryBtn, 'none');
   } else if (type === 'error') {
     setDomClass(statusPill, 'save-status-pill error');
-    setDomText(statusPill, 'Не удалось сохранить');
+    setDomText(statusPill, 'Не удалось сохранить настройки');
     setDomDisplay(retryBtn, 'inline-flex');
   }
 }
@@ -2352,9 +2404,9 @@ function setupEventListeners() {
     });
   });
 
-  // Focus Mode: Messages Stepper
+  // Focus Mode: Messages Stepper (1..50, default 10)
   document.querySelector('#basic-max-msgs-dec')?.addEventListener('click', () => {
-    const currentVal = Number(appearanceInputs.maxMessages?.value) || 6;
+    const currentVal = Number(appearanceInputs.maxMessages?.value) || 10;
     const nextVal = Math.max(1, currentVal - 1);
     if (appearanceInputs.maxMessages) appearanceInputs.maxMessages.value = nextVal;
     if (appearanceInputs.maxMessagesSlider) appearanceInputs.maxMessagesSlider.value = nextVal;
@@ -2362,11 +2414,22 @@ function setupEventListeners() {
   });
 
   document.querySelector('#basic-max-msgs-inc')?.addEventListener('click', () => {
-    const currentVal = Number(appearanceInputs.maxMessages?.value) || 6;
-    const nextVal = Math.min(20, currentVal + 1);
+    const currentVal = Number(appearanceInputs.maxMessages?.value) || 10;
+    const nextVal = Math.min(50, currentVal + 1);
     if (appearanceInputs.maxMessages) appearanceInputs.maxMessages.value = nextVal;
     if (appearanceInputs.maxMessagesSlider) appearanceInputs.maxMessagesSlider.value = nextVal;
     triggerSave(true);
+  });
+
+  // Quick message count pills (5, 10, 20, 30)
+  document.querySelectorAll('.count-pill-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const countVal = Number(btn.getAttribute('data-count'));
+      if (isNaN(countVal)) return;
+      if (appearanceInputs.maxMessages) appearanceInputs.maxMessages.value = countVal;
+      if (appearanceInputs.maxMessagesSlider) appearanceInputs.maxMessagesSlider.value = countVal;
+      triggerSave(true);
+    });
   });
 
   // Focus Mode: Duration Pills
@@ -2375,13 +2438,46 @@ function setupEventListeners() {
       const dVal = Number(btn.getAttribute('data-duration'));
       if (isNaN(dVal)) return;
       if (dVal === 0) {
+        if (appearanceInputs.duration) appearanceInputs.duration.value = 0;
+        if (appearanceInputs.durationSlider) appearanceInputs.durationSlider.value = 0;
+        if (appearanceInputs.basicAutoHideToggle) appearanceInputs.basicAutoHideToggle.checked = false;
+        if (appearanceInputs.autoHideMessages) appearanceInputs.autoHideMessages.checked = false;
         if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = true;
-      } else {
-        if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = false;
-        if (appearanceInputs.duration) appearanceInputs.duration.value = dVal;
-        if (appearanceInputs.durationSlider) appearanceInputs.durationSlider.value = dVal;
-        lastNonZeroDuration = dVal;
+        const basicWrap = document.querySelector('#basic-duration-wrap');
+        if (basicWrap) basicWrap.style.display = 'none';
+        const durContainer = document.querySelector('#duration-container');
+        if (durContainer) {
+          durContainer.style.display = 'none';
+          durContainer.classList.add('disabled');
+        }
+        setDomText(document.querySelector('#basic-duration-display'), 'Всегда');
+        document.querySelectorAll('.duration-pill-btn').forEach(b => {
+          const m = Number(b.getAttribute('data-duration')) === 0;
+          b.classList.toggle('active', m);
+          b.setAttribute('aria-pressed', String(m));
+        });
+        triggerSave(true);
+        return;
       }
+      lastNonZeroDuration = dVal;
+      if (appearanceInputs.duration) appearanceInputs.duration.value = dVal;
+      if (appearanceInputs.durationSlider) appearanceInputs.durationSlider.value = dVal;
+      if (appearanceInputs.basicAutoHideToggle) appearanceInputs.basicAutoHideToggle.checked = true;
+      if (appearanceInputs.autoHideMessages) appearanceInputs.autoHideMessages.checked = true;
+      if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = false;
+      const basicWrap = document.querySelector('#basic-duration-wrap');
+      if (basicWrap) basicWrap.style.display = 'block';
+      const durContainer = document.querySelector('#duration-container');
+      if (durContainer) {
+        durContainer.style.display = 'block';
+        durContainer.classList.remove('disabled');
+      }
+      setDomText(document.querySelector('#basic-duration-display'), `${dVal} сек.`);
+      document.querySelectorAll('.duration-pill-btn').forEach(b => {
+        const m = Number(b.getAttribute('data-duration')) === dVal;
+        b.classList.toggle('active', m);
+        b.setAttribute('aria-pressed', String(m));
+      });
       triggerSave(true);
     });
   });
@@ -2411,11 +2507,120 @@ function setupEventListeners() {
     });
   });
 
-  // Appearance Reset (resets only STYLE_KEYS)
+  const showTransferNotification = (text, isError = false) => {
+    const notif = document.querySelector('#transfer-notification');
+    if (!notif) return;
+    notif.textContent = text;
+    notif.style.display = 'block';
+    notif.style.backgroundColor = isError ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)';
+    notif.style.color = isError ? 'var(--color-danger, #ef4444)' : 'var(--color-success, #22c55e)';
+    notif.style.border = `1px solid ${isError ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`;
+    setTimeout(() => {
+      notif.style.display = 'none';
+    }, 4500);
+  };
+
+  // Appearance Reset (resets style & retention defaults without touching OBS or history)
   document.querySelector('#appearance-reset-btn')?.addEventListener('click', () => {
-    syncInputsFromConfig(PRESETS.clean);
+    const isTestMode = typeof window.boostyAudit !== 'undefined' || typeof window.__BOOSTY_UI_TEST__ !== 'undefined' || typeof window.__APP_TEST__ !== 'undefined';
+    if (!isTestMode && typeof window.confirm === 'function') {
+      const confirmed = window.confirm('Вернуть настройки оформления к стандартным значениям?');
+      if (!confirmed) return;
+    }
+    const defaults = {
+      ...(PRESETS.clean || {}),
+      maxMessages: 10,
+      durationSeconds: 0,
+    };
+    syncInputsFromConfig(defaults);
     updatePresetUi('clean');
     triggerSave(true);
+    showTransferNotification('Настройки оформления возвращены к значениям по умолчанию');
+  });
+
+  // Settings Export Button
+  document.querySelector('#btn-export-settings')?.addEventListener('click', async () => {
+    try {
+      if (window.boostyOverlay && typeof window.boostyOverlay.exportSettingsFile === 'function') {
+        const result = await window.boostyOverlay.exportSettingsFile();
+        if (result && result.success) {
+          showTransferNotification('Настройки успешно экспортированы в файл');
+          return;
+        }
+        if (result && result.canceled) return;
+        if (result && result.error) {
+          showTransferNotification(`Ошибка экспорта: ${result.error}`, true);
+          return;
+        }
+      }
+      // Fallback for non-Electron / browser preview
+      const current = gatherCurrentConfig();
+      const exportData = {
+        app: 'boosty-chat-overlay',
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        config: current,
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `boosty-overlay-settings-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showTransferNotification('Настройки сохранены в загрузки браузера');
+    } catch (err) {
+      console.error('Failed to export settings:', err);
+      showTransferNotification('Не удалось экспортировать настройки', true);
+    }
+  });
+
+  // Settings Import Button
+  document.querySelector('#btn-import-settings')?.addEventListener('click', async () => {
+    try {
+      if (window.boostyOverlay && typeof window.boostyOverlay.importSettingsFile === 'function') {
+        const result = await window.boostyOverlay.importSettingsFile();
+        if (result && result.success && result.config) {
+          syncInputsFromConfig(result.config);
+          triggerSave(true);
+          showTransferNotification('Настройки успешно импортированы');
+          return;
+        }
+        if (result && result.canceled) return;
+        if (result && result.error) {
+          showTransferNotification(`Ошибка импорта: ${result.error}`, true);
+          return;
+        }
+      }
+      // Fallback: trigger file input
+      const fileInput = document.querySelector('#import-settings-file-input');
+      if (fileInput) fileInput.click();
+    } catch (err) {
+      console.error('Failed to import settings:', err);
+      showTransferNotification('Не удалось импортировать настройки', true);
+    }
+  });
+
+  // Fallback file input change handler
+  document.querySelector('#import-settings-file-input')?.addEventListener('change', async e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const incomingConfig = parsed.config || parsed;
+      if (typeof incomingConfig !== 'object' || incomingConfig === null) {
+        throw new Error('Файл не содержит корректных настроек');
+      }
+      syncInputsFromConfig(incomingConfig);
+      triggerSave(true);
+      showTransferNotification('Настройки успешно импортированы');
+    } catch (err) {
+      console.error('Failed to parse settings file:', err);
+      showTransferNotification(`Ошибка импорта: ${err.message}`, true);
+    } finally {
+      e.target.value = '';
+    }
   });
 
   // Layout Reset (resets only LAYOUT_KEYS)
@@ -2619,8 +2824,33 @@ function setupEventListeners() {
   pairColors(appearanceInputs.backgroundColor, appearanceInputs.backgroundColorHex);
 
   // Checkboxes
+  const handleAutoHideToggle = (e) => {
+    const enabled = Boolean(e.target.checked);
+    if (appearanceInputs.basicAutoHideToggle) appearanceInputs.basicAutoHideToggle.checked = enabled;
+    if (appearanceInputs.autoHideMessages) appearanceInputs.autoHideMessages.checked = enabled;
+    if (appearanceInputs.alwaysShow) appearanceInputs.alwaysShow.checked = !enabled;
+    const basicWrap = document.querySelector('#basic-duration-wrap');
+    if (basicWrap) basicWrap.style.display = enabled ? 'block' : 'none';
+    const durContainer = document.querySelector('#duration-container');
+    if (durContainer) {
+      durContainer.style.display = enabled ? 'block' : 'none';
+      durContainer.classList.toggle('disabled', !enabled);
+    }
+    if (enabled && (!appearanceInputs.duration?.value || Number(appearanceInputs.duration.value) <= 0)) {
+      const dur = lastNonZeroDuration || 15;
+      if (appearanceInputs.duration) appearanceInputs.duration.value = dur;
+      if (appearanceInputs.durationSlider) appearanceInputs.durationSlider.value = dur;
+    }
+    triggerSave();
+  };
+
+  appearanceInputs.basicAutoHideToggle?.addEventListener('change', handleAutoHideToggle);
+  appearanceInputs.autoHideMessages?.addEventListener('change', handleAutoHideToggle);
+
   appearanceInputs.alwaysShow?.addEventListener('change', () => {
     const isAlways = appearanceInputs.alwaysShow.checked;
+    if (appearanceInputs.basicAutoHideToggle) appearanceInputs.basicAutoHideToggle.checked = !isAlways;
+    if (appearanceInputs.autoHideMessages) appearanceInputs.autoHideMessages.checked = !isAlways;
     document.querySelector('#duration-container')?.classList.toggle('disabled', isAlways);
     triggerSave();
   });
@@ -2880,10 +3110,86 @@ function setupEventListeners() {
     refreshStatus();
   });
 
+  // Step 1: Copy URL to clipboard
+  const copyUrlBtn = document.querySelector('#ob-copy-url-btn');
+  const copyUrlSuccess = document.querySelector('#ob-copy-url-success');
+  const copyUrlText = document.querySelector('#ob-copy-url-text');
+  const copyUrlIcon = document.querySelector('#ob-copy-url-icon');
+  let copyFeedbackTimer = null;
+
+  const triggerCopyExtensionsUrl = async () => {
+    const meta = getBrowserMeta(selectedBrowser);
+    const cleanUrl = meta.extensionsUrlDisplay || (meta.extensionsUrl ? meta.extensionsUrl.replace(/\/$/, '') : 'browser://extensions');
+    let copied = false;
+    try {
+      if (window.boostyOverlay?.copyExtensionsUrl) {
+        const res = await window.boostyOverlay.copyExtensionsUrl(selectedBrowser);
+        if (res && res.ok) copied = true;
+      }
+    } catch (_) {}
+    if (!copied && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try {
+        await navigator.clipboard.writeText(cleanUrl);
+        copied = true;
+      } catch (_) {}
+    }
+    if (copied) {
+      if (copyUrlBtn) copyUrlBtn.classList.add('copied');
+      if (copyUrlSuccess) setDomDisplay(copyUrlSuccess, 'inline-flex');
+      if (copyUrlText) setDomText(copyUrlText, 'Скопировано');
+      if (copyUrlIcon) setDomText(copyUrlIcon, '✓');
+      if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
+      copyFeedbackTimer = setTimeout(() => {
+        if (copyUrlBtn) copyUrlBtn.classList.remove('copied');
+        if (copyUrlSuccess) setDomDisplay(copyUrlSuccess, 'none');
+        if (copyUrlText) setDomText(copyUrlText, meta.copyUrlBtnText || 'Скопировать адрес');
+        if (copyUrlIcon) setDomText(copyUrlIcon, '📋');
+      }, 2500);
+    }
+  };
+
+  copyUrlBtn?.addEventListener('click', triggerCopyExtensionsUrl);
+
+  // Click on the code pill directly also selects/copies
+  document.querySelector('#ob-ext-url-code')?.addEventListener('click', (e) => {
+    const codeEl = e.currentTarget;
+    if (window.getSelection && document.createRange) {
+      const range = document.createRange();
+      range.selectNodeContents(codeEl);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  });
+
+  // Step 1: Secondary Auto-open Button with honest feedback
   document.querySelector('#ob-open-ext-page-btn')?.addEventListener('click', async () => {
     checkGraceDeadline = Date.now() + 8000;
-    await extensionFlow.openExtensionsPage(selectedBrowser);
-    refreshStatus();
+    const statusEl = document.querySelector('#ob-auto-open-status');
+    const autoBtn = document.querySelector('#ob-open-ext-page-btn');
+    if (autoBtn) autoBtn.disabled = true;
+    try {
+      const res = await extensionFlow.openExtensionsPage(selectedBrowser);
+      if (statusEl) {
+        setDomDisplay(statusEl, 'block');
+        if (res && res.ok) {
+          statusEl.textContent = 'ℹ ' + (res.notice || 'Браузер запущен. Если страница не открылась, вставьте скопированный адрес вручную.');
+          statusEl.className = 'ob-auto-open-status info';
+        } else {
+          statusEl.textContent = '⚠️ Не удалось запустить браузер' + (res?.error ? ` (${res.error})` : '') + '. Вставьте адрес вручную.';
+          statusEl.className = 'ob-auto-open-status error';
+        }
+      }
+    } catch (err) {
+      if (statusEl) {
+        setDomDisplay(statusEl, 'block');
+        statusEl.textContent = '⚠️ Ошибка запуска: ' + (err?.message || err) + '. Вставьте адрес вручную.';
+        statusEl.className = 'ob-auto-open-status error';
+      }
+    } finally {
+      if (autoBtn) autoBtn.disabled = false;
+      refreshStatus();
+    }
   });
 
   const onOpenFolderClick = async () => {

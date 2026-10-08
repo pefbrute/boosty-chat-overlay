@@ -3,8 +3,8 @@
  */
 
 const defaultConfig = {
-  durationSeconds: 20,
-  maxMessages: 6,
+  durationSeconds: 0,
+  maxMessages: 10,
   fontSize: 21,
   authorFontSize: 16,
   cardWidth: 520,

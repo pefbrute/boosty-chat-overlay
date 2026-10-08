@@ -8,9 +8,13 @@ const testPort = 17379;
 process.env.BOOSTY_OVERLAY_PORT = String(testPort);
 const tmpConfig = path.join(__dirname, '..', 'overlay-settings-test.json');
 process.env.BOOSTY_OVERLAY_CONFIG = tmpConfig;
+const tmpHistory = path.join(__dirname, '..', 'chat-history-test.json');
+process.env.BOOSTY_OVERLAY_HISTORY = tmpHistory;
+process.env.BOOSTY_MAX_HISTORY = '50';
 
-// Clean up any old test config
+// Clean up any old test config or history
 try { fs.unlinkSync(tmpConfig); } catch {}
+try { fs.unlinkSync(tmpHistory); } catch {}
 
 const { server, host } = require('../server.js');
 
@@ -318,6 +322,17 @@ async function runTests() {
   const healthAfterBatch = await request({ path: '/health', method: 'GET' });
   const healthBatchData = JSON.parse(healthAfterBatch.body);
   assert.strictEqual(healthBatchData.historyCount, 50, 'History should be capped at 50 messages');
+
+  // Test DELETE /history
+  const deleteRes = await request({ path: '/history', method: 'DELETE' });
+  assert.strictEqual(deleteRes.status, 200, 'DELETE /history should return 200');
+  const deleteData = JSON.parse(deleteRes.body);
+  assert.strictEqual(deleteData.ok, true, 'DELETE /history ok flag should be true');
+  const healthAfterDelete = await request({ path: '/health', method: 'GET' });
+  const healthDeleteData = JSON.parse(healthAfterDelete.body);
+  assert.strictEqual(healthDeleteData.historyCount, 0, 'History should be 0 after DELETE');
+  console.log('✔ DELETE /history endpoint passed');
+
   // 11. Legacy config migration without rewriting disk
   const legacyConfigPath = path.join(__dirname, '..', 'overlay-settings-legacy-test.json');
   try {
@@ -344,6 +359,7 @@ runTests()
   .then(() => {
     server.close(() => {
       try { fs.unlinkSync(tmpConfig); } catch {}
+      try { fs.unlinkSync(tmpHistory); } catch {}
       process.exit(0);
     });
   })
@@ -351,6 +367,7 @@ runTests()
     console.error('Test failed:', err);
     server.close(() => {
       try { fs.unlinkSync(tmpConfig); } catch {}
+      try { fs.unlinkSync(tmpHistory); } catch {}
       process.exit(1);
     });
   });

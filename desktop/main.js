@@ -176,6 +176,9 @@ if (!gotSingleInstanceLock) {
 
   app.on('before-quit', () => {
     obsService.destroy().catch(() => {});
+    try {
+      serverModule?.messageHistory?.flush?.();
+    } catch {}
     localServer?.close();
   });
 }

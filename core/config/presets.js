@@ -93,8 +93,11 @@
     'shadow',
   ];
 
+  PRESETS.standard = PRESETS.clean;
+
   const PRESET_LABELS = {
-    clean: 'Чистый',
+    clean: 'Стандартный',
+    standard: 'Стандартный',
     compact: 'Компактный',
     large: 'Крупный',
     glass: 'Стекло',

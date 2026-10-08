@@ -6,8 +6,11 @@ const fs = require('node:fs');
 const testPort = 17389;
 process.env.BOOSTY_OVERLAY_PORT = String(testPort);
 const tmpConfig = path.join(__dirname, '..', 'overlay-settings-resilience.json');
+const tmpHistory = path.join(__dirname, '..', 'chat-history-resilience.json');
 process.env.BOOSTY_OVERLAY_CONFIG = tmpConfig;
+process.env.BOOSTY_OVERLAY_HISTORY = tmpHistory;
 try { fs.unlinkSync(tmpConfig); } catch {}
+try { fs.unlinkSync(tmpHistory); } catch {}
 
 const { server, host } = require('../server.js');
 

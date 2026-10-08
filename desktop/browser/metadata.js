@@ -12,7 +12,9 @@ const SUPPORTED_BROWSERS = {
     label: 'Яндекс Браузер',
     extensionsUrl: 'browser://extensions/',
     extensionsUrlDisplay: 'browser://extensions',
-    openExtensionsBtnText: '🌐 Открыть расширения Яндекс Браузера',
+    openExtensionsBtnText: 'Попробовать открыть автоматически',
+    copyUrlBtnText: 'Скопировать адрес',
+    copyUrlSuccessText: '✓ Адрес скопирован',
     openBrowserBtnText: '🌐 Открыть Яндекс Браузер',
     supportsDragDropInstall: true,
     devModeHint: 'Переключатель находится в правом верхнем углу страницы расширений.',
@@ -22,8 +24,10 @@ const SUPPORTED_BROWSERS = {
       {
         num: '①',
         title: 'Откройте страницу расширений',
-        desc: 'В Яндекс Браузере откроется вкладка со списком установленных расширений.',
-        ctaText: '🌐 Открыть расширения Яндекс Браузера',
+        desc: 'Вставьте этот адрес в адресную строку Яндекс Браузера и нажмите Enter:',
+        address: 'browser://extensions',
+        manualInstruction: 'Откройте Яндекс Браузер → вставьте адрес в верхнюю адресную строку → нажмите Enter.',
+        ctaText: 'Попробовать открыть автоматически',
       },
       {
         num: '②',
@@ -70,7 +74,9 @@ const SUPPORTED_BROWSERS = {
     label: 'Brave',
     extensionsUrl: 'brave://extensions/',
     extensionsUrlDisplay: 'brave://extensions',
-    openExtensionsBtnText: '🌐 Открыть расширения Brave',
+    openExtensionsBtnText: 'Попробовать открыть автоматически',
+    copyUrlBtnText: 'Скопировать адрес',
+    copyUrlSuccessText: '✓ Адрес скопирован',
     openBrowserBtnText: '🌐 Открыть Brave',
     supportsDragDropInstall: true,
     devModeHint: 'Переключатель находится в правом верхнем углу страницы расширений.',
@@ -80,8 +86,10 @@ const SUPPORTED_BROWSERS = {
       {
         num: '①',
         title: 'Откройте страницу расширений',
-        desc: 'В Brave откроется вкладка со списком установленных расширений.',
-        ctaText: '🌐 Открыть расширения Brave',
+        desc: 'Вставьте этот адрес в адресную строку Brave и нажмите Enter:',
+        address: 'brave://extensions',
+        manualInstruction: 'Откройте Brave → вставьте адрес в верхнюю адресную строку → нажмите Enter.',
+        ctaText: 'Попробовать открыть автоматически',
       },
       {
         num: '②',
@@ -124,7 +132,9 @@ const SUPPORTED_BROWSERS = {
     label: 'Google Chrome',
     extensionsUrl: 'chrome://extensions/',
     extensionsUrlDisplay: 'chrome://extensions',
-    openExtensionsBtnText: '🌐 Открыть расширения Chrome',
+    openExtensionsBtnText: 'Попробовать открыть автоматически',
+    copyUrlBtnText: 'Скопировать адрес',
+    copyUrlSuccessText: '✓ Адрес скопирован',
     openBrowserBtnText: '🌐 Открыть Chrome',
     supportsDragDropInstall: true,
     devModeHint: 'Переключатель находится в правом верхнем углу страницы расширений.',
@@ -134,8 +144,10 @@ const SUPPORTED_BROWSERS = {
       {
         num: '①',
         title: 'Откройте страницу расширений',
-        desc: 'В Chrome откроется вкладка со списком установленных расширений.',
-        ctaText: '🌐 Открыть расширения Chrome',
+        desc: 'Вставьте этот адрес в адресную строку Google Chrome и нажмите Enter:',
+        address: 'chrome://extensions',
+        manualInstruction: 'Откройте Google Chrome → вставьте адрес в верхнюю адресную строку → нажмите Enter.',
+        ctaText: 'Попробовать открыть автоматически',
       },
       {
         num: '②',
@@ -178,7 +190,9 @@ const SUPPORTED_BROWSERS = {
     label: 'Microsoft Edge',
     extensionsUrl: 'edge://extensions/',
     extensionsUrlDisplay: 'edge://extensions',
-    openExtensionsBtnText: '🌐 Открыть расширения Edge',
+    openExtensionsBtnText: 'Попробовать открыть автоматически',
+    copyUrlBtnText: 'Скопировать адрес',
+    copyUrlSuccessText: '✓ Адрес скопирован',
     openBrowserBtnText: '🌐 Открыть Edge',
     supportsDragDropInstall: true,
     devModeHint: 'Переключатель находится в левой боковой панели страницы расширений.',
@@ -188,8 +202,10 @@ const SUPPORTED_BROWSERS = {
       {
         num: '①',
         title: 'Откройте страницу расширений',
-        desc: 'В Edge откроется вкладка со списком установленных расширений.',
-        ctaText: '🌐 Открыть расширения Edge',
+        desc: 'Вставьте этот адрес в адресную строку Microsoft Edge и нажмите Enter:',
+        address: 'edge://extensions',
+        manualInstruction: 'Откройте Microsoft Edge → вставьте адрес в верхнюю адресную строку → нажмите Enter.',
+        ctaText: 'Попробовать открыть автоматически',
       },
       {
         num: '②',
@@ -231,7 +247,9 @@ const SUPPORTED_BROWSERS = {
     label: 'Chromium',
     extensionsUrl: 'chrome://extensions/',
     extensionsUrlDisplay: 'chrome://extensions',
-    openExtensionsBtnText: '🌐 Открыть расширения Chromium',
+    openExtensionsBtnText: 'Попробовать открыть автоматически',
+    copyUrlBtnText: 'Скопировать адрес',
+    copyUrlSuccessText: '✓ Адрес скопирован',
     openBrowserBtnText: '🌐 Открыть Chromium',
     supportsDragDropInstall: true,
     devModeHint: 'Переключатель находится в правом верхнем углу страницы расширений.',
@@ -241,8 +259,10 @@ const SUPPORTED_BROWSERS = {
       {
         num: '①',
         title: 'Откройте страницу расширений',
-        desc: 'В Chromium откроется вкладка со списком установленных расширений.',
-        ctaText: '🌐 Открыть расширения Chromium',
+        desc: 'Вставьте этот адрес в адресную строку Chromium и нажмите Enter:',
+        address: 'chrome://extensions',
+        manualInstruction: 'Откройте Chromium → вставьте адрес в верхнюю адресную строку → нажмите Enter.',
+        ctaText: 'Попробовать открыть автоматически',
       },
       {
         num: '②',
@@ -287,6 +307,11 @@ function getExtensionsUrlForBrowser(browserId) {
   return meta?.extensionsUrl || 'chrome://extensions/';
 }
 
+function getCleanExtensionsUrlForBrowser(browserId) {
+  const meta = SUPPORTED_BROWSERS[browserId];
+  return meta?.extensionsUrlDisplay || (meta ? meta.extensionsUrl.replace(/\/$/, '') : 'chrome://extensions');
+}
+
 function getSupportedBrowserList() {
   return Object.values(SUPPORTED_BROWSERS);
 }
@@ -296,6 +321,7 @@ if (typeof module !== 'undefined' && module.exports) {
     SUPPORTED_BROWSERS,
     getBrowserMetadata,
     getExtensionsUrlForBrowser,
+    getCleanExtensionsUrlForBrowser,
     getSupportedBrowserList,
   };
 } else {
@@ -303,6 +329,7 @@ if (typeof module !== 'undefined' && module.exports) {
     SUPPORTED_BROWSERS,
     getBrowserMetadata,
     getExtensionsUrlForBrowser,
+    getCleanExtensionsUrlForBrowser,
     getSupportedBrowserList,
   };
 }
