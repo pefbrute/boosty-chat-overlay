@@ -102,6 +102,8 @@ const files = [
   'scripts/measure-startup-timing.js',
   'scripts/live-soak-monitor.js',
   'scripts/reproduce-real-lifecycle.js',
+  'scripts/security/audit.js',
+  'test/release-security.test.js',
 ];
 
 const rootDir = path.resolve(__dirname, '..');
